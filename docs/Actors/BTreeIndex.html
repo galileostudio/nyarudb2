@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>BTreeIndex Actor Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a name="//apple_ref/swift/Actor/BTreeIndex" class="dashAnchor"></a>
+    <a title="BTreeIndex Actor Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="../index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="../img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="../search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="../index.html">NyaruDB2</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        <a href="../Actors.html">Actors</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        BTreeIndex Actor Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            <h1>BTreeIndex</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">BTreeIndex</span><span class="o">&lt;</span><span class="kt">Key</span><span class="o">&gt;</span> <span class="k">where</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Comparable</span><span class="p">,</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
+
+                </div>
+              </div>
+            <p>An actor-based implementation of a B-Tree index for managing and organizing data.</p>
+
+<p><code>BTreeIndex</code> is a generic class that supports keys conforming to both <code>Comparable</code>
+and <code>Codable</code> protocols. It provides thread-safe operations for indexing and 
+retrieving data in a concurrent environment.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    <p>This implementation leverages Swift&rsquo;s <code>actor</code> model to ensure data 
+consistency and thread safety.</p>
+
+</div>
+
+              <div>
+                <h4>Parameters</h4>
+                <table class="graybox">
+                  <tbody>
+                      <tr>
+                        <td>
+                          <code>
+                          <em>Key</em>
+                          </code>
+                        </td>
+                        <td>
+                          <div>
+                            <p>The type of the keys used in the B-Tree. Keys must conform to 
+<code>Comparable</code> for ordering and <code>Codable</code> for serialization.</p>
+                          </div>
+                        </td>
+                      </tr>
+                  </tbody>
+                </table>
+              </div>
+          </section>
+          <section class="section task-group-section">
+            <div class="task-group">
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC13minimumDegreeACyxGSi_tcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(minimumDegree:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC13minimumDegreeACyxGSi_tcfc">init(minimumDegree:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes a new instance of the BTreeIndex with a specified minimum degree.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="nv">minimumDegree</span><span class="p">:</span> <span class="kt">Int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>minimumDegree</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The minimum degree of the B-tree. This determines the minimum number of children
+each internal node must have. The default value is 2.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC6search3keySay10Foundation4DataVGSgx_tF"></a>
+                    <a name="//apple_ref/swift/Method/search(key:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC6search3keySay10Foundation4DataVGSgx_tF">search(key:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Searches for the specified key in the B-Tree index and returns the associated data.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">search</span><span class="p">(</span><span class="nv">key</span><span class="p">:</span> <span class="kt">Key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">Data</span><span class="p">]?</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The key to search for in the B-Tree index.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An optional array of <code>Data</code> associated with the given key. 
+       Returns <code>nil</code> if the key is not found.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC013loadPersistedD04fromy10Foundation4DataV_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/loadPersistedIndex(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC013loadPersistedD04fromy10Foundation4DataV_tYaKF">loadPersistedIndex(from:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Loads a persisted index from the provided data.</p>
+
+<p>This method asynchronously reads and reconstructs the index structure
+from the given binary data. It is used to restore the state of the
+index from a previously saved state.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the data cannot be parsed or the index cannot be
+      reconstructed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">loadPersistedIndex</span><span class="p">(</span><span class="n">from</span> <span class="nv">data</span><span class="p">:</span> <span class="kt">Data</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>data</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The binary data containing the persisted index.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>This method does not return a value but updates the index
+       state internally.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC013loadPersistedD04fromy10Foundation3URLV_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/loadPersistedIndex(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC013loadPersistedD04fromy10Foundation3URLV_tYaKF">loadPersistedIndex(from:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Loads a persisted index from the specified file URL.</p>
+
+<p>This asynchronous method attempts to load the index data from the given
+file URL. If the operation fails, it throws an error.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the index cannot be loaded from the specified URL.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">loadPersistedIndex</span><span class="p">(</span><span class="n">from</span> <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>url</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file URL pointing to the persisted index data.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>This method does not return a value but completes asynchronously
+       once the index is successfully loaded or an error is thrown.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC6insert3key4datayx_10Foundation4DataVtF"></a>
+                    <a name="//apple_ref/swift/Method/insert(key:data:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC6insert3key4datayx_10Foundation4DataVtF">insert(key:<wbr>data:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts a key-value pair into the B-tree index.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">insert</span><span class="p">(</span><span class="nv">key</span><span class="p">:</span> <span class="kt">Key</span><span class="p">,</span> <span class="nv">data</span><span class="p">:</span> <span class="kt">Data</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The key to be inserted into the index.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>data</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The associated data to be stored with the key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC7inOrderSay10Foundation4DataVGyF"></a>
+                    <a name="//apple_ref/swift/Method/inOrder()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC7inOrderSay10Foundation4DataVGyF">inOrder()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Performs an in-order traversal of the B-Tree index and returns an array of <code>Data</code> elements.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">inOrder</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">Data</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of <code>Data</code> elements in the order they appear during an in-order traversal.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC7persist2toy10Foundation3URLV_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/persist(to:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC7persist2toy10Foundation3URLV_tYaKF">persist(to:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Persists the current state of the B-tree index to the specified file URL.</p>
+
+<p>This method asynchronously writes the index data to the provided URL, ensuring
+that the index can be saved and restored later. It is useful for maintaining
+the state of the index across application launches or sessions.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the persistence operation fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    Ensure that the provided URL is writable and that there is sufficient
+storage space available for the operation to complete successfully.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">persist</span><span class="p">(</span><span class="n">to</span> <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>url</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file URL where the index data should be persisted.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC4page6offset5limitSay10Foundation4DataVGSi_SitF"></a>
+                    <a name="//apple_ref/swift/Method/page(offset:limit:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC4page6offset5limitSay10Foundation4DataVGSi_SitF">page(offset:<wbr>limit:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Retrieves a subset of data from the B-tree index based on the specified offset and limit.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">page</span><span class="p">(</span><span class="nv">offset</span><span class="p">:</span> <span class="kt">Int</span><span class="p">,</span> <span class="nv">limit</span><span class="p">:</span> <span class="kt">Int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">Data</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>offset</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The starting position in the data set from which to begin retrieving items.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>limit</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The maximum number of items to retrieve.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of <code>Data</code> objects representing the requested subset of the index.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC13getTotalCountSiyYaF"></a>
+                    <a name="//apple_ref/swift/Method/getTotalCount()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC13getTotalCountSiyYaF">getTotalCount()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">getTotalCount</span><span class="p">()</span> <span class="k">async</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>

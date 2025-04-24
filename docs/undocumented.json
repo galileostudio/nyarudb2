@@ -1,0 +1,628 @@
+{
+  "warnings": [
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/CollectionEngine/CollectionCatalog.swift",
+      "line": 11,
+      "symbol": "CollectionCatalog.shared",
+      "symbol_kind": "source.lang.swift.decl.var.static",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/CollectionEngine/DocumentCollection.swift",
+      "line": 14,
+      "symbol": "CollectionMetadata.name",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/CollectionEngine/DocumentCollection.swift",
+      "line": 15,
+      "symbol": "CollectionMetadata.indexes",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/CollectionEngine/DocumentCollection.swift",
+      "line": 16,
+      "symbol": "CollectionMetadata.partitionKey",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/CollectionEngine/DocumentCollection.swift",
+      "line": 45,
+      "symbol": "DocumentCollection.metadata",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/Commons/FileProtection.swift",
+      "line": 10,
+      "symbol": "FileProtectionType.none",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/Commons/FileProtection.swift",
+      "line": 11,
+      "symbol": "FileProtectionType.complete",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/Commons/FileProtection.swift",
+      "line": 12,
+      "symbol": "FileProtectionType.completeUnlessOpen",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/Commons/FileProtection.swift",
+      "line": 13,
+      "symbol": "FileProtectionType.completeUntilFirstUserAuthentication",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/Commons/FileProtection.swift",
+      "line": 15,
+      "symbol": "FileProtectionType.systemValue",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/IndexManager/BTreeIndex.swift",
+      "line": 320,
+      "symbol": "BTreeIndex.getTotalCount()",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/IndexManager/IndexManager.swift",
+      "line": 27,
+      "symbol": "IndexMetrics.accessCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/IndexManager/IndexManager.swift",
+      "line": 28,
+      "symbol": "IndexMetrics.lastAccess",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/IndexManager/IndexManager.swift",
+      "line": 29,
+      "symbol": "IndexMetrics.valueDistribution",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 25,
+      "symbol": "ExecutionPlan.collection",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 26,
+      "symbol": "ExecutionPlan.predicates",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 27,
+      "symbol": "ExecutionPlan.estimatedDocsToScan",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 28,
+      "symbol": "ExecutionPlan.shardsToSkip",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 29,
+      "symbol": "ExecutionPlan.usedIndex",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 30,
+      "symbol": "ExecutionPlan.indexStrategy",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 48,
+      "symbol": "ExecutionPlan.IndexStrategy.fullScan",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 49,
+      "symbol": "ExecutionPlan.IndexStrategy.indexOnly",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 50,
+      "symbol": "ExecutionPlan.IndexStrategy.hybrid",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 93,
+      "symbol": "QueryOperator.equal(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 94,
+      "symbol": "QueryOperator.notEqual(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 95,
+      "symbol": "QueryOperator.range(lower:upper:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 96,
+      "symbol": "QueryOperator.contains(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 97,
+      "symbol": "QueryOperator.startsWith(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 98,
+      "symbol": "QueryOperator.endsWith(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 99,
+      "symbol": "QueryOperator.lessThan(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 100,
+      "symbol": "QueryOperator.lessThanOrEqual(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 101,
+      "symbol": "QueryOperator.greaterThan(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 102,
+      "symbol": "QueryOperator.greaterThanOrEqual(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 103,
+      "symbol": "QueryOperator.between(lower:upper:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 104,
+      "symbol": "QueryOperator.in(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 105,
+      "symbol": "QueryOperator.exists",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 106,
+      "symbol": "QueryOperator.notExists",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 157,
+      "symbol": "QueryPlanner.indexStats",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/QueryEngine/QueryPlanner.swift",
+      "line": 158,
+      "symbol": "QueryPlanner.shardStats",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 15,
+      "symbol": "CompressionMethod.none",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 16,
+      "symbol": "CompressionMethod.gzip",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 17,
+      "symbol": "CompressionMethod.lzfse",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 18,
+      "symbol": "CompressionMethod.lz4",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 28,
+      "symbol": "CompressionError.compressionFailed",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 29,
+      "symbol": "CompressionError.decompressionFailed",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 30,
+      "symbol": "CompressionError.unsupportedMethod",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/CompressionMethod.swift",
+      "line": 31,
+      "symbol": "CompressionError.zlibError(code:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 13,
+      "symbol": "ShardMetadata.documentCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 14,
+      "symbol": "ShardMetadata.createdAt",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 15,
+      "symbol": "ShardMetadata.updatedAt",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 47,
+      "symbol": "Shard.id",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 48,
+      "symbol": "Shard.url",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 49,
+      "symbol": "Shard.metadata",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 50,
+      "symbol": "Shard.compressionMethod",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/Shard.swift",
+      "line": 51,
+      "symbol": "Shard.fileProtectionType",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/ShardManager.swift",
+      "line": 8,
+      "symbol": "ShardManagerError.shardNotFound(shardID:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/ShardManager.swift",
+      "line": 9,
+      "symbol": "ShardManagerError.shardAlreadyExists(shardID:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/ShardManager.swift",
+      "line": 10,
+      "symbol": "ShardManagerError.failedToSaveShard(shardID:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/ShardManager.swift",
+      "line": 11,
+      "symbol": "ShardManagerError.unknown(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/ShardManager/ShardManager.swift",
+      "line": 28,
+      "symbol": "ShardManager.fileProtectionType",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 19,
+      "symbol": "ShardMetadataInfo.id",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 20,
+      "symbol": "ShardMetadataInfo.url",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 21,
+      "symbol": "ShardMetadataInfo.metadata",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 37,
+      "symbol": "CollectionStats.collectionName",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 38,
+      "symbol": "CollectionStats.numberOfShards",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 39,
+      "symbol": "CollectionStats.totalDocuments",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 40,
+      "symbol": "CollectionStats.totalSizeInBytes",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 41,
+      "symbol": "CollectionStats.shardDetails",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 76,
+      "symbol": "GlobalStats.totalCollections",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 77,
+      "symbol": "GlobalStats.totalDocuments",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 78,
+      "symbol": "GlobalStats.totalSizeInBytes",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 94,
+      "symbol": "IndexStat.totalCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 95,
+      "symbol": "IndexStat.uniqueValuesCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 96,
+      "symbol": "IndexStat.valueDistribution",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 97,
+      "symbol": "IndexStat.accessCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 98,
+      "symbol": "IndexStat.lastAccess",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 154,
+      "symbol": "ShardStat.docCount",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StatsEngine/StatsEngine.swift",
+      "line": 155,
+      "symbol": "ShardStat.fieldRanges",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 19,
+      "symbol": "StorageEngine.collectionPartitionKeys",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 20,
+      "symbol": "StorageEngine.activeShardManagers",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 21,
+      "symbol": "StorageEngine.indexManagers",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 29,
+      "symbol": "StorageEngine.StorageError.invalidDocument",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 30,
+      "symbol": "StorageEngine.StorageError.partitionKeyNotFound(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 31,
+      "symbol": "StorageEngine.StorageError.indexKeyNotFound(_:)",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 32,
+      "symbol": "StorageEngine.StorageError.shardManagerCreationFailed",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 33,
+      "symbol": "StorageEngine.StorageError.updateDocumentNotFound",
+      "symbol_kind": "source.lang.swift.decl.enumelement",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/Core/StorageEngine/StorageEngine.swift",
+      "line": 525,
+      "symbol": "StorageEngine.cleanupEmptyShards(for:)",
+      "symbol_kind": "source.lang.swift.decl.function.method.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/NyaruDB2.swift",
+      "line": 14,
+      "symbol": "NyaruDB2.storage",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    },
+    {
+      "file": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2/Sources/NyaruDB2/NyaruDB2.swift",
+      "line": 15,
+      "symbol": "NyaruDB2.indexManager",
+      "symbol_kind": "source.lang.swift.decl.var.instance",
+      "warning": "undocumented"
+    }
+  ],
+  "source_directory": "/Users/d.a.albuquerque/Workspace/Personal/swift/NyaruDB2"
+}

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Shard Class Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a name="//apple_ref/swift/Class/Shard" class="dashAnchor"></a>
+    <a title="Shard Class Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="../index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="../img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="../search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="../index.html">NyaruDB2</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        <a href="../Classes.html">Classes</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        Shard Class Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            <h1>Shard</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">class</span> <span class="kt">Shard</span></code></pre>
+
+                </div>
+              </div>
+            <p>Represents a shard in the database, which is a unit of data storage and management.</p>
+
+<p>A <code>Shard</code> contains metadata, a unique identifier, and configuration details such as
+compression and file protection settings. It also includes a cache for storing documents.</p>
+
+<ul>
+<li>Properties:
+
+<ul>
+<li><code>id</code>: A unique identifier for the shard.</li>
+<li><code>url</code>: The file URL where the shard is stored.</li>
+<li><code>metadata</code>: Metadata associated with the shard, such as its state and configuration.</li>
+<li><code>compressionMethod</code>: The method used to compress data within the shard.</li>
+<li><code>fileProtectionType</code>: The file protection level applied to the shard&rsquo;s storage.</li>
+<li><code>documentCache</code>: An in-memory cache for storing documents, keyed by their identifiers.</li>
+</ul></li>
+</ul>
+
+          </section>
+          <section class="section task-group-section">
+            <div class="task-group">
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC2idSSvp"></a>
+                    <a name="//apple_ref/swift/Property/id" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC2idSSvp">id</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">id</span><span class="p">:</span> <span class="kt">String</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC3url10Foundation3URLVvp"></a>
+                    <a name="//apple_ref/swift/Property/url" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC3url10Foundation3URLVvp">url</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC8metadataAA0C8MetadataVvp"></a>
+                    <a name="//apple_ref/swift/Property/metadata" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC8metadataAA0C8MetadataVvp">metadata</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">private(set)</span> <span class="k">var</span> <span class="nv">metadata</span><span class="p">:</span> <span class="kt"><a href="../Structs/ShardMetadata.html">ShardMetadata</a></span> <span class="p">{</span> <span class="k">get</span> <span class="p">}</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC17compressionMethodAA011CompressionE0Ovp"></a>
+                    <a name="//apple_ref/swift/Property/compressionMethod" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC17compressionMethodAA011CompressionE0Ovp">compressionMethod</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">compressionMethod</span><span class="p">:</span> <span class="kt"><a href="../Enums/CompressionMethod.html">CompressionMethod</a></span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC18fileProtectionTypeAA04FileeF0Ovp"></a>
+                    <a name="//apple_ref/swift/Property/fileProtectionType" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC18fileProtectionTypeAA04FileeF0Ovp">fileProtectionType</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">fileProtectionType</span><span class="p">:</span> <span class="kt"><a href="../Enums/FileProtectionType.html">FileProtectionType</a></span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC2id3url8metadata17compressionMethod18fileProtectionTypeACSS_10Foundation3URLVAA0C8MetadataVAA011CompressionH0OAA04FilejK0Otcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(id:url:metadata:compressionMethod:fileProtectionType:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC2id3url8metadata17compressionMethod18fileProtectionTypeACSS_10Foundation3URLVAA0C8MetadataVAA011CompressionH0OAA04FilejK0Otcfc">init(id:<wbr>url:<wbr>metadata:<wbr>compressionMethod:<wbr>fileProtectionType:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes a new instance of <code>Shard</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span>
+    <span class="nv">id</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span><span class="p">,</span>
+    <span class="nv">metadata</span><span class="p">:</span> <span class="kt"><a href="../Structs/ShardMetadata.html">ShardMetadata</a></span> <span class="o">=</span> <span class="o">.</span><span class="nf">init</span><span class="p">(),</span>
+    <span class="nv">compressionMethod</span><span class="p">:</span> <span class="kt"><a href="../Enums/CompressionMethod.html">CompressionMethod</a></span> <span class="o">=</span> <span class="o">.</span><span class="k">none</span><span class="p">,</span>
+    <span class="nv">fileProtectionType</span><span class="p">:</span> <span class="kt"><a href="../Enums/FileProtectionType.html">FileProtectionType</a></span> <span class="o">=</span> <span class="o">.</span><span class="k">none</span>
+<span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>id</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>A unique identifier for the shard.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>url</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file URL where the shard is stored.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>metadata</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Metadata associated with the shard. Defaults to an empty <code><a href="../Structs/ShardMetadata.html">ShardMetadata</a></code> instance.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>compressionMethod</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The compression method used for the shard. Defaults to <code>.none</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>fileProtectionType</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file protection type for the shard. Defaults to <code>.none</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC14updateMetadata13documentCount9updatedAtySi_10Foundation4DateVtF"></a>
+                    <a name="//apple_ref/swift/Method/updateMetadata(documentCount:updatedAt:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC14updateMetadata13documentCount9updatedAtySi_10Foundation4DateVtF">updateMetadata(documentCount:<wbr>updatedAt:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Updates the metadata of the shard with the given document count and update timestamp.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">updateMetadata</span><span class="p">(</span><span class="nv">documentCount</span><span class="p">:</span> <span class="kt">Int</span><span class="p">,</span> <span class="nv">updatedAt</span><span class="p">:</span> <span class="kt">Date</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>documentCount</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The number of documents in the shard.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>updatedAt</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The date and time when the shard was last updated.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC13loadDocumentsSayxGyYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/loadDocuments()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC13loadDocumentsSayxGyYaKSeRzSERzlF">loadDocuments()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Loads and decodes documents of the specified type from the shard.</p>
+
+<p>This method asynchronously retrieves and decodes documents stored in the shard
+into an array of the specified <code>Codable</code> type.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the documents cannot be loaded or decoded.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    Ensure that the type <code>T</code> conforms to the <code>Codable</code> protocol.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">loadDocuments</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of decoded documents of type <code>T</code>.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC13saveDocumentsyySayxGYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/saveDocuments(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC13saveDocumentsyySayxGYaKSeRzSERzlF">saveDocuments(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Saves an array of documents to the shard.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the save operation fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This is an asynchronous function and should be called with <code>await</code>.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">saveDocuments</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">_</span> <span class="nv">documents</span><span class="p">:</span> <span class="p">[</span><span class="kt">T</span><span class="p">])</span> <span class="k">async</span> <span class="k">throws</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>documents</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An array of documents conforming to the <code>Codable</code> protocol to be saved.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC14appendDocument_8jsonDatayx_10Foundation0G0VtYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/appendDocument(_:jsonData:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC14appendDocument_8jsonDatayx_10Foundation0G0VtYaKSeRzSERzlF">appendDocument(_:<wbr>jsonData:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Appends a document to the shard.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">appendDocument</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span><span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">,</span> <span class="nv">jsonData</span><span class="p">:</span> <span class="kt">Data</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document to append, conforming to the <code>Codable</code> protocol.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>jsonData</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The JSON-encoded data representation of the document.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB25ShardC17loadDocumentsLazyScsyxs5Error_pGySeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/loadDocumentsLazy()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB25ShardC17loadDocumentsLazyScsyxs5Error_pGySeRzSERzlF">loadDocumentsLazy()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Loads documents lazily as an asynchronous throwing stream.</p>
+
+<p>This method returns an <code>AsyncThrowingStream</code> that allows you to iterate over
+documents of the specified type <code>T</code> conforming to <code>Codable</code>. The documents
+are loaded lazily, meaning they are fetched and decoded on demand as you
+iterate through the stream.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <p>An error if the stream encounters an issue while loading or decoding
+the documents.</p>
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">loadDocumentsLazy</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kt">AsyncThrowingStream</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">,</span> <span class="kt">Error</span><span class="o">&gt;</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An <code>AsyncThrowingStream</code> of type <code>T</code> that provides access to the
+documents. The stream may throw an error during iteration if an issue
+occurs while loading or decoding the documents.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Enumerations  Reference</title>
+    <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="js/jquery.min.js" defer></script>
+    <script src="js/jazzy.js" defer></script>
+    
+    <script src="js/lunr.min.js" defer></script>
+    <script src="js/typeahead.jquery.js" defer></script>
+    <script src="js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a name="//apple_ref/swift/Section/Enumerations" class="dashAnchor"></a>
+    <a title="Enumerations  Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="index.html">NyaruDB2</a>
+        <img id="carat" src="img/carat.png" alt=""/>
+        Enumerations  Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            <h1>Enumerations</h1>
+            <p>The following enumerations are available globally.</p>
+
+          </section>
+          <section class="section task-group-section">
+            <div class="task-group">
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB214DynamicDecoderO"></a>
+                    <a name="//apple_ref/swift/Enum/DynamicDecoder" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB214DynamicDecoderO">DynamicDecoder</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration that provides functionality for dynamic decoding of data.
+This can be used to decode data whose structure is not known at compile time.</p>
+
+                        <a href="Enums/DynamicDecoder.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">DynamicDecoder</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB218FileProtectionTypeO"></a>
+                    <a name="//apple_ref/swift/Enum/FileProtectionType" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB218FileProtectionTypeO">FileProtectionType</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing the types of file protection available.</p>
+
+<p>This enum provides different levels of file protection that can be applied
+to secure files. Each case corresponds to a specific file protection type
+and is represented as a <code>String</code>.</p>
+
+<ul>
+<li>Conforms to:
+
+<ul>
+<li><code>CaseIterable</code>: Allows iteration over all cases of the enum.</li>
+</ul></li>
+</ul>
+
+                        <a href="Enums/FileProtectionType.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">FileProtectionType</span> <span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="kt">CaseIterable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Query%20Operator"></a>
+                <a name="//apple_ref/swift/Section/Query Operator" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Query%20Operator"></a>
+                  <h3 class="section-name"><span>Query Operator</span>
+</h3>
+                </div>
+              </div>
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213QueryOperatorO"></a>
+                    <a name="//apple_ref/swift/Enum/QueryOperator" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213QueryOperatorO">QueryOperator</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing various query operators that can be used to filter or match data in a query.</p>
+
+<p>Each case represents a specific type of operation that can be performed on the data.</p>
+
+<ul>
+<li>Cases:
+
+<ul>
+<li><code>equal</code>: Matches values that are equal to the specified value.</li>
+<li><code>notEqual</code>: Matches values that are not equal to the specified value.</li>
+<li><code>range</code>: Matches values that fall within the specified lower and upper bounds.</li>
+<li><code>contains</code>: Matches strings that contain the specified substring.</li>
+<li><code>startsWith</code>: Matches strings that start with the specified prefix.</li>
+<li><code>endsWith</code>: Matches strings that end with the specified suffix.</li>
+<li><code>lessThan</code>: Matches values that are less than the specified value.</li>
+<li><code>lessThanOrEqual</code>: Matches values that are less than or equal to the specified value.</li>
+<li><code>greaterThan</code>: Matches values that are greater than the specified value.</li>
+<li><code>greaterThanOrEqual</code>: Matches values that are greater than or equal to the specified value.</li>
+<li><code>between</code>: Matches values that fall inclusively between the specified lower and upper bounds.</li>
+<li><code>in</code>: Matches values that are contained within the specified array of values.</li>
+<li><code>exists</code>: Matches values that exist (non-nil).</li>
+<li><code>notExists</code>: Matches values that do not exist (nil).</li>
+</ul></li>
+</ul>
+
+<p>This enumeration conforms to <code>CustomStringConvertible</code> to provide a textual description of each operator.</p>
+
+                        <a href="Enums/QueryOperator.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">QueryOperator</span> <span class="p">:</span> <span class="kt">CustomStringConvertible</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB217CompressionMethodO"></a>
+                    <a name="//apple_ref/swift/Enum/CompressionMethod" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB217CompressionMethodO">CompressionMethod</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing the available compression methods for data storage or transmission.</p>
+
+<ul>
+<li><code>none</code>: No compression is applied.</li>
+<li><code>gzip</code>: Uses the Gzip compression algorithm.</li>
+<li><code>lzfse</code>: Uses the LZFSE compression algorithm, optimized for speed and compression ratio.</li>
+<li><code>lz4</code>: Uses the LZ4 compression algorithm, optimized for very fast compression and decompression.</li>
+</ul>
+
+<p>This enum conforms to <code>String</code>, <code>CaseIterable</code>, and <code>Codable</code> protocols, allowing it to be
+represented as a string, iterated over all cases, and encoded/decoded.</p>
+
+                        <a href="Enums/CompressionMethod.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">CompressionMethod</span> <span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="kt">CaseIterable</span><span class="p">,</span> <span class="kt">Codable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB216CompressionErrorO"></a>
+                    <a name="//apple_ref/swift/Enum/CompressionError" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB216CompressionErrorO">CompressionError</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing errors that can occur during compression or decompression operations.</p>
+
+<ul>
+<li><code>compressionFailed</code>: Indicates that the compression process failed.</li>
+<li><code>decompressionFailed</code>: Indicates that the decompression process failed.</li>
+<li><code>unsupportedMethod</code>: Indicates that the specified compression method is not supported.</li>
+<li><code>zlibError(code: Int)</code>: Represents an error returned by the zlib library, with an associated error code.</li>
+</ul>
+
+                        <a href="Enums/CompressionError.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">CompressionError</span> <span class="p">:</span> <span class="kt">Error</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB217ShardManagerErrorO"></a>
+                    <a name="//apple_ref/swift/Enum/ShardManagerError" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB217ShardManagerErrorO">ShardManagerError</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing errors that can occur within the <code><a href="Classes/ShardManager.html">ShardManager</a></code>.</p>
+
+<p>This enum conforms to the <code>Error</code> protocol, allowing instances of it to be
+thrown and caught as part of error handling in Swift.</p>
+
+                        <a href="Enums/ShardManagerError.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">ShardManagerError</span> <span class="p">:</span> <span class="kt">Error</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>

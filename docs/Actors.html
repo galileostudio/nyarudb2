@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Actors  Reference</title>
+    <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="js/jquery.min.js" defer></script>
+    <script src="js/jazzy.js" defer></script>
+    
+    <script src="js/lunr.min.js" defer></script>
+    <script src="js/typeahead.jquery.js" defer></script>
+    <script src="js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a name="//apple_ref/swift/Section/Actors" class="dashAnchor"></a>
+    <a title="Actors  Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="index.html">NyaruDB2</a>
+        <img id="carat" src="img/carat.png" alt=""/>
+        Actors  Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            <h1>Actors</h1>
+            <p>The following actors are available globally.</p>
+
+          </section>
+          <section class="section task-group-section">
+            <div class="task-group">
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB210BTreeIndexC"></a>
+                    <a name="//apple_ref/swift/Actor/BTreeIndex" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB210BTreeIndexC">BTreeIndex</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An actor-based implementation of a B-Tree index for managing and organizing data.</p>
+
+<p><code>BTreeIndex</code> is a generic class that supports keys conforming to both <code>Comparable</code>
+and <code>Codable</code> protocols. It provides thread-safe operations for indexing and 
+retrieving data in a concurrent environment.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    <p>This implementation leverages Swift&rsquo;s <code>actor</code> model to ensure data 
+consistency and thread safety.</p>
+
+</div>
+
+                        <a href="Actors/BTreeIndex.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">BTreeIndex</span><span class="o">&lt;</span><span class="kt">Key</span><span class="o">&gt;</span> <span class="k">where</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Comparable</span><span class="p">,</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>Key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The type of the keys used in the B-Tree. Keys must conform to 
+<code>Comparable</code> for ordering and <code>Codable</code> for serialization.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212IndexManagerC"></a>
+                    <a name="//apple_ref/swift/Actor/IndexManager" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212IndexManagerC">IndexManager</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An actor responsible for managing indices in a database system.</p>
+
+<p><code>IndexManager</code> provides functionality to handle the creation, storage, and
+metrics of indices for efficient data retrieval. It is generic over a <code>Key</code>
+type that conforms to both <code><a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a></code> and <code>Comparable</code> protocols, ensuring
+that the keys used in the indices are suitable for indexing and comparison.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This actor is designed to be thread-safe, leveraging Swift&rsquo;s actor
+model to protect its internal state from concurrent access.
+
+</div>
+
+<p>Properties:</p>
+
+<ul>
+<li><code>indices</code>: A dictionary mapping index names (<code>String</code>) to their corresponding
+<code><a href="Actors/BTreeIndex.html">BTreeIndex</a></code> instances, which store the actual index data.</li>
+<li><code>createdIndexes</code>: A set of index names (<code>String</code>) that have been created,
+ensuring uniqueness and preventing duplication.</li>
+<li><code>metrics</code>: A dictionary mapping index names (<code>String</code>) to their associated
+<code><a href="Structs/IndexMetrics.html">IndexMetrics</a></code>, which provide performance and usage statistics for each index.</li>
+</ul>
+
+                        <a href="Actors/IndexManager.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">IndexManager</span><span class="o">&lt;</span><span class="kt">Key</span><span class="o">&gt;</span> <span class="k">where</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt"><a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a></span><span class="p">,</span> <span class="kt">Key</span> <span class="p">:</span> <span class="kt">Comparable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB211StatsEngineC"></a>
+                    <a name="//apple_ref/swift/Actor/StatsEngine" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB211StatsEngineC">StatsEngine</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An actor responsible for managing and processing statistical data within the database.
+The <code>StatsEngine</code> interacts with the underlying storage engine to perform its operations.</p>
+
+                        <a href="Actors/StatsEngine.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">StatsEngine</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC"></a>
+                    <a name="//apple_ref/swift/Actor/StorageEngine" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC">StorageEngine</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>The <code>StorageEngine</code> actor is responsible for managing the core storage functionality of the database.
+It handles the configuration, partitioning, and management of collections, shards, and indexes.</p>
+
+<p>Properties:</p>
+
+<ul>
+<li><code>baseURL</code>: The base URL where the storage engine operates.</li>
+<li><code>compressionMethod</code>: The method used for compressing stored data.</li>
+<li><code>fileProtectionType</code>: The type of file protection applied to stored data.</li>
+<li><code>collectionPartitionKeys</code>: A dictionary mapping collection names to their partition keys.</li>
+<li><code>activeShardManagers</code>: A dictionary of active shard managers, keyed by collection name.</li>
+<li><code>indexManagers</code>: A dictionary of index managers, keyed by collection name.</li>
+<li><code>statsEngine</code>: A lazily initialized instance of <code><a href="Actors/StatsEngine.html">StatsEngine</a></code> for gathering storage statistics.</li>
+</ul>
+
+                        <a href="Actors/StorageEngine.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">StorageEngine</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>

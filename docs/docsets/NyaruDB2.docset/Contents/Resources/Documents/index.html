@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>NyaruDB2  Reference</title>
+    <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="js/jquery.min.js" defer></script>
+    <script src="js/jazzy.js" defer></script>
+    
+    <script src="js/lunr.min.js" defer></script>
+    <script src="js/typeahead.jquery.js" defer></script>
+    <script src="js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a title="NyaruDB2  Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="index.html">NyaruDB2</a>
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            
+            <h1 id='p-align-left' class='heading'><p align="left"></h1>
+
+<p><img src="./img/nyaru.svg" alt="Logo" height="40" style="vertical-align: baseline;"/>
+  <span style="font-size: 2em;"><strong>NyaruDB2</strong></span>
+</p></p>
+<h1 id='nyarudb2' class='heading'>NyaruDB2</h1>
+
+<p><strong>Lightweight, high-performance embedded database for Swift</strong>  </p>
+
+<p><a href="https://github.com/apple/swift-package-manager"><img src="https://img.shields.io/badge/SwiftPM-compatible-brightgreen" alt="SwiftPM"></a> <a href=""><img src="https://img.shields.io/badge/iOS-15%2B%20%7C%20macOS-12%2B-blue" alt="Platforms"></a> <a href="LICENSE.md"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a> <a href="https://github.com/galileostudio/NyaruDB2/actions"><img src="https://img.shields.io/github/actions/workflow/status/galileostudio/NyaruDB2/ci.yml?branch=main" alt="CI"></a></p>
+
+<p>NyaruDB2 is an embedded database optimized for iOS and macOS applications, designed to handle large datasets efficiently using modern Swift Concurrency. It provides:</p>
+
+<ul>
+<li><strong>Automatic Sharding</strong> with parallel I/O</li>
+<li><strong>Multi-Algorithm Compression</strong> (GZIP, LZFSE, LZ4)</li>
+<li><strong>Actor-Safe B-Tree Indexing</strong></li>
+<li><strong>Cost-Based Query Planner</strong> with shard pruning</li>
+<li><strong>Lazy Loading</strong> via <code>AsyncThrowingStream</code></li>
+</ul>
+
+<hr>
+<h2 id='table-of-contents' class='heading'>🔖 Table of Contents</h2>
+
+<ol>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#quick-start-example">Quick Start Example</a></li>
+<li><a href="#key-features">Key Features</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#documentation">Documentation</a></li>
+<li><a href="#contributing">Contributing</a></li>
+<li><a href="#license">License</a></li>
+<li><a href="#acknowledgements">Acknowledgements</a></li>
+</ol>
+
+<hr>
+<h2 id='installation' class='heading'>📦 Installation</h2>
+
+<p>NyaruDB2 supports Swift Package Manager:</p>
+<pre class="highlight swift"><code><span class="c1">// swift-tools-version:5.9</span>
+
+<span class="k">let</span> <span class="nv">package</span> <span class="o">=</span> <span class="kt">Package</span><span class="p">(</span>
+    <span class="nv">name</span><span class="p">:</span> <span class="s">"YourApp"</span><span class="p">,</span>
+    <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span>
+        <span class="o">.</span><span class="nf">package</span><span class="p">(</span><span class="nv">url</span><span class="p">:</span> <span class="s">"https://github.com/galileostudio/NyaruDB2.git"</span><span class="p">,</span> <span class="nv">from</span><span class="p">:</span> <span class="s">"0.1.0-alpha"</span><span class="p">)</span>
+    <span class="p">],</span>
+    <span class="nv">targets</span><span class="p">:</span> <span class="p">[</span>
+        <span class="o">.</span><span class="nf">target</span><span class="p">(</span>
+            <span class="nv">name</span><span class="p">:</span> <span class="s">"YourApp"</span><span class="p">,</span>
+            <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span><span class="s">"NyaruDB2"</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+</code></pre>
+
+<p><strong>Requirements</strong>:</p>
+
+<ul>
+<li>Xcode 15+</li>
+<li>Swift 5.9+</li>
+<li>iOS 15+ / macOS 12+</li>
+</ul>
+
+<hr>
+<h2 id='quick-start-example' class='heading'>🚀 Quick Start Example</h2>
+<pre class="highlight swift"><code><span class="kd">import</span> <span class="kt">NyaruDB2</span>
+
+<span class="c1">// Define a model</span>
+<span class="kd">struct</span> <span class="kt">User</span><span class="p">:</span> <span class="kt">Codable</span><span class="p">,</span> <span class="kt">Equatable</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="nv">id</span><span class="p">:</span> <span class="kt">Int</span>
+    <span class="k">let</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span>
+    <span class="k">let</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="kt">String</span>
+<span class="p">}</span>
+
+<span class="c1">// 1. Initialize the database</span>
+<span class="k">let</span> <span class="nv">db</span> <span class="o">=</span> <span class="k">try</span> <span class="kt">NyaruDB2</span><span class="p">(</span>
+    <span class="nv">path</span><span class="p">:</span> <span class="s">"NyaruDB_Demo"</span><span class="p">,</span>
+    <span class="nv">compressionMethod</span><span class="p">:</span> <span class="o">.</span><span class="n">lzfse</span><span class="p">,</span>
+    <span class="nv">fileProtectionType</span><span class="p">:</span> <span class="o">.</span><span class="n">completeUntilFirstUserAuthentication</span>
+<span class="p">)</span>
+
+<span class="c1">// 2. Create a partitioned collection</span>
+<span class="k">let</span> <span class="nv">users</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">createCollection</span><span class="p">(</span>
+    <span class="nv">name</span><span class="p">:</span> <span class="s">"Users"</span><span class="p">,</span>
+    <span class="nv">indexes</span><span class="p">:</span> <span class="p">[</span><span class="s">"id"</span><span class="p">],</span>
+    <span class="nv">partitionKey</span><span class="p">:</span> <span class="s">"createdAt"</span>
+<span class="p">)</span>
+
+<span class="c1">// 3. Bulk insert documents</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">bulkInsert</span><span class="p">([</span>
+    <span class="kt">User</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="nv">name</span><span class="p">:</span> <span class="s">"Alice"</span><span class="p">,</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="s">"2024-01"</span><span class="p">),</span>
+    <span class="kt">User</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="nv">name</span><span class="p">:</span> <span class="s">"Bob"</span><span class="p">,</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="s">"2024-02"</span><span class="p">)</span>
+<span class="p">])</span>
+
+<span class="c1">// 4. Perform a query</span>
+<span class="k">var</span> <span class="nv">query</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">query</span><span class="p">()</span> <span class="k">as</span> <span class="kt">Query</span><span class="o">&lt;</span><span class="kt">User</span><span class="o">&gt;</span>
+<span class="n">query</span><span class="o">.</span><span class="nf">where</span><span class="p">(\</span><span class="kt">User</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">.</span><span class="nf">greaterThan</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+<span class="k">let</span> <span class="nv">results</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">query</span><span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+<span class="nf">print</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+</code></pre>
+
+<hr>
+<h2 id='key-features' class='heading'>✨ Key Features</h2>
+<h3 id='performance' class='heading'>Performance</h3>
+
+<ul>
+<li><strong>Sharded Storage</strong>: automatic partitioning by configurable shard keys</li>
+<li><strong>Multi-Algorithm Compression</strong>: GZIP, LZFSE, LZ4 via <code>Compression.framework</code></li>
+<li><strong>Actor-Safe B-Tree Indexing</strong>: configurable minimum degree for performance tuning</li>
+</ul>
+<h3 id='advanced-queries' class='heading'>Advanced Queries</h3>
+
+<ul>
+<li><strong>Type-Safe Query Builder</strong>: supports 15+ predicates (equal, range, contains, startsWith, etc.)</li>
+<li><strong>Lazy Loading</strong>: <code>AsyncThrowingStream</code> for memory-efficient iterating</li>
+<li><strong>Cost-Based Query Planner</strong>: selects optimal indexes and prunes shards using statistics</li>
+</ul>
+<h3 id='monitoring-amp-stats' class='heading'>Monitoring &amp; Stats</h3>
+
+<ul>
+<li><strong>StatsEngine</strong>: <code><a href="Structs/CollectionStats.html">CollectionStats</a></code>, <code><a href="Structs/GlobalStats.html">GlobalStats</a></code> with shard count, document count, and sizes</li>
+<li><strong>IndexStats</strong>: tracks value distribution, selectivity, access counts</li>
+</ul>
+
+<hr>
+<h2 id='️-architecture' class='heading'>🏗️ Architecture</h2>
+<pre class="highlight shell"><code>NyaruDB2/
+├── Sources/
+│   ├── NyaruDB2/
+│   │   ├── Core/
+│   │   │   ├── Commons/          <span class="c"># FileProtection, DynamicDecoder</span>
+│   │   │   ├── IndexManager/     <span class="c"># BTreeIndex, IndexManager</span>
+│   │   │   ├── QueryEngine/      <span class="c"># Query, QueryPlanner, ExecutionPlan</span>
+│   │   │   ├── StatsEngine/      <span class="c"># CollectionStats, GlobalStats</span>
+│   │   │   └── StorageEngine/    <span class="c"># ShardManager, Compression, StorageEngine</span>
+│   │   ├── CollectionEngine/     <span class="c"># DocumentCollection, CollectionCatalog</span>
+│   │   └── NyaruDB2.swift        <span class="c"># public API</span>
+│   └── Benchmark/                <span class="c"># performance test suite</span>
+└── Tests/                        <span class="c"># unit and integration tests</span>
+</code></pre>
+
+<hr>
+<h2 id='documentation' class='heading'>📚 Documentation</h2>
+
+<p>Full API reference:<br>
+🔗 <a href="https://nyarudb2.docs.example.com">https://nyarudb2.docs.example.com</a></p>
+
+<hr>
+<h2 id='contributing' class='heading'>🤝 Contributing</h2>
+
+<ol>
+<li>Fork the repository</li>
+<li>Create a feature branch: <code>git checkout -b feature/awesome</code></li>
+<li>Commit your changes: <code>git commit -m &quot;Add awesome feature&quot;</code></li>
+<li>Push to your branch: <code>git push origin feature/awesome</code></li>
+<li>Open a Pull Request</li>
+</ol>
+
+<p>Please see <a href=".github/CONTRIBUTING.md">CONTRIBUTING.md</a> for details.</p>
+
+<hr>
+<h2 id='license' class='heading'>📜 License</h2>
+
+<p>Apache 2.0 © 2025 galileostudio. See <a href="LICENSE.md">LICENSE</a>.</p>
+
+<hr>
+<h2 id='acknowledgements' class='heading'>🙏 Acknowledgements</h2>
+
+<p>Inspired by the original <a href="https://github.com/kelp404/NyaruDB">NyaruDB</a> by <code>kelp404</code>. Many thanks for the foundational ideas.</p>
+
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>

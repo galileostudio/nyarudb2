@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>StorageEngine Actor Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset='utf-8'>
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+    <a name="//apple_ref/swift/Actor/StorageEngine" class="dashAnchor"></a>
+    <a title="StorageEngine Actor Reference"></a>
+    <header>
+      <div class="content-wrapper">
+        <p><a href="../index.html">NyaruDB2 Docs</a> (60% documented)</p>
+        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="../img/gh.png" alt="GitHub"/>View on GitHub</a></p>
+        <div class="header-right">
+          <form role="search" action="../search.json">
+            <input type="text" placeholder="Search documentation" data-typeahead>
+          </form>
+        </div>
+      </div>
+    </header>
+    <div class="content-wrapper">
+      <p id="breadcrumbs">
+        <a href="../index.html">NyaruDB2</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        <a href="../Actors.html">Actors</a>
+        <img id="carat" src="../img/carat.png" alt=""/>
+        StorageEngine Actor Reference
+      </p>
+    </div>
+    <div class="content-wrapper">
+      <nav class="sidebar">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Actors/BTreeIndex.html">BTreeIndex</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/IndexManager.html">IndexManager</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StatsEngine.html">StatsEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine.html">StorageEngine</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Actors/StorageEngine/StorageError.html">– StorageError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Classes/CollectionCatalog.html">CollectionCatalog</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/DocumentCollection.html">DocumentCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/NyaruDB2.html">NyaruDB2</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/Shard.html">Shard</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Classes/ShardManager.html">ShardManager</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionError.html">CompressionError</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/DynamicDecoder.html">DynamicDecoder</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/FileProtectionType.html">FileProtectionType</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/QueryOperator.html">QueryOperator</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Enums/ShardManagerError.html">ShardManagerError</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Extensions.html#/s:SS">String</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Functions.html">Functions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionMetadata.html">CollectionMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan.html">ExecutionPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/GlobalStats.html">GlobalStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexMetrics.html">IndexMetrics</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/IndexStat.html">IndexStat</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/Query.html">Query</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/QueryPlanner.html">QueryPlanner</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadata.html">ShardMetadata</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
+              </li>
+              <li class="nav-group-task">
+                <a href="../Structs/ShardStat.html">ShardStat</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+        <section>
+          <section class="section">
+            <h1>StorageEngine</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">StorageEngine</span></code></pre>
+
+                </div>
+              </div>
+            <p>The <code>StorageEngine</code> actor is responsible for managing the core storage functionality of the database.
+It handles the configuration, partitioning, and management of collections, shards, and indexes.</p>
+
+<p>Properties:</p>
+
+<ul>
+<li><code>baseURL</code>: The base URL where the storage engine operates.</li>
+<li><code>compressionMethod</code>: The method used for compressing stored data.</li>
+<li><code>fileProtectionType</code>: The type of file protection applied to stored data.</li>
+<li><code>collectionPartitionKeys</code>: A dictionary mapping collection names to their partition keys.</li>
+<li><code>activeShardManagers</code>: A dictionary of active shard managers, keyed by collection name.</li>
+<li><code>indexManagers</code>: A dictionary of index managers, keyed by collection name.</li>
+<li><code>statsEngine</code>: A lazily initialized instance of <code><a href="../Actors/StatsEngine.html">StatsEngine</a></code> for gathering storage statistics.</li>
+</ul>
+
+          </section>
+          <section class="section task-group-section">
+            <div class="task-group">
+              <ul>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC23collectionPartitionKeysSDyS2SGvp"></a>
+                    <a name="//apple_ref/swift/Property/collectionPartitionKeys" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC23collectionPartitionKeysSDyS2SGvp">collectionPartitionKeys</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">collectionPartitionKeys</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span> <span class="p">:</span> <span class="kt">String</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC19activeShardManagersSDySSAA0F7ManagerCGvp"></a>
+                    <a name="//apple_ref/swift/Property/activeShardManagers" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC19activeShardManagersSDySSAA0F7ManagerCGvp">activeShardManagers</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">activeShardManagers</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span> <span class="p">:</span> <span class="kt"><a href="../Classes/ShardManager.html">ShardManager</a></span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC13indexManagersSDySSAA12IndexManagerCySSGGvp"></a>
+                    <a name="//apple_ref/swift/Property/indexManagers" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC13indexManagersSDySSAA12IndexManagerCySSGGvp">indexManagers</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">indexManagers</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span> <span class="p">:</span> <span class="kt"><a href="../Actors/IndexManager.html">IndexManager</a></span><span class="o">&lt;</span><span class="kt">String</span><span class="o">&gt;</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC0C5ErrorO"></a>
+                    <a name="//apple_ref/swift/Enum/StorageError" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC0C5ErrorO">StorageError</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An enumeration representing errors that can occur in the storage engine.</p>
+
+<p>This enum conforms to the <code>Error</code> protocol, allowing instances of <code>StorageError</code>
+to be thrown and handled as part of Swift&rsquo;s error-handling mechanism.</p>
+
+                        <a href="../Actors/StorageEngine/StorageError.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">enum</span> <span class="kt">StorageError</span> <span class="p">:</span> <span class="kt">Error</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC4path17compressionMethod18fileProtectionTypeACSS_AA011CompressionG0OAA04FileiJ0OtKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(path:compressionMethod:fileProtectionType:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC4path17compressionMethod18fileProtectionTypeACSS_AA011CompressionG0OAA04FileiJ0OtKcfc">init(path:<wbr>compressionMethod:<wbr>fileProtectionType:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Initializes a new instance of the <code>StorageEngine</code> class.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span>
+    <span class="nv">path</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">compressionMethod</span><span class="p">:</span> <span class="kt"><a href="../Enums/CompressionMethod.html">CompressionMethod</a></span> <span class="o">=</span> <span class="o">.</span><span class="k">none</span><span class="p">,</span>
+    <span class="nv">fileProtectionType</span><span class="p">:</span> <span class="kt"><a href="../Enums/FileProtectionType.html">FileProtectionType</a></span> <span class="o">=</span> <span class="o">.</span><span class="k">none</span>
+
+<span class="p">)</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>path</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file path where the storage engine will operate.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>compressionMethod</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The method used for compressing data. Defaults to <code>.none</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>fileProtectionType</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The file protection level to apply. Defaults to <code>.none</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14insertDocument_10collection10indexFieldyx_S2SSgtYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/insertDocument(_:collection:indexField:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14insertDocument_10collection10indexFieldyx_S2SSgtYaKSeRzSERzlF">insertDocument(_:<wbr>collection:<wbr>indexField:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts a document into the specified collection in the storage engine.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the insertion fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This method is asynchronous and must be called with <code>await</code>.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">insertDocument</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">,</span>
+    <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">indexField</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document to be inserted. Must conform to the <code>Codable</code> protocol.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection where the document will be stored.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>indexField</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An optional field to be used as an index for the document. Defaults to <code>nil</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14fetchDocuments4fromSayxGSS_tYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/fetchDocuments(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14fetchDocuments4fromSayxGSS_tYaKSeRzSERzlF">fetchDocuments(from:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Fetches documents from the specified collection and decodes them into the specified type.</p>
+
+<p>This method retrieves all documents from the given collection and attempts to decode them
+into the specified <code>Codable</code> type <code>T</code>. The operation is asynchronous and may throw an error
+if the fetch or decoding process fails.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the fetch operation or decoding process fails.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">fetchDocuments</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span><span class="n">from</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span>
+    <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to fetch documents from.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of decoded objects of type <code>T</code>.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14fetchFromIndex10collection5field5valueSayxGSS_S2StYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/fetchFromIndex(collection:field:value:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14fetchFromIndex10collection5field5valueSayxGSS_S2StYaKSeRzSERzlF">fetchFromIndex(collection:<wbr>field:<wbr>value:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Fetches records from the specified collection that match the given field and value.</p>
+
+<p>This method performs an asynchronous operation to retrieve records from the index
+of the specified collection. The records are decoded into the specified generic type <code>T</code>.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the fetch operation fails or if decoding the records fails.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">fetchFromIndex</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">value</span><span class="p">:</span> <span class="kt">String</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to fetch records from.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>field</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the field to match against.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>value</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The value to match in the specified field.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of decoded objects of type <code>T</code> that match the specified criteria.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC18fetchDocumentsLazy4fromScsyxs5Error_pGSS_tSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/fetchDocumentsLazy(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC18fetchDocumentsLazy4fromScsyxs5Error_pGSS_tSeRzSERzlF">fetchDocumentsLazy(from:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Fetches documents lazily from the specified collection.</p>
+
+<p>This method returns an <code>AsyncThrowingStream</code> that allows you to asynchronously
+iterate over the documents in the collection. Each document is decoded into
+the specified <code>Codable</code> type <code>T</code>.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the operation fails during document retrieval or decoding.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">fetchDocumentsLazy</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span><span class="n">from</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span>
+    <span class="o">-&gt;</span> <span class="kt">AsyncThrowingStream</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">,</span> <span class="kt">Error</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to fetch documents from.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An <code>AsyncThrowingStream</code> of type <code>T</code> that provides asynchronous access
+to the documents in the collection.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC15deleteDocuments5where4fromySbxc_SStYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/deleteDocuments(where:from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC15deleteDocuments5where4fromySbxc_SStYaKSeRzSERzlF">deleteDocuments(where:<wbr>from:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Deletes documents from the specified collection that satisfy the given predicate.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the deletion process fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This method is asynchronous and must be called with <code>await</code>.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">deleteDocuments</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="k">where</span> <span class="nv">predicate</span><span class="p">:</span> <span class="kd">@escaping</span> <span class="p">(</span><span class="kt">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span><span class="p">,</span>
+    <span class="n">from</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>predicate</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>A closure that takes an instance of type <code>T</code> and returns a Boolean value
+indicating whether the document should be deleted.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection from which documents will be deleted.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14updateDocument_2in8matching10indexFieldyx_SSSbxXESSSgtYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/updateDocument(_:in:matching:indexField:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14updateDocument_2in8matching10indexFieldyx_SSSbxXESSSgtYaKSeRzSERzlF">updateDocument(_:<wbr>in:<wbr>matching:<wbr>indexField:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Updates a document in the specified collection that matches the given predicate.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <p>An error if the update operation fails.</p>
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    <p>This method is asynchronous and must be called with <code>await</code>.</p>
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">updateDocument</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">,</span>
+    <span class="k">in</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="n">matching</span> <span class="nv">predicate</span><span class="p">:</span> <span class="p">(</span><span class="kt">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span><span class="p">,</span>
+    <span class="nv">indexField</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document of type <code>T</code> to update. Must conform to <code>Codable</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection where the document resides.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>predicate</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>A closure that takes a document of type <code>T</code> as its argument and
+returns a Boolean value indicating whether the document matches the criteria.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>indexField</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An optional field name to use as an index for optimizing the update operation.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC19bulkInsertDocuments_10collection10indexFieldySayxG_S2SSgtYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/bulkInsertDocuments(_:collection:indexField:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC19bulkInsertDocuments_10collection10indexFieldySayxG_S2SSgtYaKSeRzSERzlF">bulkInsertDocuments(_:<wbr>collection:<wbr>indexField:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts multiple documents into the specified collection in bulk.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the insertion fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This method is asynchronous and must be called with <code>await</code>.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">bulkInsertDocuments</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="n">_</span> <span class="nv">documents</span><span class="p">:</span> <span class="p">[</span><span class="kt">T</span><span class="p">],</span>
+    <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">indexField</span><span class="p">:</span> <span class="kt">String</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>documents</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An array of documents conforming to the <code>Codable</code> protocol to be inserted.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection where the documents will be inserted.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>indexField</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An optional field name to be used as an index for the documents. Defaults to <code>nil</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14countDocuments2inSiSS_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/countDocuments(in:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14countDocuments2inSiSS_tYaKF">countDocuments(in:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Counts the number of documents in the specified collection.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the operation fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This is an asynchronous method and must be called with <code>await</code>.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">countDocuments</span><span class="p">(</span><span class="k">in</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to count documents in.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The total number of documents in the specified collection.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC14dropCollectionyySSYaKF"></a>
+                    <a name="//apple_ref/swift/Method/dropCollection(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC14dropCollectionyySSYaKF">dropCollection(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Drops the specified collection from the storage engine.</p>
+
+<p>This method removes all data associated with the given collection name.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the operation fails.
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This operation is asynchronous and must be awaited.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">dropCollection</span><span class="p">(</span><span class="n">_</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to be dropped.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC15listCollectionsSaySSGyKF"></a>
+                    <a name="//apple_ref/swift/Method/listCollections()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC15listCollectionsSaySSGyKF">listCollections()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Lists all the collections available in the storage engine.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the operation fails.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">listCollections</span><span class="p">()</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of strings representing the names of the collections.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC16getShardManagers3forSayAA0F0CGSS_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/getShardManagers(for:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC16getShardManagers3forSayAA0F0CGSS_tYaKF">getShardManagers(for:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Retrieves the shard managers associated with a specific collection.</p>
+
+<p>This asynchronous function fetches all the shards for the given collection name.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the operation fails, such as issues with accessing the storage or invalid collection name.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">getShardManagers</span><span class="p">(</span><span class="k">for</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt"><a href="../Classes/Shard.html">Shard</a></span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection for which shard managers are to be retrieved.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of <code><a href="../Classes/Shard.html">Shard</a></code> objects representing the shard managers for the specified collection.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC8getShard12forPartition2inAA0F0CSgSS_SStYaKF"></a>
+                    <a name="//apple_ref/swift/Method/getShard(forPartition:in:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC8getShard12forPartition2inAA0F0CSgSS_SStYaKF">getShard(forPartition:<wbr>in:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Retrieves the shard associated with a specific partition within a given collection.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">getShard</span><span class="p">(</span><span class="n">forPartition</span> <span class="nv">partition</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="k">in</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Classes/Shard.html">Shard</a></span><span class="p">?</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>partition</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The identifier of the partition for which the shard is being retrieved.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection containing the partition.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC17bulkUpdateIndexes10collection7updatesySS_SaySS10indexField_SS0J3Key10Foundation4DataV4datatGtYaF"></a>
+                    <a name="//apple_ref/swift/Method/bulkUpdateIndexes(collection:updates:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC17bulkUpdateIndexes10collection7updatesySS_SaySS10indexField_SS0J3Key10Foundation4DataV4datatGtYaF">bulkUpdateIndexes(collection:<wbr>updates:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Performs a bulk update of indexes for a specified collection.</p>
+
+<p>This method is asynchronous and allows for batch processing of index updates.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">bulkUpdateIndexes</span><span class="p">(</span>
+    <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">updates</span><span class="p">:</span> <span class="p">[(</span><span class="nv">indexField</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">indexKey</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">data</span><span class="p">:</span> <span class="kt">Data</span><span class="p">)]</span>
+<span class="p">)</span> <span class="k">async</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection where the indexes will be updated.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>updates</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An array of tuples containing the index field, index key, and associated data to update.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC15setPartitionKey3for3keyySS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/setPartitionKey(for:key:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC15setPartitionKey3for3keyySS_SStF">setPartitionKey(for:<wbr>key:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Sets the partition key for a specified collection.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">setPartitionKey</span><span class="p">(</span><span class="k">for</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">key</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection for which the partition key is being set.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The key to be used as the partition key for the collection.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC19collectionDirectory3for10Foundation3URLVSS_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/collectionDirectory(for:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC19collectionDirectory3for10Foundation3URLVSS_tYaKF">collectionDirectory(for:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the directory URL for the specified collection.</p>
+
+<p>This method asynchronously retrieves the directory URL where the data
+for the given collection is stored.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    An error if the directory cannot be determined or accessed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">collectionDirectory</span><span class="p">(</span><span class="k">for</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">URL</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection for which the directory URL is required.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A <code>URL</code> pointing to the directory of the specified collection.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC21repartitionCollection10collection15newPartitionKey2asySS_SSxmtYaKSeRzSERzlF"></a>
+                    <a name="//apple_ref/swift/Method/repartitionCollection(collection:newPartitionKey:as:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC21repartitionCollection10collection15newPartitionKey2asySS_SSxmtYaKSeRzSERzlF">repartitionCollection(collection:<wbr>newPartitionKey:<wbr>as:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Repartitions a collection by changing its partition key.</p>
+
+<p>This method allows you to repartition an existing collection by specifying a new partition key.
+The operation is performed asynchronously and may throw an error if the operation fails.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <p>An error if the repartitioning operation fails.</p>
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">repartitionCollection</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="nv">newPartitionKey</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+    <span class="k">as</span> <span class="nv">type</span><span class="p">:</span> <span class="kt">T</span><span class="o">.</span><span class="k">Type</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collection</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to repartition.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>newPartitionKey</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The new partition key to be used for the collection.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>type</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The type of the objects stored in the collection, conforming to <code>Codable</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213StorageEngineC18cleanupEmptyShards3forySS_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/cleanupEmptyShards(for:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213StorageEngineC18cleanupEmptyShards3forySS_tYaKF">cleanupEmptyShards(for:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">cleanupEmptyShards</span><span class="p">(</span><span class="k">for</span> <span class="nv">collection</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </section>
+        <section id="footer">
+          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-24)</p>
+          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+        </section>
+      </article>
+    </div>
+  </body>
+</html>
