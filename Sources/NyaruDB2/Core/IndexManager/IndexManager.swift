@@ -1,7 +1,7 @@
 import Foundation
 
 /// A protocol that represents a key used for indexing in a database.
-/// 
+///
 /// Types conforming to this protocol must be both `Hashable` and `Codable`,
 /// ensuring that they can be used as unique keys in collections like dictionaries
 /// and can be serialized/deserialized for persistence or transmission.
@@ -9,19 +9,19 @@ public protocol IndexKey: Hashable, Codable {}
 
 
 /// Extends the `String` type to conform to the `IndexKey` protocol.
-/// 
+///
 /// This allows `String` values to be used as keys in the indexing system
-/// managed by the `IndexManager`. By conforming to `IndexKey`, `String` 
-/// gains compatibility with any functionality or constraints defined by 
+/// managed by the `IndexManager`. By conforming to `IndexKey`, `String`
+/// gains compatibility with any functionality or constraints defined by
 /// the `IndexKey` protocol.
 extension String: IndexKey {}
 
 /// A structure that represents metrics for an index, providing insights into its usage and value distribution.
-/// 
+///
 /// - Properties:
 ///   - `accessCount`: The number of times the index has been accessed. Defaults to `0`.
 ///   - `lastAccess`: The date and time when the index was last accessed. Defaults to `.distantPast`.
-///   - `valueDistribution`: A dictionary that tracks the distribution of values associated with the index, 
+///   - `valueDistribution`: A dictionary that tracks the distribution of values associated with the index,
 ///     where the keys are the values and the values are their respective counts. Defaults to an empty dictionary.
 public struct IndexMetrics {
     public var accessCount: Int = 0
@@ -31,15 +31,15 @@ public struct IndexMetrics {
 
 
 /// An actor responsible for managing indices in a database system.
-/// 
+///
 /// `IndexManager` provides functionality to handle the creation, storage, and
 /// metrics of indices for efficient data retrieval. It is generic over a `Key`
 /// type that conforms to both `IndexKey` and `Comparable` protocols, ensuring
 /// that the keys used in the indices are suitable for indexing and comparison.
-/// 
+///
 /// - Note: This actor is designed to be thread-safe, leveraging Swift's actor
 ///   model to protect its internal state from concurrent access.
-/// 
+///
 /// Properties:
 /// - `indices`: A dictionary mapping index names (`String`) to their corresponding
 ///   `BTreeIndex` instances, which store the actual index data.
@@ -51,12 +51,15 @@ public actor IndexManager<Key: IndexKey & Comparable> {
     private var indices: [String: BTreeIndex<Key>] = [:]
     private var createdIndexes: Set<String> = []
     private var metrics: [String: IndexMetrics] = [:]
-
+    private let storageFormat: StorageFormat
+    
     /// Initializes a new instance of the `IndexManager` class.
     ///
     /// This initializer sets up the `IndexManager` with default values.
-    public init() {}
-
+    public init(storageFormat: StorageFormat = .json) {
+        self.storageFormat = storageFormat
+    }
+    
     
     /// Creates an index for the specified field with a given minimum degree.
     ///
@@ -72,7 +75,7 @@ public actor IndexManager<Key: IndexKey & Comparable> {
             metrics[field] = IndexMetrics()
         }
     }
-
+    
     
     /// Inserts a new index entry into the index manager.
     ///
@@ -88,7 +91,7 @@ public actor IndexManager<Key: IndexKey & Comparable> {
             m.valueDistribution[key, default: 0] += 1  // Increment the frequency for this key
             metrics[field] = m
         }
-
+        
         guard let indexTree = indices[field] else {
             print(
                 "Índice para o campo \(field) não foi criado. Utilize createIndex(for:) primeiro."
@@ -97,8 +100,8 @@ public actor IndexManager<Key: IndexKey & Comparable> {
         }
         await indexTree.insert(key: key, data: data)
     }
-
-
+    
+    
     /// Searches for records in the database that match the specified field and value.
     ///
     /// - Parameters:
@@ -112,11 +115,11 @@ public actor IndexManager<Key: IndexKey & Comparable> {
             m.lastAccess = Date()
             metrics[field] = m
         }
-
+        
         guard let indexTree = indices[field] else { return [] }
         return await indexTree.search(key: value) ?? []
     }
-
+    
     /// Retrieves the metrics for all indexes managed by the `IndexManager`.
     ///
     /// - Returns: A dictionary where the keys are index names (as `String`) and the values are
@@ -124,7 +127,7 @@ public actor IndexManager<Key: IndexKey & Comparable> {
     public func getMetrics() -> [String: IndexMetrics] {
         return metrics
     }
-
+    
     /// Asynchronously retrieves the count of indices.
     ///
     /// - Returns: A dictionary where the keys are index names (as `String`) and the values are their respective counts (as `Int`).
@@ -135,14 +138,14 @@ public actor IndexManager<Key: IndexKey & Comparable> {
         }
         return counts
     }
-
+    
     /// Lists all the indexes managed by the `IndexManager`.
     ///
     /// - Returns: An array of strings representing the names of all indexes.
     public func listIndexes() -> [String] {
         return Array(indices.keys)
     }
-
+    
     /// Drops the index associated with the specified field.
     ///
     /// - Parameter field: The name of the field for which the index should be dropped.
@@ -156,7 +159,7 @@ public actor IndexManager<Key: IndexKey & Comparable> {
         metrics.removeValue(forKey: field)
         return true
     }
-
+    
     /// Inserts or updates an index for the specified field using the provided JSON data.
     ///
     /// - Parameters:
@@ -166,19 +169,20 @@ public actor IndexManager<Key: IndexKey & Comparable> {
     /// - Note: This method is asynchronous and must be called with `await`.
     public func upsertIndex(for field: String, jsonData: Data) async throws {
         await createIndex(for: field)
-
+        
         let keyString = try DynamicDecoder.extractValue(
             from: jsonData,
             key: field,
-            forIndex: true
+            forIndex: true,
+            storageFormat: self.storageFormat
         )
-
+        
         guard let key = keyString as? Key else {
             print("Não foi possível converter a chave para o tipo Key.")
             return
         }
-
+        
         await insert(index: field, key: key, data: jsonData)
     }
-
+    
 }

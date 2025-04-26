@@ -12,7 +12,7 @@ import Foundation
 /// - `indexManagers`: A dictionary of index managers, keyed by collection name.
 /// - `statsEngine`: A lazily initialized instance of `StatsEngine` for gathering storage statistics.
 public actor StorageEngine {
-
+    
     private let baseURL: URL
     private let compressionMethod: CompressionMethod
     private let fileProtectionType: FileProtectionType
@@ -21,7 +21,7 @@ public actor StorageEngine {
     public var activeShardManagers = [String: ShardManager]()
     public var indexManagers: [String: IndexManager<String>] = [:]
     private lazy var statsEngine: StatsEngine = StatsEngine(storage: self)
-
+    
     /// An enumeration representing errors that can occur in the storage engine.
     ///
     /// This enum conforms to the `Error` protocol, allowing instances of `StorageError`
@@ -33,7 +33,7 @@ public actor StorageEngine {
         case shardManagerCreationFailed
         case updateDocumentNotFound
     }
-
+    
     /// Initializes a new instance of the `StorageEngine` class.
     ///
     /// - Parameters:
@@ -47,19 +47,27 @@ public actor StorageEngine {
         compressionMethod: CompressionMethod = .none,
         fileProtectionType: FileProtectionType = .none,
         storageFormat: StorageFormat = .json
-
+        
     ) throws {
         self.baseURL = URL(fileURLWithPath: path, isDirectory: true)
         self.compressionMethod = compressionMethod
         self.fileProtectionType = fileProtectionType
         self.storageFormat = storageFormat
-
+        
         try FileManager.default.createDirectory(
             at: baseURL,
             withIntermediateDirectories: true
         )
     }
 
+    /// Inserts a document into the storage engine.
+    ///
+    /// - Parameters:
+    //      document: The document to be inserted. The document must conform to the `Codable` protocol.
+    ///     collection: The name of the collection where the document will be inserted.
+    ///     indexField: An optional field name to be used as an index for the document. Defaults to `nil`.
+    /// - Throws: An error if the insertion fails.
+    /// - Note: This method is asynchronous and must be called with `await`.
     public func insertDocument<T: Codable>(
         _ document: T,
         collection: String,
@@ -69,22 +77,24 @@ public actor StorageEngine {
             document,
             using: storageFormat
         )
-
+        
         let partitionField = collectionPartitionKeys[collection]
+        print("partitionField: \(partitionField ?? "nil")")
         let partitionValue: String =
-            partitionField != nil
-            ? try DynamicDecoder.extractValue(
-                from: jsonData,
-                key: partitionField!,
-                storageFormat: storageFormat
-            ) : "default"
-
+        partitionField != nil
+        ? try DynamicDecoder.extractValue(
+            from: jsonData,
+            key: partitionField!,
+            storageFormat: storageFormat
+        ) : "default"
+        print("print partitionValue: \(partitionValue)\n")
         let shardManager = try await getOrCreateShardManager(for: collection)
         let shard = try await shardManager.getOrCreateShard(id: partitionValue)
-
+        
         try await shard.appendDocument(document, jsonData: jsonData)
-
-        let indexManager = indexManagers[collection] ?? IndexManager<String>()
+        print("inserted on shard: \(shard)\n")
+        
+        let indexManager = indexManagers[collection] ?? IndexManager<String>(storageFormat: self.storageFormat)
         indexManagers[collection] = indexManager
         if let unwrappedIndexField = indexField {
             try await indexManager.upsertIndex(
@@ -92,11 +102,11 @@ public actor StorageEngine {
                 jsonData: jsonData
             )
         }
-
+        
         try await self.statsEngine.updateCollectionMetadata(for: collection)
-
+        
     }
-
+    
     /// Fetches documents from the specified collection and decodes them into the specified type.
     ///
     /// This method retrieves all documents from the given collection and attempts to decode them
@@ -107,14 +117,14 @@ public actor StorageEngine {
     /// - Returns: An array of decoded objects of type `T`.
     /// - Throws: An error if the fetch operation or decoding process fails.
     public func fetchDocuments<T: Codable>(from collection: String) async throws
-        -> [T]
+    -> [T]
     {
         try await activeShardManagers[collection]?
             .allShards()
             .concurrentMap { try await $0.loadDocuments() }
             .flatMap { $0 } ?? []
     }
-
+    
     /// Fetches records from the specified collection that match the given field and value.
     ///
     /// This method performs an asynchronous operation to retrieve records from the index
@@ -135,12 +145,12 @@ public actor StorageEngine {
             return []
         }
         let dataArray = await indexManager.search(field, value: value)
-
+        
         return try dataArray.map {
             try StorageSerializer.decode(T.self, from: $0, using: storageFormat)
         }
     }
-
+    
     /// Fetches documents lazily from the specified collection.
     ///
     /// This method returns an `AsyncThrowingStream` that allows you to asynchronously
@@ -152,7 +162,7 @@ public actor StorageEngine {
     ///   to the documents in the collection.
     /// - Throws: An error if the operation fails during document retrieval or decoding.
     public func fetchDocumentsLazy<T: Codable>(from collection: String)
-        -> AsyncThrowingStream<T, Error>
+    -> AsyncThrowingStream<T, Error>
     {
         AsyncThrowingStream { continuation in
             Task {
@@ -170,7 +180,7 @@ public actor StorageEngine {
             }
         }
     }
-
+    
     /// Deletes documents from the specified collection that satisfy the given predicate.
     ///
     /// - Parameters:
@@ -184,7 +194,7 @@ public actor StorageEngine {
         from collection: String
     ) async throws {
         guard let shardManager = activeShardManagers[collection] else { return }
-
+        
         try await shardManager.allShards()
             .asyncForEach { shard in
                 let docs = try await shard.loadDocuments() as [T]
@@ -193,10 +203,10 @@ public actor StorageEngine {
                     try await shard.saveDocuments(newDocs)
                 }
             }
-
+        
         try await statsEngine.updateCollectionMetadata(for: collection)
     }
-
+    
     /// Updates a document in the specified collection that matches the given predicate.
     ///
     /// - Parameters:
@@ -215,9 +225,9 @@ public actor StorageEngine {
         matching predicate: (T) -> Bool,
         indexField: String? = nil
     ) async throws {
-
-        let jsonData = try JSONEncoder().encode(document)
-
+        
+        let jsonData = try StorageSerializer.encode(document, using: self.storageFormat)
+        
         let shardManager = try await getOrCreateShardManager(for: collection)
         let shard: Shard
         if let partitionField = collectionPartitionKeys[collection] {
@@ -230,19 +240,19 @@ public actor StorageEngine {
         } else {
             shard = try await shardManager.getOrCreateShard(id: "default")
         }
-
+        
         var documents: [T] = try await shard.loadDocuments()
-
+        
         guard let indexToUpdate = documents.firstIndex(where: predicate) else {
             throw StorageEngine.StorageError.updateDocumentNotFound
         }
-
+        
         documents[indexToUpdate] = document
-
+        
         try await shard.saveDocuments(documents)
-
-        let indexManager = indexManagers[collection] ?? IndexManager<String>()
-        indexManagers[collection] = indexManager  // salva no dicionário caso seja recém-criado
+        
+        let indexManager = indexManagers[collection] ?? IndexManager<String>(storageFormat: self.storageFormat)
+        indexManagers[collection] = indexManager
         if let unwrappedIndexField = indexField {
             try await indexManager.upsertIndex(
                 for: unwrappedIndexField,
@@ -250,7 +260,7 @@ public actor StorageEngine {
             )
         }
     }
-
+    
     /// Inserts multiple documents into the specified collection in bulk.
     ///
     /// - Parameters:
@@ -264,39 +274,38 @@ public actor StorageEngine {
         collection: String,
         indexField: String? = nil
     ) async throws {
-
+        
         guard !documents.isEmpty else { return }
-
+        
         let shardManager = try await getOrCreateShardManager(for: collection)
-
+        
         if let indexField = indexField, indexManagers[collection] == nil {
-            let newManager = IndexManager<String>()
+            let newManager = IndexManager<String>(storageFormat: storageFormat)
             await newManager.createIndex(for: indexField)
             indexManagers[collection] = newManager
         }
-
-        let groups: [String: [(document: T, jsonData: Data)]] =
-            try documents.reduce(into: [:]) { result, document in
-                let jsonData = try JSONEncoder().encode(document)
-                // Consulta a chave de partição configurada para a coleção.
-                let partitionField = collectionPartitionKeys[collection]
-                let partitionValue =
-                    partitionField != nil
-                    ? try DynamicDecoder.extractValue(
-                        from: jsonData,
-                        key: partitionField!,
-                        storageFormat: storageFormat
-                    )
-                    : "default"
-
-                result[partitionValue, default: []].append((document, jsonData))
-            }
-
+        
+        let groups: [String: [(document: T, encodedData: Data)]] =
+        try documents.reduce(into: [:]) { result, document in
+            let encodedData = try StorageSerializer.encode(document, using: storageFormat)
+            let partitionField = collectionPartitionKeys[collection]
+            let partitionValue =
+            partitionField != nil
+            ? try DynamicDecoder.extractValue(
+                from: encodedData,
+                key: partitionField!,
+                storageFormat: storageFormat
+            )
+            : "default"
+            
+            result[partitionValue, default: []].append((document, encodedData))
+        }
+        
         if let indexField = indexField {
             try await documents.asyncForEach { document in
-                let jsonData = try JSONEncoder().encode(document)
+                let encodedData = try StorageSerializer.encode(document, using: storageFormat)
                 let indexKey = try DynamicDecoder.extractValue(
-                    from: jsonData,
+                    from: encodedData,
                     key: indexField,
                     forIndex: true,
                     storageFormat: storageFormat
@@ -305,7 +314,7 @@ public actor StorageEngine {
                 if let existing = indexManagers[collection] {
                     indexManager = existing
                 } else {
-                    let newManager = IndexManager<String>()
+                    let newManager = IndexManager<String>(storageFormat: self.storageFormat)
                     await newManager.createIndex(for: indexField)
                     indexManagers[collection] = newManager
                     indexManager = newManager
@@ -313,11 +322,11 @@ public actor StorageEngine {
                 await indexManager.insert(
                     index: indexField,
                     key: indexKey,
-                    data: jsonData
+                    data: encodedData
                 )
             }
         }
-
+        
         try await groups.forEachAsync { (shardId, groupDocuments) in
             let shard = try await shardManager.getOrCreateShard(id: shardId)
             let existingDocs: [T] = try await shard.loadDocuments()
@@ -325,10 +334,11 @@ public actor StorageEngine {
             let updatedDocs = existingDocs + newDocs
             try await shard.saveDocuments(updatedDocs)
         }
-
+        
         try await self.statsEngine.updateCollectionMetadata(for: collection)
     }
-
+    
+    
     /// Counts the number of documents in the specified collection.
     ///
     /// - Parameter collection: The name of the collection to count documents in.
@@ -340,7 +350,7 @@ public actor StorageEngine {
             .map(\.metadata.documentCount)
             .reduce(0, +) ?? 0
     }
-
+    
     /// Drops the specified collection from the storage engine.
     ///
     /// This method removes all data associated with the given collection name.
@@ -354,11 +364,11 @@ public actor StorageEngine {
             isDirectory: true
         )
         try FileManager.default.removeItem(at: collectionURL)
-
+        
         activeShardManagers.removeValue(forKey: collection)
         indexManagers.removeValue(forKey: collection)
     }
-
+    
     /// Lists all the collections available in the storage engine.
     ///
     /// - Returns: An array of strings representing the names of the collections.
@@ -368,7 +378,7 @@ public actor StorageEngine {
             at: baseURL,
             includingPropertiesForKeys: nil
         )
-
+        
         let collections = items.filter { url in
             var isDirectory: ObjCBool = false
             FileManager.default.fileExists(
@@ -377,10 +387,10 @@ public actor StorageEngine {
             )
             return isDirectory.boolValue
         }
-
+        
         return collections.map { $0.lastPathComponent }
     }
-
+    
     /// Retrieves the shard managers associated with a specific collection.
     ///
     /// This asynchronous function fetches all the shards for the given collection name.
@@ -395,19 +405,19 @@ public actor StorageEngine {
         }
         return shardManager.allShards()
     }
-
+    
     /// Retrieves the shard associated with a specific partition within a given collection.
     ///
     /// - Parameters:
     ///   - partition: The identifier of the partition for which the shard is being retrieved.
     ///   - collection: The name of the collection containing the partition.
     public func getShard(forPartition partition: String, in collection: String)
-        async throws -> Shard?
+    async throws -> Shard?
     {
         let shards = try await getShardManagers(for: collection)
         return shards.first(where: { $0.id == partition })
     }
-
+    
     /// Retrieves the shard manager for the specified collection, or creates a new one if it does not exist.
     ///
     /// - Parameter collection: The name of the collection for which the shard manager is required.
@@ -415,12 +425,12 @@ public actor StorageEngine {
     /// - Throws: An error if the shard manager cannot be retrieved or created.
     /// - Note: This is an asynchronous function and must be called with `await`.
     private func getOrCreateShardManager(for collection: String) async throws
-        -> ShardManager
+    -> ShardManager
     {
         if let existing = activeShardManagers[collection] {
             return existing
         }
-
+        
         let collectionURL = baseURL.appendingPathComponent(
             collection,
             isDirectory: true
@@ -429,7 +439,7 @@ public actor StorageEngine {
             at: collectionURL,
             withIntermediateDirectories: true
         )
-
+        
         let newManager = ShardManager(
             baseURL: collectionURL,
             compressionMethod: compressionMethod
@@ -437,7 +447,7 @@ public actor StorageEngine {
         activeShardManagers[collection] = newManager
         return newManager
     }
-
+    
     /// Performs a bulk update of indexes for a specified collection.
     ///
     /// - Parameters:
@@ -465,7 +475,7 @@ public actor StorageEngine {
             }
         }
     }
-
+    
     /// Sets the partition key for a specified collection.
     ///
     /// - Parameters:
@@ -474,7 +484,7 @@ public actor StorageEngine {
     public func setPartitionKey(for collection: String, key: String) {
         collectionPartitionKeys[collection] = key
     }
-
+    
     /// Returns the directory URL for the specified collection.
     ///
     /// This method asynchronously retrieves the directory URL where the data
@@ -491,7 +501,7 @@ public actor StorageEngine {
         )
         return collectionURL
     }
-
+    
     /// Repartitions a collection by changing its partition key.
     ///
     /// This method allows you to repartition an existing collection by specifying a new partition key.
@@ -508,7 +518,7 @@ public actor StorageEngine {
         newPartitionKey: String,
         as type: T.Type
     ) async throws {
-
+        
         let allDocs: [T] = try await fetchDocuments(from: collection)
         let shardManager = try await getOrCreateShardManager(for: collection)
         try shardManager.removeAllShards()
@@ -516,7 +526,7 @@ public actor StorageEngine {
         let groups = try allDocs.reduce(into: [String: [T]]()) {
             result,
             document in
-            let jsonData = try JSONEncoder().encode(document)
+            let jsonData = try StorageSerializer.encode(document, using: self.storageFormat)
             let partitionValue = try DynamicDecoder.extractValue(
                 from: jsonData,
                 key: newPartitionKey,
@@ -524,7 +534,7 @@ public actor StorageEngine {
             )
             result[partitionValue, default: []].append(document)
         }
-
+        
         for (partitionValue, docsGroup) in groups {
             let shard = try await shardManager.getOrCreateShard(
                 id: partitionValue
@@ -533,12 +543,21 @@ public actor StorageEngine {
         }
         try await statsEngine.updateCollectionMetadata(for: collection)
     }
-
+    
+    /// Cleans up empty shards for the specified collection.
+    ///
+    /// This method asynchronously identifies and removes any empty shards
+    /// associated with the given collection. It helps to optimize storage
+    /// by ensuring that unused shards are cleared.
+    ///
+    /// - Parameter collection: The name of the collection for which empty
+    ///   shards should be cleaned up.
+    /// - Throws: An error if the cleanup process fails.
     public func cleanupEmptyShards(for collection: String) async throws {
         let shardManager = try await getOrCreateShardManager(for: collection)
         try await shardManager.cleanupEmptyShards()
     }
-
+    
 }
 
 /// An extension to the `Sequence` protocol that provides additional functionality
@@ -569,7 +588,7 @@ extension Sequence {
     /// - Returns: An array containing the transformed elements.
     /// - Throws: Rethrows any error thrown by the `transform` closure.
     func concurrentMap<T>(_ transform: @escaping (Element) async throws -> T)
-        async rethrows -> [T]
+    async rethrows -> [T]
     {
         try await withThrowingTaskGroup(of: T.self) { group in
             forEach { element in
