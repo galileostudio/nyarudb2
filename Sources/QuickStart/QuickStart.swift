@@ -38,7 +38,8 @@ func runQuickStart() async {
         let db = try NyaruDB2(
             path: "NyaruDB_QuickStart",
             compressionMethod: .none,     // You can change this to .gzip, .lzfse, etc.
-            fileProtectionType: .none     // Adjust file protection as needed.
+            fileProtectionType: .none,
+            storageFormat: .messagePack   // Adjust file protection as needed.
         )
         print("Database initialized successfully.")
 

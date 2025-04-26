@@ -15,6 +15,7 @@ public class NyaruDB2 {
     public let indexManager: IndexManager<String>
     private let statsEngine: StatsEngine
     private var collections: [String: DocumentCollection] = [:]
+    private let storageFormat: StorageFormat
 
     
     /// Initializes a new instance of `NyaruDB2`.
@@ -23,19 +24,23 @@ public class NyaruDB2 {
     ///   - path: The file path where the database will be stored. Defaults to `"NyaruDB2"`.
     ///   - compressionMethod: The method used for compressing the database. Defaults to `.none`.
     ///   - fileProtectionType: The file protection level for the database. Defaults to `.none`.
+    ///   - storageFormat: The format used for storing data. Defaults to `.json`.
     /// - Throws: An error if the initialization fails.
     public init(
         path: String = "NyaruDB2",
         compressionMethod: CompressionMethod = .none,
-        fileProtectionType: FileProtectionType = .none
+        fileProtectionType: FileProtectionType = .none,
+        storageFormat: StorageFormat = .json
     ) throws {
         self.storage = try StorageEngine(
             path: path,
             compressionMethod: compressionMethod,
-            fileProtectionType: fileProtectionType
+            fileProtectionType: fileProtectionType,
+            storageFormat: storageFormat
         )
         self.indexManager = IndexManager()
         self.statsEngine = StatsEngine(storage: storage)
+        self.storageFormat = storageFormat
     }
     
     /// Retrieves a `DocumentCollection` with the specified name.
@@ -61,7 +66,8 @@ public class NyaruDB2 {
                                        statsEngine: statsEngine,
                                        name: name,
                                        indexes: indexes,
-                                       partitionKey: partitionKey)
+                                       partitionKey: partitionKey
+                                       )
         collections[name] = collection
         return collection
     }
