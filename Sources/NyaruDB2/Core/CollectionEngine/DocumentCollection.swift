@@ -1,5 +1,6 @@
 import Foundation
 
+
 ///  A structure representing metadata for a collection in the database.
 ///  
 ///  This metadata includes the collection's name, the indexes associated with it,
@@ -144,26 +145,31 @@ public class DocumentCollection {
         shardKey: String? = nil,
         shardValue: String? = nil
     ) async throws -> [T] {
-        // Retrieve all documents from the collection (full scan)
+
         let results: [T] = try await storage.fetchDocuments(from: metadata.name)
 
         // Apply shard filtering if specified
-        let resultsFilteredByShard: [T] = {
+        let resultsFilteredByShard: [T] = await {
+            let currentFormat = await storage.storageFormat
             guard let shardKey = shardKey, let shardValue = shardValue else { return results }
             return results.filter { document in
-                guard let data = try? JSONEncoder().encode(document),
-                      let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                guard let data = try? StorageSerializer.encode(document, using: currentFormat),
+                      let dict = try? StorageSerializer.decodeToDictionary(data: data, format: currentFormat),
                       let value = dict[shardKey] as? String
                 else { return false }
+
                 return value == shardValue
             }
         }()
 
         guard let query = query else { return resultsFilteredByShard }
 
+        let currentFormat = await storage.storageFormat
         let finalResults = resultsFilteredByShard.filter { document in
-            guard let data = try? JSONEncoder().encode(document),
-                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            
+            guard let data = try? StorageSerializer.encode(document, using: currentFormat),
+                  let dict = try? StorageSerializer.decodeToDictionary(data: data, format: currentFormat)
+
             else { return false }
             for (key, value) in query {
                 if let docValue = dict[key] as? String, let queryValue = value as? String {

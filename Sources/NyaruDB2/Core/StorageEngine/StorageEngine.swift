@@ -16,6 +16,7 @@ public actor StorageEngine {
     private let baseURL: URL
     private let compressionMethod: CompressionMethod
     private let fileProtectionType: FileProtectionType
+    public let storageFormat: StorageFormat
     public var collectionPartitionKeys: [String: String] = [:]
     public var activeShardManagers = [String: ShardManager]()
     public var indexManagers: [String: IndexManager<String>] = [:]
@@ -39,15 +40,19 @@ public actor StorageEngine {
     ///   - path: The file path where the storage engine will operate.
     ///   - compressionMethod: The method used for compressing data. Defaults to `.none`.
     ///   - fileProtectionType: The file protection level to apply. Defaults to `.none`.
+    ///   - storageFormat: The format used for storing data. Defaults to `.json`.
+    /// - Throws: An error if the initialization fails.
     public init(
         path: String,
         compressionMethod: CompressionMethod = .none,
-        fileProtectionType: FileProtectionType = .none
+        fileProtectionType: FileProtectionType = .none,
+        storageFormat: StorageFormat = .json
 
     ) throws {
         self.baseURL = URL(fileURLWithPath: path, isDirectory: true)
         self.compressionMethod = compressionMethod
         self.fileProtectionType = fileProtectionType
+        self.storageFormat = storageFormat
 
         try FileManager.default.createDirectory(
             at: baseURL,
@@ -55,39 +60,37 @@ public actor StorageEngine {
         )
     }
 
-    /// Inserts a document into the specified collection in the storage engine.
-    ///
-    /// - Parameters:
-    ///   - document: The document to be inserted. Must conform to the `Codable` protocol.
-    ///   - collection: The name of the collection where the document will be stored.
-    ///   - indexField: An optional field to be used as an index for the document. Defaults to `nil`.
-    /// - Throws: An error if the insertion fails.
-    /// - Note: This method is asynchronous and must be called with `await`.
     public func insertDocument<T: Codable>(
         _ document: T,
         collection: String,
         indexField: String? = nil
     ) async throws {
-        let jsonData = try JSONEncoder().encode(document)
+        let jsonData = try StorageSerializer.encode(
+            document,
+            using: storageFormat
+        )
 
         let partitionField = collectionPartitionKeys[collection]
         let partitionValue: String =
             partitionField != nil
             ? try DynamicDecoder.extractValue(
                 from: jsonData,
-                key: partitionField!
+                key: partitionField!,
+                storageFormat: storageFormat
             ) : "default"
 
         let shardManager = try await getOrCreateShardManager(for: collection)
         let shard = try await shardManager.getOrCreateShard(id: partitionValue)
-
 
         try await shard.appendDocument(document, jsonData: jsonData)
 
         let indexManager = indexManagers[collection] ?? IndexManager<String>()
         indexManagers[collection] = indexManager
         if let unwrappedIndexField = indexField {
-            try await indexManager.upsertIndex(for: unwrappedIndexField, jsonData: jsonData)
+            try await indexManager.upsertIndex(
+                for: unwrappedIndexField,
+                jsonData: jsonData
+            )
         }
 
         try await self.statsEngine.updateCollectionMetadata(for: collection)
@@ -132,7 +135,10 @@ public actor StorageEngine {
             return []
         }
         let dataArray = await indexManager.search(field, value: value)
-        return try dataArray.map { try JSONDecoder().decode(T.self, from: $0) }
+
+        return try dataArray.map {
+            try StorageSerializer.decode(T.self, from: $0, using: storageFormat)
+        }
     }
 
     /// Fetches documents lazily from the specified collection.
@@ -217,7 +223,8 @@ public actor StorageEngine {
         if let partitionField = collectionPartitionKeys[collection] {
             let partitionValue: String = try DynamicDecoder.extractValue(
                 from: jsonData,
-                key: partitionField
+                key: partitionField,
+                storageFormat: storageFormat
             )
             shard = try await shardManager.getOrCreateShard(id: partitionValue)
         } else {
@@ -233,11 +240,14 @@ public actor StorageEngine {
         documents[indexToUpdate] = document
 
         try await shard.saveDocuments(documents)
-        
+
         let indexManager = indexManagers[collection] ?? IndexManager<String>()
         indexManagers[collection] = indexManager  // salva no dicionário caso seja recém-criado
         if let unwrappedIndexField = indexField {
-            try await indexManager.upsertIndex(for: unwrappedIndexField, jsonData: jsonData)
+            try await indexManager.upsertIndex(
+                for: unwrappedIndexField,
+                jsonData: jsonData
+            )
         }
     }
 
@@ -274,7 +284,8 @@ public actor StorageEngine {
                     partitionField != nil
                     ? try DynamicDecoder.extractValue(
                         from: jsonData,
-                        key: partitionField!
+                        key: partitionField!,
+                        storageFormat: storageFormat
                     )
                     : "default"
 
@@ -287,7 +298,8 @@ public actor StorageEngine {
                 let indexKey = try DynamicDecoder.extractValue(
                     from: jsonData,
                     key: indexField,
-                    forIndex: true
+                    forIndex: true,
+                    storageFormat: storageFormat
                 )
                 let indexManager: IndexManager<String>
                 if let existing = indexManagers[collection] {
@@ -426,7 +438,6 @@ public actor StorageEngine {
         return newManager
     }
 
-
     /// Performs a bulk update of indexes for a specified collection.
     ///
     /// - Parameters:
@@ -435,7 +446,7 @@ public actor StorageEngine {
     ///     - indexField: The field name of the index to be updated.
     ///     - indexKey: The key of the index to be updated.
     ///     - data: The data associated with the index key to be updated.
-    /// 
+    ///
     /// This method is asynchronous and allows for batch processing of index updates.
     public func bulkUpdateIndexes(
         collection: String,
@@ -497,7 +508,7 @@ public actor StorageEngine {
         newPartitionKey: String,
         as type: T.Type
     ) async throws {
-        
+
         let allDocs: [T] = try await fetchDocuments(from: collection)
         let shardManager = try await getOrCreateShardManager(for: collection)
         try shardManager.removeAllShards()
@@ -508,7 +519,8 @@ public actor StorageEngine {
             let jsonData = try JSONEncoder().encode(document)
             let partitionValue = try DynamicDecoder.extractValue(
                 from: jsonData,
-                key: newPartitionKey
+                key: newPartitionKey,
+                storageFormat: storageFormat
             )
             result[partitionValue, default: []].append(document)
         }
@@ -552,7 +564,7 @@ extension Sequence {
         }
     }
     /// Applies the given asynchronous transformation to each element of the collection concurrently and returns an array of the transformed elements.
-    /// 
+    ///
     /// - Parameter transform: An asynchronous closure that takes an element of the collection as its argument and returns a transformed value.
     /// - Returns: An array containing the transformed elements.
     /// - Throws: Rethrows any error thrown by the `transform` closure.

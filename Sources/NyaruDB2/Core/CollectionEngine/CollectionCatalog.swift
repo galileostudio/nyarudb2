@@ -1,6 +1,5 @@
 import Foundation
 
-
 /// A singleton class responsible for managing and providing access to document collections.
 /// The `CollectionCatalog` class maintains a registry of collections, allowing for centralized
 /// management and retrieval of `DocumentCollection` instances. It is designed as a singleton
@@ -14,8 +13,6 @@ public class CollectionCatalog {
 
     private init() {}
 
-    
-     
     /// Creates a new collection with the specified parameters.
     ///
     /// - Parameters:
@@ -24,7 +21,7 @@ public class CollectionCatalog {
     /// - Throws: An error if the collection cannot be created, such as if a collection
     ///  with the same name already exists or if there is an issue with the provided options.
     /// - Returns: A reference to the newly created collection.
-    
+
     public func createCollection(
         storage: StorageEngine,
         statsEngine: StatsEngine,
@@ -78,7 +75,7 @@ public class CollectionCatalog {
         storage: StorageEngine,
         partitionKey: String
     ) async throws {
-        
+
         guard collections[name] != nil else {
             throw NSError(
                 domain: "CollectionEngine",
@@ -86,14 +83,13 @@ public class CollectionCatalog {
                 userInfo: [NSLocalizedDescriptionKey: "Collection not found"]
             )
         }
-        
+
         await storage.setPartitionKey(
             for: name,
             key: partitionKey
         )
     }
 
-    
     /// Retrieves a list of all document collections.
     ///
     /// - Returns: An array containing all `DocumentCollection` instances
@@ -101,5 +97,5 @@ public class CollectionCatalog {
     public func listCollections() -> [DocumentCollection] {
         return Array(collections.values)
     }
-    
+
 }
