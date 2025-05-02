@@ -14,10 +14,6 @@ let package = Package(
         .target(
             name: "NyaruDB2",
             path: "Sources/NyaruDB2",
-            swiftSettings: [
-                            .unsafeFlags(["-warnings-as-errors"]), 
-                            .define("IOS15_8_OR_LATER") 
-                        ],
             linkerSettings: [
                 .linkedLibrary("z"),
                 .linkedFramework("Compression", .when(platforms: [.iOS]))
