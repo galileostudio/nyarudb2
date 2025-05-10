@@ -72,7 +72,7 @@ public actor StorageEngine {
 
         let partitionField = collectionPartitionKeys[collection]
         let partitionValue: String =
-            partitionField != nil
+            partitionField != nil && !partitionField!.isEmpty
             ? try DynamicDecoder.extractValue(
                 from: jsonData,
                 key: partitionField!
