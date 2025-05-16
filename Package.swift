@@ -16,7 +16,7 @@ let package = Package(
             path: "Sources/NyaruDB2",
             linkerSettings: [
                 .linkedLibrary("z"),
-                .linkedFramework("Compression", .when(platforms: [.macOS]))
+                .linkedLibrary("compression", .when(platforms: [.macOS]))
             ]
         ),
         .executableTarget(
