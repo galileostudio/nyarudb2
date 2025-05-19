@@ -106,10 +106,15 @@ public actor StorageEngine {
     public func fetchDocuments<T: Codable>(from collection: String) async throws
         -> [T]
     {
-        try await activeShardManagers[collection]?
-            .allShards()
-            .concurrentMap { try await $0.loadDocuments() }
-            .flatMap { $0 } ?? []
+        // Ensure shard manager exists and loads existing shards
+        let shardManager = try await getOrCreateShardManager(for: collection)
+        // Load documents from all shards sequentially
+        var allDocs: [T] = []
+        for shard in shardManager.allShards() {
+            let docs: [T] = try await shard.loadDocuments()
+            allDocs.append(contentsOf: docs)
+        }
+        return allDocs
     }
 
     /// Fetches records from the specified collection that match the given field and value.
@@ -422,6 +427,8 @@ public actor StorageEngine {
             baseURL: collectionURL,
             compressionMethod: compressionMethod
         )
+        // Load existing shards from disk when creating a new shard manager
+        newManager.loadShards()
         activeShardManagers[collection] = newManager
         return newManager
     }
