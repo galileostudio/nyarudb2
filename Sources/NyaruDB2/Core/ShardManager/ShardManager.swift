@@ -146,7 +146,8 @@ public class ShardManager {
 
         let loadedShards =
             files
-            .filter { $0.pathExtension == "shard" }
+            // Consider shard files with ".nyaru" extension
+            .filter { $0.pathExtension == "nyaru" }
             .compactMap { url -> (String, Shard)? in
                 let id = url.deletingPathExtension().lastPathComponent
                 do {
