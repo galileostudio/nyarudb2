@@ -329,9 +329,14 @@ public actor StorageEngine {
     /// - Throws: An error if the operation fails.
     /// - Note: This is an asynchronous method and must be called with `await`.
     public func countDocuments(in collection: String) async throws -> Int {
-        return activeShardManagers[collection]?.allShards()
+        // Garante que o ShardManager esteja carregado a partir do disco. Sem isto,
+        // chamar countDocuments logo após reabrir o banco (antes de qualquer outra
+        // operação na coleção) retornava 0, pois `activeShardManagers[collection]`
+        // ainda era nil.
+        let shardManager = try await getOrCreateShardManager(for: collection)
+        return shardManager.allShards()
             .map(\.metadata.documentCount)
-            .reduce(0, +) ?? 0
+            .reduce(0, +)
     }
 
     /// Drops the specified collection from the storage engine.

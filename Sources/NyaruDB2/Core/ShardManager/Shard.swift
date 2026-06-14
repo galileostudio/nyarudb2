@@ -118,16 +118,33 @@ public class Shard {
         let compressedData = try compressData(data, method: compressionMethod)
         try compressedData.write(to: url, options: .atomic)
 
-        try FileManager.default.setAttributes(
-            [.protectionKey: fileProtectionType],
-            ofItemAtPath: url.path
-        )
+        // `FileProtectionType` é um conceito de iOS. Em macOS, definir o atributo
+        // de proteção pode falhar; como `.none` significa "sem proteção", pular a
+        // chamada nesse caso é equivalente e mantém a portabilidade (inclusive no CI macOS).
+        if fileProtectionType != .none {
+            try FileManager.default.setAttributes(
+                [.protectionKey: fileProtectionType],
+                ofItemAtPath: url.path
+            )
+        }
 
         metadata.documentCount = documents.count
         metadata.updatedAt = Date()
+        try persistMetadata()
 
         let key = cacheKey(for: T.self)
         documentCache.setObject(documents as NSArray, forKey: key)
+    }
+
+    /// Persiste o metadado do shard em um arquivo sidecar `<id>.nyaru.meta.json`.
+    ///
+    /// Sem isto, `ShardManager.loadShards()` recria cada shard com metadados padrão
+    /// (`documentCount = 0`) ao reabrir o banco, o que quebra `countDocuments(in:)`
+    /// e o filtro de shards do query planner (`metadata.documentCount > 0`).
+    private func persistMetadata() throws {
+        let metaURL = url.appendingPathExtension("meta.json")
+        let data = try JSONEncoder().encode(metadata)
+        try data.write(to: metaURL, options: .atomic)
     }
 
     /// Appends a document to the shard.
@@ -138,7 +155,12 @@ public class Shard {
     public func appendDocument<T: Codable>(_ document: T, jsonData: Data)
         async throws
     {
-        var documents: [T] = (try? await loadDocuments()) ?? []
+        // `loadDocuments()` já retorna [] quando o arquivo ainda não existe.
+        // Qualquer OUTRA falha (corrupção, erro de decode) precisa ser propagada:
+        // o código antigo usava `try?`, então uma leitura que falhava virava []
+        // e o `saveDocuments` abaixo sobrescrevia o shard com apenas o novo
+        // documento — destruindo silenciosamente os dados já existentes.
+        var documents: [T] = try await loadDocuments()
         documents.append(document)
         try await saveDocuments(documents)
     }
