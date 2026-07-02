@@ -215,6 +215,16 @@ extension FieldValue: FieldValueConvertible {
   public var fieldValue: FieldValue { self }
 }
 
+/// Permite passar `nil` diretamente na query: `where("deletedAt", isEqualTo: nil)`
+extension Optional: FieldValueConvertible where Wrapped: FieldValueConvertible {
+  public var fieldValue: FieldValue {
+    switch self {
+    case .some(let value): return value.fieldValue
+    case .none: return .null
+    }
+  }
+}
+
 // MARK: - FieldExtractor
 
 /// Extracts scalar field values from encoded JSON documents.
@@ -222,7 +232,7 @@ extension FieldValue: FieldValueConvertible {
 /// Unlike the old `DynamicDecoder` (which decoded the document as a flat
 /// `[String: Scalar]` and therefore *failed on any document containing a
 /// nested object or array*), this extractor works on the full JSON object
-/// graph and supports dot-separated key paths ("address.city").
+/// graph and supports dot-separated key paths ("address.city") e índices de array ("tags.0").
 enum FieldExtractor {
   /// Parses the document once into a dictionary for repeated field access.
   static func parse(_ jsonData: Data) throws -> [String: Any] {
@@ -236,13 +246,21 @@ enum FieldExtractor {
   /// Resolves a dot-separated key path within a parsed document.
   /// Returns nil when the path does not exist; returns `.null` for explicit
   /// JSON nulls; returns nil for non-scalar leaf values.
+  /// Supports array indexing: "items.1.name"
   static func value(in dict: [String: Any], path: String) -> FieldValue? {
     var current: Any = dict
     for component in path.split(separator: ".") {
-      guard let currentDict = current as? [String: Any],
-        let next = currentDict[String(component)]
-      else { return nil }
-      current = next
+      let key = String(component)
+      
+      if let currentDict = current as? [String: Any] {
+        guard let next = currentDict[key] else { return nil }
+        current = next
+      } else if let currentArray = current as? [Any], let index = Int(key) {
+        guard currentArray.indices.contains(index) else { return nil }
+        current = currentArray[index]
+      } else {
+        return nil
+      }
     }
     return FieldValue.from(jsonObject: current)
   }
