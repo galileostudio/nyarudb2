@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "swift-msgpack",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nnabeyang/swift-msgpack",
+      "state" : {
+        "revision" : "4a057692bb31adda0e77afaf82e6d34ef66b0e80",
+        "version" : "1.2.0"
+      }
+    }
+  ],
+  "version" : 2
+}

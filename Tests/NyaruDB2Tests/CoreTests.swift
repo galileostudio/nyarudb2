@@ -52,7 +52,7 @@ final class FieldValueTests: XCTestCase {
 
     // JSON extraction preserves them exactly too.
     let json = #"{"id": 1152921504606846977}"#.data(using: .utf8)!  // 2^60 + 1
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(json, using: .json)
     XCTAssertEqual(FieldExtractor.value(in: dict, path: "id"), .int(a))
 
     // Exact mixed comparison: 2^60 as Double sits below 2^60 + 1,
@@ -89,14 +89,14 @@ final class FieldValueTests: XCTestCase {
 
   func testFromJSONObjectDistinguishesBoolFromNumber() throws {
     let json = #"{"flag": true, "count": 1}"#.data(using: .utf8)!
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(json, using: .json)
     XCTAssertEqual(FieldExtractor.value(in: dict, path: "flag"), .bool(true))
     XCTAssertEqual(FieldExtractor.value(in: dict, path: "count"), .number(1))
   }
 
   func testNestedPathExtraction() throws {
     let json = #"{"user": {"address": {"city": "Recife"}}, "tags": [1,2]}"#.data(using: .utf8)!
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(json, using: .json)
     XCTAssertEqual(
       FieldExtractor.value(in: dict, path: "user.address.city"),
       .string("Recife")
@@ -108,7 +108,7 @@ final class FieldValueTests: XCTestCase {
 
   func testExplicitNull() throws {
     let json = #"{"middleName": null}"#.data(using: .utf8)!
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(json, using: .json)
     XCTAssertEqual(FieldExtractor.value(in: dict, path: "middleName"), .null)
     XCTAssertNil(FieldExtractor.value(in: dict, path: "missing"))
   }
@@ -311,7 +311,7 @@ final class SlottedFileTests: XCTestCase {
     try handle.close()
 
     let reopened = try SlottedFile(url: url)
-    XCTAssertTrue(reopered_or(reopened.recoveredFromDirty))
+    XCTAssertTrue(reopened.recoveredFromDirty)
     XCTAssertEqual(reopened.liveCount, 1)
     let records = try reopened.scanLive()
     XCTAssertEqual(records.count, 1)
@@ -321,8 +321,6 @@ final class SlottedFileTests: XCTestCase {
     XCTAssertEqual(reopened.liveCount, 2)
     try reopened.close()
   }
-
-  private func reopered_or(_ value: Bool) -> Bool { value }
 
   func testCorruptPayloadIsTombstonedOnRecovery() throws {
     let url = fileURL()
