@@ -531,4 +531,13 @@ actor CollectionCore {
     isClosed = true
     try FileManager.default.removeItem(at: directory)
   }
+
+  func checkNeedsCompaction() async -> Bool {
+    for shard in shards.values {
+      if await shard.needsCompaction {
+        return true
+      }
+    }
+    return false
+  }
 }

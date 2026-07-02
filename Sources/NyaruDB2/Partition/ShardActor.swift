@@ -12,6 +12,10 @@ actor ShardActor {
   private let file: SlottedFile
   private let compression: CompressionMethod
 
+  // Controle de lixo para auto-compactação
+  private var tombstoneCount: UInt32 = 0
+  private let autoCompactThreshold: Double = 0.2  // 20% de lixo
+
   init(id: String, url: URL, compression: CompressionMethod, fileProtection: FileProtection) throws
   {
     self.id = id
@@ -25,6 +29,16 @@ actor ShardActor {
   var recoveredFromDirty: Bool { file.recoveredFromDirty }
 
   func sizeInBytes() -> UInt64 { file.sizeInBytes() }
+
+  /// Verifica se a porcentagem de tombstones (lixo) ultrapassou o limite.
+  /// Se sim, o CollectionCore deve disparar a compactação.
+  var needsCompaction: Bool {
+    let total = file.liveCount + tombstoneCount
+    // Só compacta se tiver mais de 100 registros para evitar overhead em arquivos pequenos
+    guard total > 100 else { return false }
+    let ratio = Double(tombstoneCount) / Double(total)
+    return ratio >= autoCompactThreshold
+  }
 
   // MARK: - CRUD primitives
 
@@ -52,16 +66,22 @@ actor ShardActor {
     let stored = try Compressor.compress(data, method: compression)
     let (payload, method): (Data, CompressionMethod) =
       stored.count < data.count ? (stored, compression) : (data, .none)
+
     if try file.overwrite(at: offset, payload: payload, compression: method) {
+      // Coube no slot original, não gera lixo
       return RecordPointer(shardID: id, offset: offset)
     }
+
+    // Não coube, vira lixo (tombstone) e reescreve no final
     try file.tombstone(at: offset)
+    tombstoneCount += 1
     let newOffset = try file.append(payload: payload, compression: method)
     return RecordPointer(shardID: id, offset: newOffset)
   }
 
   func delete(at offset: UInt64) throws {
     try file.tombstone(at: offset)
+    tombstoneCount += 1
   }
 
   /// All live documents, decompressed, with their offsets.

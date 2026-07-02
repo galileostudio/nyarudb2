@@ -237,7 +237,7 @@ enum FieldExtractor {
   /// Parses the document once into a dictionary for repeated field access.
   /// Agora usa o Serializer injetado, suportando tanto JSON quanto MessagePack.
   static func parse(_ data: Data, using format: SerializationFormat) throws -> [String: Any] {
-      let obj = try Serializer.unpack(data, format: format)
+    let obj = try Serializer.unpack(data, format: format)
     guard let dict = obj as? [String: Any] else {
       throw NyaruError.decodingFailed("Top-level value is not an object")
     }

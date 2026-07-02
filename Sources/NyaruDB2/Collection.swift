@@ -142,4 +142,9 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   public func stats() async -> CollectionStats {
     await core.stats()
   }
+
+  public func needsCompaction() async -> Bool {
+    return await core.checkNeedsCompaction()
+  }
+
 }
