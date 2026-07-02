@@ -1,4 +1,5 @@
 import Foundation
+import SwiftMsgpack
 
 /// In-memory ordered index: sorted unique keys with posting lists of
 /// `RecordPointer`s.
@@ -109,5 +110,17 @@ struct OrderedIndex: Codable {
   func contains(_ key: FieldValue) -> Bool {
     let pos = lowerBound(key)
     return pos < keys.count && keys[pos] == key
+  }
+
+  func persist(to url: URL) throws {
+    let data = try MsgPackEncoder().encode(self)
+    let compressed = try Compressor.compress(data, method: .gzip)
+    try compressed.write(to: url, options: .atomic)
+  }
+
+  static func load(from url: URL) throws -> OrderedIndex {
+    let raw = try Data(contentsOf: url)
+    let data = try Compressor.decompress(raw, method: .gzip)
+    return try MsgPackDecoder().decode(OrderedIndex.self, from: data)
   }
 }

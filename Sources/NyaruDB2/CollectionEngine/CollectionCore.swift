@@ -1,5 +1,5 @@
+import Crypto
 import Foundation
-import CryptoKit // <-- ADICIONADO
 
 /// Persisted per-collection configuration.
 struct CollectionManifest: Codable, Equatable, Sendable {
@@ -47,7 +47,7 @@ actor CollectionCore {
   private(set) var manifest: CollectionManifest
   private let directory: URL
   private let format: SerializationFormat
-  private let encryptionKey: SymmetricKey? // <-- ADICIONADO
+  private let encryptionKey: SymmetricKey?
   private var shards: [String: ShardActor] = [:]
   /// field -> index. Always contains an index for `manifest.idField`.
   private var indexes: [String: OrderedIndex] = [:]
@@ -69,7 +69,10 @@ actor CollectionCore {
 
   // MARK: - Open
 
-  init(directory: URL, manifest: CollectionManifest, format: SerializationFormat, encryptionKey: SymmetricKey?) async throws {
+  init(
+    directory: URL, manifest: CollectionManifest, format: SerializationFormat,
+    encryptionKey: SymmetricKey?
+  ) async throws {
     self.directory = directory
     self.manifest = manifest
     self.format = format
@@ -108,12 +111,14 @@ actor CollectionCore {
   /// Returns false when any snapshot is missing/unreadable.
   private func loadIndexSnapshots() throws -> Bool {
     var loaded: [String: OrderedIndex] = [:]
+    let fm = FileManager.default
+
     for field in allIndexedFields {
       let url = snapshotURL(for: field)
-      guard let raw = try? Data(contentsOf: url) else { return false }
+      guard fm.fileExists(atPath: url.path) else { return false }
+
       do {
-        let json = try Compressor.decompress(raw, method: .gzip)
-        loaded[field] = try JSONDecoder().decode(OrderedIndex.self, from: json)
+        loaded[field] = try OrderedIndex.load(from: url)
       } catch {
         return false
       }
@@ -149,12 +154,11 @@ actor CollectionCore {
   /// rebuilds the indexes, so a stale snapshot can never be trusted.
   func sync() async throws {
     try ensureOpen()
-    let encoder = JSONEncoder()
+
     for (field, index) in indexes {
-      let json = try encoder.encode(index)
-      let compressed = try Compressor.compress(json, method: .gzip)
-      try compressed.write(to: snapshotURL(for: field), options: .atomic)
+      try index.persist(to: snapshotURL(for: field))
     }
+
     for shard in shards.values {
       try await shard.sync()
     }
@@ -409,6 +413,7 @@ actor CollectionCore {
     }
 
     manifest.indexedFields = sorted
+    // O manifesto de config pode continuar sendo JSON, é um arquivo minúsculo.
     let data = try JSONEncoder().encode(manifest)
     try data.write(to: manifestURL, options: .atomic)
   }
@@ -487,7 +492,7 @@ actor CollectionCore {
       let finalURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru")
       let tempURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru.compact")
       try? fm.removeItem(at: tempURL)
-      
+
       let fresh = try ShardActor(
         id: shardID, url: tempURL,
         compression: manifest.compression,
@@ -499,7 +504,7 @@ actor CollectionCore {
       }
       try await fresh.close()
       _ = try fm.replaceItemAt(finalURL, withItemAt: tempURL)
-      
+
       // Reopen on the final path.
       rebuilt[shardID] = try ShardActor(
         id: shardID, url: finalURL,
