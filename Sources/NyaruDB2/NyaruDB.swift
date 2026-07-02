@@ -2,57 +2,34 @@ import Foundation
 
 /// Database-wide configuration.
 public struct DatabaseOptions: Sendable {
-  /// Compression applied to document payloads. `gzip` is portable to
-  /// every platform; `lzfse`/`lz4` are Apple-only and tie the data files
-  /// to Apple devices.
   public var compression: CompressionMethod
-  /// iOS data-protection class for shard files (no-op on other platforms).
   public var fileProtection: FileProtection
+  public var format: SerializationFormat
 
   public init(
     compression: CompressionMethod = .none,
-    fileProtection: FileProtection = .none
+    fileProtection: FileProtection = .none,
+    format: SerializationFormat = .json
   ) {
     self.compression = compression
     self.fileProtection = fileProtection
+    self.format = format
   }
 }
 
 /// An embedded document database.
-///
-/// ```swift
-/// struct User: Codable, Sendable {
-///     let id: Int
-///     let name: String
-///     let country: String
-/// }
-///
-/// let db = try await NyaruDB(path: url)
-/// let users = try await db.collection(
-///     "users", of: User.self,
-///     options: .init(partitionKey: "country", indexedFields: ["name"])
-/// )
-/// try await users.insert(User(id: 1, name: "Alice", country: "BR"))
-/// let alice = try await users.get(id: 1)
-/// let brazilians = try await users.find()
-///     .where("country", isEqualTo: "BR")
-///     .sort(by: "name")
-///     .execute()
-/// ```
 public actor NyaruDB {
   private let baseURL: URL
   private let options: DatabaseOptions
   private var cores: [String: CollectionCore] = [:]
   private var isClosed = false
 
-  /// Opens (or creates) a database rooted at `path`.
   public init(path: URL, options: DatabaseOptions = DatabaseOptions()) async throws {
     self.baseURL = path
     self.options = options
     try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
   }
 
-  /// Convenience: relative or absolute string path.
   public init(path: String, options: DatabaseOptions = DatabaseOptions()) async throws {
     try await self.init(
       path: URL(fileURLWithPath: path, isDirectory: true),
@@ -66,12 +43,6 @@ public actor NyaruDB {
 
   // MARK: - Collections
 
-  /// Opens (or creates) a typed collection.
-  ///
-  /// On first creation the configuration is persisted in the collection's
-  /// manifest. Reopening with a *different* configuration throws
-  /// `NyaruError.collectionTypeMismatch` — silently reinterpreting the
-  /// on-disk layout is how databases corrupt themselves.
   public func collection<T: Codable & Sendable>(
     _ name: String,
     of type: T.Type,
@@ -79,10 +50,12 @@ public actor NyaruDB {
   ) async throws -> NyaruCollection<T> {
     try ensureOpen()
     let core = try await openCore(name: name, options: collectionOptions)
+
     return NyaruCollection(
       name: name,
       core: core,
-      partitionKey: await core.manifest.partitionKey
+      partitionKey: await core.manifest.partitionKey,
+      format: options.format
     )
   }
 
@@ -100,13 +73,10 @@ public actor NyaruDB {
       partitionKey: collectionOptions.partitionKey,
       indexedFields: collectionOptions.indexedFields.sorted(),
       compression: options.compression,
-      fileProtection: options.fileProtection
+      fileProtection: options.fileProtection,
+      format: options.format
     )
 
-    // The base configuration (id field, partition key, compression,
-    // protection) is frozen at creation — reopening with a different one
-    // would silently reinterpret the on-disk layout. Indexed fields may
-    // evolve freely: missing indexes are built, dropped ones discarded.
     if let existing = cores[name] {
       guard await existing.manifest.sameBase(as: requested) else {
         throw NyaruError.collectionTypeMismatch(name)
@@ -124,12 +94,18 @@ public actor NyaruDB {
       manifest = persisted
     } else {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      // O manifesto em si sempre é salvo em JSON para não depender do formatador do banco
       let data = try JSONEncoder().encode(requested)
       try data.write(to: manifestURL, options: .atomic)
       manifest = requested
     }
 
-    let core = try await CollectionCore(directory: directory, manifest: manifest)
+    // PASSA O FORMATO DE SERIALIAZAÇÃO PARA O CORE
+    let core = try await CollectionCore(
+      directory: directory,
+      manifest: manifest,
+      format: options.format
+    )
     try await core.setIndexedFields(requested.indexedFields)
     cores[name] = core
     return core

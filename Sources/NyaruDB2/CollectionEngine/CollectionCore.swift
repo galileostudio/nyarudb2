@@ -9,6 +9,7 @@ struct CollectionManifest: Codable, Equatable, Sendable {
   var indexedFields: [String]
   var compression: CompressionMethod
   var fileProtection: FileProtection
+  var format: SerializationFormat
 
   /// True when everything except `indexedFields` matches. The base
   /// configuration is frozen at creation (changing it would reinterpret
@@ -20,6 +21,7 @@ struct CollectionManifest: Codable, Equatable, Sendable {
       && partitionKey == other.partitionKey
       && compression == other.compression
       && fileProtection == other.fileProtection
+      && format == other.format
   }
 }
 
@@ -41,6 +43,7 @@ public struct CollectionStats: Sendable {
 actor CollectionCore {
   private(set) var manifest: CollectionManifest
   private let directory: URL
+  private let format: SerializationFormat
   private var shards: [String: ShardActor] = [:]
   /// field -> index. Always contains an index for `manifest.idField`.
   private var indexes: [String: OrderedIndex] = [:]
@@ -62,9 +65,10 @@ actor CollectionCore {
 
   // MARK: - Open
 
-  init(directory: URL, manifest: CollectionManifest) async throws {
+  init(directory: URL, manifest: CollectionManifest, format: SerializationFormat) async throws {
     self.directory = directory
     self.manifest = manifest
+    self.format = format
     let fm = FileManager.default
     try fm.createDirectory(at: shardsDirectory, withIntermediateDirectories: true)
     try fm.createDirectory(at: indexesDirectory, withIntermediateDirectories: true)
@@ -123,7 +127,7 @@ actor CollectionCore {
       let records = try await shard.scanAll()
       for record in records {
         let pointer = RecordPointer(shardID: shardID, offset: record.offset)
-        guard let dict = try? FieldExtractor.parse(record.json) else { continue }
+        guard let dict = try? FieldExtractor.parse(record.data, using: format) else { continue }
         for field in allIndexedFields {
           if let key = FieldExtractor.value(in: dict, path: field) {
             fresh[field]?.insert(key: key, pointer: pointer)
@@ -225,41 +229,41 @@ actor CollectionCore {
 
   // MARK: - CRUD
 
-  func insert(json: Data) async throws {
+  func insert(data: Data) async throws {
     try ensureOpen()
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(data, using: format)
     let id = try extractID(from: dict)
     if indexes[manifest.idField]?.contains(id) == true {
       throw NyaruError.duplicateID(id.description)
     }
-    try await performInsert(json: json, dict: dict)
+    try await performInsert(data: data, dict: dict)
   }
 
   /// Bulk insert: validates all ids first (against the index and against
   /// duplicates inside the batch), then writes. Shard headers are only
   /// synced once per `sync()`/`close()`, not per document.
-  func insertMany(jsons: [Data]) async throws {
+  func insertMany(datas: [Data]) async throws {
     try ensureOpen()
-    var parsed: [(json: Data, dict: [String: Any], id: FieldValue)] = []
-    parsed.reserveCapacity(jsons.count)
+    var parsed: [(data: Data, dict: [String: Any], id: FieldValue)] = []
+    parsed.reserveCapacity(datas.count)
     var seen = Set<FieldValue>()
-    for json in jsons {
-      let dict = try FieldExtractor.parse(json)
+    for data in datas {
+      let dict = try FieldExtractor.parse(data, using: format)
       let id = try extractID(from: dict)
       if indexes[manifest.idField]?.contains(id) == true || !seen.insert(id).inserted {
         throw NyaruError.duplicateID(id.description)
       }
-      parsed.append((json, dict, id))
+      parsed.append((data, dict, id))
     }
     for item in parsed {
-      try await performInsert(json: item.json, dict: item.dict)
+      try await performInsert(data: item.data, dict: item.dict)
     }
   }
 
-  private func performInsert(json: Data, dict: [String: Any]) async throws {
+  private func performInsert(data: Data, dict: [String: Any]) async throws {
     let shardID = try shardID(forDocument: dict)
     let shard = try shard(for: shardID)
-    let pointer = try await shard.insert(json: json)
+    let pointer = try await shard.insert(data: data)
     for entry in indexEntries(for: dict) {
       indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
     }
@@ -276,37 +280,37 @@ actor CollectionCore {
   /// in-place (fits slot), same-shard relocation (doesn't fit), and
   /// cross-shard relocation (partition value changed — the case that
   /// corrupted data in the old engine).
-  func update(json: Data, upsert: Bool) async throws {
+  func update(data: Data, upsert: Bool) async throws {
     try ensureOpen()
-    let dict = try FieldExtractor.parse(json)
+    let dict = try FieldExtractor.parse(data, using: format)
     let id = try extractID(from: dict)
     guard let oldPointer = indexes[manifest.idField]?.search(id).first else {
       if upsert {
-        try await performInsert(json: json, dict: dict)
+        try await performInsert(data: data, dict: dict)
         return
       }
       throw NyaruError.documentNotFound(id: id.description)
     }
 
     let oldShard = try existingShard(oldPointer.shardID)
-    guard let oldJSON = try await oldShard.read(at: oldPointer.offset) else {
+    guard let oldData = try await oldShard.read(at: oldPointer.offset) else {
       // Index said it exists but the record is a tombstone: the index
       // is out of sync. Repair by treating this as an insert.
       removeFromAllIndexes(pointer: oldPointer)
-      try await performInsert(json: json, dict: dict)
+      try await performInsert(data: data, dict: dict)
       return
     }
-    let oldDict = try FieldExtractor.parse(oldJSON)
+    let oldDict = try FieldExtractor.parse(oldData, using: format)
 
     let newShardID = try shardID(forDocument: dict)
     let newPointer: RecordPointer
     if newShardID == oldPointer.shardID {
-      newPointer = try await oldShard.update(at: oldPointer.offset, json: json)
+      newPointer = try await oldShard.update(at: oldPointer.offset, data: data)
     } else {
       // Partition changed: write to the new shard first, then remove
       // the old record.
       let newShard = try shard(for: newShardID)
-      newPointer = try await newShard.insert(json: json)
+      newPointer = try await newShard.insert(data: data)
       try await oldShard.delete(at: oldPointer.offset)
     }
 
@@ -324,12 +328,12 @@ actor CollectionCore {
     try ensureOpen()
     guard let pointer = indexes[manifest.idField]?.search(id).first else { return false }
     let shard = try existingShard(pointer.shardID)
-    guard let oldJSON = try await shard.read(at: pointer.offset) else {
+    guard let oldData = try await shard.read(at: pointer.offset) else {
       removeFromAllIndexes(pointer: pointer)
       return false
     }
     try await shard.delete(at: pointer.offset)
-    let oldDict = try FieldExtractor.parse(oldJSON)
+    let oldDict = try FieldExtractor.parse(oldData, using: format)
     for field in allIndexedFields {
       if let key = FieldExtractor.value(in: oldDict, path: field) {
         indexes[field]?.remove(key: key, pointer: pointer)
@@ -386,7 +390,7 @@ actor CollectionCore {
         let records = try await shard.scanAll()
         for record in records {
           let pointer = RecordPointer(shardID: shardID, offset: record.offset)
-          guard let dict = try? FieldExtractor.parse(record.json) else { continue }
+          guard let dict = try? FieldExtractor.parse(record.data, using: format) else { continue }
           for field in missing {
             if let key = FieldExtractor.value(in: dict, path: field) {
               fresh[field]?.insert(key: key, pointer: pointer)
@@ -411,7 +415,7 @@ actor CollectionCore {
     return try await withThrowingTaskGroup(of: [Data].self) { group in
       for shard in allShards {
         group.addTask {
-          try await shard.scanAll().map(\.json)
+          try await shard.scanAll().map(\.data)
         }
       }
       var out: [Data] = []
@@ -425,7 +429,7 @@ actor CollectionCore {
     try ensureOpen()
     let id = Self.sanitizeFileComponent(value.description)
     guard let shard = shards[id] else { return [] }
-    return try await shard.scanAll().map(\.json)
+    return try await shard.scanAll().map(\.data)
   }
 
   func isIndexed(field: String) -> Bool {
@@ -453,8 +457,8 @@ actor CollectionCore {
     out.reserveCapacity(pointers.count)
     for pointer in pointers {
       let shard = try existingShard(pointer.shardID)
-      if let json = try await shard.read(at: pointer.offset) {
-        out.append(json)
+      if let data = try await shard.read(at: pointer.offset) {
+        out.append(data)
       }
     }
     return out
@@ -482,7 +486,7 @@ actor CollectionCore {
         fileProtection: manifest.fileProtection
       )
       for record in records {
-        _ = try await fresh.insert(json: record.json)
+        _ = try await fresh.insert(data: record.data)
       }
       try await fresh.close()
       _ = try fm.replaceItemAt(finalURL, withItemAt: tempURL)

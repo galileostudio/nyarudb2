@@ -31,24 +31,26 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   public let name: String
   let core: CollectionCore
   private let partitionKey: String?
+  private let format: SerializationFormat
 
-  init(name: String, core: CollectionCore, partitionKey: String?) {
+  init(name: String, core: CollectionCore, partitionKey: String?, format: SerializationFormat) {
     self.name = name
     self.core = core
     self.partitionKey = partitionKey
+    self.format = format
   }
 
   private func encode(_ document: T) throws -> Data {
     do {
-      return try JSONEncoder().encode(document)
+      return try Serializer.encode(document, format: format)
     } catch {
       throw NyaruError.encodingFailed(String(describing: error))
     }
   }
 
-  private func decode(_ json: Data) throws -> T {
+  private func decode(_ data: Data) throws -> T {
     do {
-      return try JSONDecoder().decode(T.self, from: json)
+      return try Serializer.decode(T.self, from: data, format: format)
     } catch {
       throw NyaruError.decodingFailed(String(describing: error))
     }
@@ -59,24 +61,24 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// Inserts a new document. Throws `NyaruError.duplicateID` if a document
   /// with the same id already exists (use `upsert` to overwrite).
   public func insert(_ document: T) async throws {
-    try await core.insert(json: encode(document))
+    try await core.insert(data: encode(document))
   }
 
   /// Inserts a batch. Validates every id (including duplicates inside the
   /// batch) before writing anything.
   public func insert(contentsOf documents: [T]) async throws {
-    try await core.insertMany(jsons: documents.map(encode))
+    try await core.insertMany(datas: documents.map(encode))
   }
 
   /// Replaces the document with the same id. Throws
   /// `NyaruError.documentNotFound` if it does not exist.
   public func update(_ document: T) async throws {
-    try await core.update(json: encode(document), upsert: false)
+    try await core.update(data: encode(document), upsert: false)
   }
 
   /// Replaces the document with the same id, inserting it if absent.
   public func upsert(_ document: T) async throws {
-    try await core.update(json: encode(document), upsert: true)
+    try await core.update(data: encode(document), upsert: true)
   }
 
   /// Deletes by id. Returns true if a document was removed.
@@ -89,8 +91,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
 
   /// Point lookup by id through the primary index.
   public func get(id: FieldValueConvertible) async throws -> T? {
-    guard let json = try await core.get(id: id.fieldValue) else { return nil }
-    return try decode(json)
+    guard let data = try await core.get(id: id.fieldValue) else { return nil }
+    return try decode(data)
   }
 
   public func count() async -> Int {
@@ -105,13 +107,14 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// Streams all documents without materializing the full array of `T`.
   public func stream() -> AsyncThrowingStream<T, Error> {
     let core = self.core
+    let format = self.format
     return AsyncThrowingStream { continuation in
       let task = Task {
         do {
-          let jsons = try await core.scanAll()
-          for json in jsons {
+          let data = try await core.scanAll()
+          for docData in data {
             try Task.checkCancellation()
-            continuation.yield(try JSONDecoder().decode(T.self, from: json))
+            continuation.yield(try Serializer.decode(T.self, from: docData, format: format))
           }
           continuation.finish()
         } catch {
@@ -124,7 +127,7 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
 
   /// Starts a fluent query.
   public func find() -> QueryBuilder<T> {
-    QueryBuilder(core: core, partitionKey: partitionKey)
+    QueryBuilder(core: core, partitionKey: partitionKey, format: format)
   }
 
   // MARK: - Maintenance

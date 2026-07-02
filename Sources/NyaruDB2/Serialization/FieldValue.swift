@@ -231,27 +231,28 @@ extension Optional: FieldValueConvertible where Wrapped: FieldValueConvertible {
 ///
 /// Unlike the old `DynamicDecoder` (which decoded the document as a flat
 /// `[String: Scalar]` and therefore *failed on any document containing a
-/// nested object or array*), this extractor works on the full JSON object
+/// nested object or array*), this extractor works on the full object
 /// graph and supports dot-separated key paths ("address.city") e índices de array ("tags.0").
 enum FieldExtractor {
   /// Parses the document once into a dictionary for repeated field access.
-  static func parse(_ jsonData: Data) throws -> [String: Any] {
-    let obj = try JSONSerialization.jsonObject(with: jsonData)
+  /// Agora usa o Serializer injetado, suportando tanto JSON quanto MessagePack.
+  static func parse(_ data: Data, using format: SerializationFormat) throws -> [String: Any] {
+      let obj = try Serializer.unpack(data, format: format)
     guard let dict = obj as? [String: Any] else {
-      throw NyaruError.decodingFailed("Top-level JSON value is not an object")
+      throw NyaruError.decodingFailed("Top-level value is not an object")
     }
     return dict
   }
 
   /// Resolves a dot-separated key path within a parsed document.
   /// Returns nil when the path does not exist; returns `.null` for explicit
-  /// JSON nulls; returns nil for non-scalar leaf values.
+  /// nulls; returns nil for non-scalar leaf values.
   /// Supports array indexing: "items.1.name"
   static func value(in dict: [String: Any], path: String) -> FieldValue? {
     var current: Any = dict
     for component in path.split(separator: ".") {
       let key = String(component)
-      
+
       if let currentDict = current as? [String: Any] {
         guard let next = currentDict[key] else { return nil }
         current = next
@@ -266,8 +267,10 @@ enum FieldExtractor {
   }
 
   /// One-shot convenience: parse + resolve.
-  static func value(in jsonData: Data, path: String) throws -> FieldValue? {
-    let dict = try parse(jsonData)
+  static func value(in data: Data, path: String, using format: SerializationFormat) throws
+    -> FieldValue?
+  {
+    let dict = try parse(data, using: format)
     return value(in: dict, path: path)
   }
 }

@@ -7,9 +7,15 @@ let package = Package(
   products: [
     .library(name: "NyaruDB2", targets: ["NyaruDB2"])
   ],
+  dependencies: [
+          .package(url: "https://github.com/nnabeyang/swift-msgpack", from: "1.2.0")
+  ],
   targets: [
     .target(
       name: "NyaruDB2",
+      dependencies: [
+          .product(name: "SwiftMsgpack", package: "swift-msgpack")
+      ],
       path: "Sources/NyaruDB2",
       linkerSettings: [
         .linkedLibrary("z"),

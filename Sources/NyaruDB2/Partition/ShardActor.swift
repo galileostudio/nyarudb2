@@ -6,7 +6,7 @@ import Foundation
 /// reused for the shard's lifetime (the old engine re-read the whole file
 /// via `Data(contentsOf:)` on every operation and leaked descriptors under
 /// concurrency). Compression/decompression happens here so callers only ever
-/// see raw JSON payloads.
+/// see raw document payloads (JSON, MessagePack, etc).
 actor ShardActor {
   let id: String
   private let file: SlottedFile
@@ -28,17 +28,17 @@ actor ShardActor {
 
   // MARK: - CRUD primitives
 
-  /// Stores a JSON payload; returns a pointer to it.
-  func insert(json: Data) throws -> RecordPointer {
-    let stored = try Compressor.compress(json, method: compression)
+  /// Stores a document payload; returns a pointer to it.
+  func insert(data: Data) throws -> RecordPointer {
+    let stored = try Compressor.compress(data, method: compression)
     // Only keep the compressed form when it actually saves space.
     let (payload, method): (Data, CompressionMethod) =
-      stored.count < json.count ? (stored, compression) : (json, .none)
+      stored.count < data.count ? (stored, compression) : (data, .none)
     let offset = try file.append(payload: payload, compression: method)
     return RecordPointer(shardID: id, offset: offset)
   }
 
-  /// Reads and decompresses the JSON payload at `offset`.
+  /// Reads and decompresses the document payload at `offset`.
   /// Returns nil if the record was tombstoned.
   func read(at offset: UInt64) throws -> Data? {
     guard let record = try file.read(at: offset) else { return nil }
@@ -48,10 +48,10 @@ actor ShardActor {
   /// Replaces the document at `offset`. If the new payload does not fit the
   /// immutable slot, the old slot is tombstoned and the payload re-appended.
   /// Returns the (possibly new) pointer.
-  func update(at offset: UInt64, json: Data) throws -> RecordPointer {
-    let stored = try Compressor.compress(json, method: compression)
+  func update(at offset: UInt64, data: Data) throws -> RecordPointer {
+    let stored = try Compressor.compress(data, method: compression)
     let (payload, method): (Data, CompressionMethod) =
-      stored.count < json.count ? (stored, compression) : (json, .none)
+      stored.count < data.count ? (stored, compression) : (data, .none)
     if try file.overwrite(at: offset, payload: payload, compression: method) {
       return RecordPointer(shardID: id, offset: offset)
     }
@@ -65,9 +65,9 @@ actor ShardActor {
   }
 
   /// All live documents, decompressed, with their offsets.
-  func scanAll() throws -> [(offset: UInt64, json: Data)] {
+  func scanAll() throws -> [(offset: UInt64, data: Data)] {
     try file.scanLive().map {
-      (offset: $0.offset, json: try Compressor.decompress($0.payload, method: $0.compression))
+      (offset: $0.offset, data: try Compressor.decompress($0.payload, method: $0.compression))
     }
   }
 

@@ -37,34 +37,34 @@ public indirect enum Predicate: Sendable {
   case between(String, any FieldValueConvertible, any FieldValueConvertible)
   case inSet(String, [any FieldValueConvertible])
   case notInSet(String, [any FieldValueConvertible])
-  
+
   // Text matching (Strings nativas)
   case contains(String, String)
   case startsWith(String, String)
   case endsWith(String, String)
   case like(String, String)
   case glob(String, String)
-  
+
   // Existence
   case exists(String)
   case notExists(String)
-  
+
   // Logical Operators
   case and([Predicate])
   case or([Predicate])
   case not(Predicate)
-  
+
   /// Attempts to extract the field name if this is a leaf predicate.
   var field: String? {
     switch self {
     case .equal(let f, _), .notEqual(let f, _),
-        .lessThan(let f, _), .lessThanOrEqual(let f, _),
-        .greaterThan(let f, _), .greaterThanOrEqual(let f, _),
-        .between(let f, _, _), .inSet(let f, _),
-        .notInSet(let f, _), .contains(let f, _),
-        .startsWith(let f, _), .endsWith(let f, _),
-        .like(let f, _), .glob(let f, _),
-        .exists(let f), .notExists(let f):
+      .lessThan(let f, _), .lessThanOrEqual(let f, _),
+      .greaterThan(let f, _), .greaterThanOrEqual(let f, _),
+      .between(let f, _, _), .inSet(let f, _),
+      .notInSet(let f, _), .contains(let f, _),
+      .startsWith(let f, _), .endsWith(let f, _),
+      .like(let f, _), .glob(let f, _),
+      .exists(let f), .notExists(let f):
       return f
     case .and, .or, .not:
       return nil
@@ -78,15 +78,17 @@ public indirect enum Predicate: Sendable {
 public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private let core: CollectionCore
   private let partitionKey: String?
+  private let format: SerializationFormat
   private var rootPredicate: Predicate = .and([])
   private var sortField: String?
   private var sortAscending = true
   private var limitCount: Int?
   private var offsetCount = 0
 
-  init(core: CollectionCore, partitionKey: String?) {
+  init(core: CollectionCore, partitionKey: String?, format: SerializationFormat) {
     self.core = core
     self.partitionKey = partitionKey
+    self.format = format
   }
 
   // MARK: - Fluent predicate API
@@ -117,7 +119,8 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   public func `where`(_ field: String, isGreaterThan value: FieldValueConvertible) -> Self {
     adding(.greaterThan(field, value))
   }
-  public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self {
+  public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self
+  {
     adding(.greaterThanOrEqual(field, value))
   }
   public func `where`(
@@ -152,7 +155,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   public func whereNotExists(_ field: String) -> Self {
     adding(.notExists(field))
   }
-  
+
   public func `where`(_ predicate: Predicate) -> Self {
     adding(predicate)
   }
@@ -202,8 +205,8 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     for predicate in topLevelPredicates {
       switch predicate {
       case .between(let field, _, _),
-          .lessThan(let field, _), .lessThanOrEqual(let field, _),
-          .greaterThan(let field, _), .greaterThanOrEqual(let field, _):
+        .lessThan(let field, _), .lessThanOrEqual(let field, _),
+        .greaterThan(let field, _), .greaterThanOrEqual(let field, _):
         if await core.isIndexed(field: field) {
           return (.indexLookup(field: field), 1)
         }
@@ -226,7 +229,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     let (strategy, pushed) = await plan()
     return QueryPlan(strategy: strategy, residualPredicates: topLevelPredicateCount() - pushed)
   }
-  
+
   private func topLevelPredicateCount() -> Int {
     if case .and(let arr) = rootPredicate { return arr.count }
     return 1
@@ -243,8 +246,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .partitionScan:
       if let partitionKey {
         var topLevelPredicates: [Predicate] = []
-        if case .and(let arr) = rootPredicate { topLevelPredicates = arr } else { topLevelPredicates = [rootPredicate] }
-        
+        if case .and(let arr) = rootPredicate {
+          topLevelPredicates = arr
+        } else {
+          topLevelPredicates = [rootPredicate]
+        }
+
         for predicate in topLevelPredicates {
           if case .equal(let f, let v) = predicate, f == partitionKey {
             return try await core.scanPartition(value: v.fieldValue)
@@ -259,8 +266,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   private func pointers(forIndexedField field: String) async -> [RecordPointer] {
     var topLevelPredicates: [Predicate] = []
-    if case .and(let arr) = rootPredicate { topLevelPredicates = arr } else { topLevelPredicates = [rootPredicate] }
-    
+    if case .and(let arr) = rootPredicate {
+      topLevelPredicates = arr
+    } else {
+      topLevelPredicates = [rootPredicate]
+    }
+
     for predicate in topLevelPredicates where predicate.field == field {
       switch predicate {
       case .equal(_, let value):
@@ -306,10 +317,9 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   public func execute() async throws -> [T] {
     let matching = try await matchingDocuments()
-    let decoder = JSONDecoder()
-    return try matching.map { json in
+    return try matching.map { data in
       do {
-        return try decoder.decode(T.self, from: json)
+        return try Serializer.decode(T.self, from: data, format: format)
       } catch {
         throw NyaruError.decodingFailed(String(describing: error))
       }
@@ -323,14 +333,14 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   public func count() async throws -> Int {
     try await matchingDocuments().count
   }
-  
+
   public func distinctValues(on field: String) async throws -> [FieldValue] {
     let raw = try await candidates()
     var seen = Set<FieldValue>()
     var result: [FieldValue] = []
-    
+
     for json in raw {
-      guard let dict = try? FieldExtractor.parse(json) else { continue }
+      guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
       if Self.evaluate(rootPredicate, in: dict) {
         if let value = FieldExtractor.value(in: dict, path: field), !seen.contains(value) {
           seen.insert(value)
@@ -360,13 +370,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
     let raw = try await candidates()
     let requiresFullEvaluation = sortField != nil
-    
+
     var matched: [(dict: [String: Any], json: Data)] = []
     var skipped = 0
 
     for json in raw {
-      guard let dict = try? FieldExtractor.parse(json) else { continue }
-      
+      guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
+
       if Self.evaluate(rootPredicate, in: dict) {
         if requiresFullEvaluation {
           matched.append((dict, json))
@@ -376,7 +386,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
             continue
           }
           matched.append((dict, json))
-          
+
           if let limitCount, matched.count >= limitCount {
             break
           }
@@ -407,7 +417,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private static func comparable(_ a: FieldValue, _ b: FieldValue) -> Bool {
     switch (a, b) {
     case (.int(_), .int(_)), (.double(_), .double(_)), (.string(_), .string(_)),
-        (.bool(_), .bool(_)), (.int(_), .double(_)), (.double(_), .int(_)):
+      (.bool(_), .bool(_)), (.int(_), .double(_)), (.double(_), .int(_)):
       return true
     default:
       return false
@@ -422,41 +432,51 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       return predicates.contains { evaluate($0, in: dict) }
     case .not(let pred):
       return !evaluate(pred, in: dict)
-      
+
     case .exists(let field):
       return FieldExtractor.value(in: dict, path: field) != nil
     case .notExists(let field):
       return FieldExtractor.value(in: dict, path: field) == nil
-      
+
     case .equal(let field, let target):
       return FieldExtractor.value(in: dict, path: field) == target.fieldValue
     case .notEqual(let field, let target):
       return FieldExtractor.value(in: dict, path: field) != target.fieldValue
-      
+
     case .lessThan(let field, let target):
-      guard let value = FieldExtractor.value(in: dict, path: field), comparable(value, target.fieldValue) else { return false }
+      guard let value = FieldExtractor.value(in: dict, path: field),
+        comparable(value, target.fieldValue)
+      else { return false }
       return value < target.fieldValue
     case .lessThanOrEqual(let field, let target):
-      guard let value = FieldExtractor.value(in: dict, path: field), comparable(value, target.fieldValue) else { return false }
+      guard let value = FieldExtractor.value(in: dict, path: field),
+        comparable(value, target.fieldValue)
+      else { return false }
       return value <= target.fieldValue
     case .greaterThan(let field, let target):
-      guard let value = FieldExtractor.value(in: dict, path: field), comparable(value, target.fieldValue) else { return false }
+      guard let value = FieldExtractor.value(in: dict, path: field),
+        comparable(value, target.fieldValue)
+      else { return false }
       return value > target.fieldValue
     case .greaterThanOrEqual(let field, let target):
-      guard let value = FieldExtractor.value(in: dict, path: field), comparable(value, target.fieldValue) else { return false }
+      guard let value = FieldExtractor.value(in: dict, path: field),
+        comparable(value, target.fieldValue)
+      else { return false }
       return value >= target.fieldValue
-      
+
     case .between(let field, let lower, let upper):
-      guard let value = FieldExtractor.value(in: dict, path: field), comparable(value, lower.fieldValue), comparable(value, upper.fieldValue) else { return false }
+      guard let value = FieldExtractor.value(in: dict, path: field),
+        comparable(value, lower.fieldValue), comparable(value, upper.fieldValue)
+      else { return false }
       return value >= lower.fieldValue && value <= upper.fieldValue
-      
+
     case .inSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return false }
       return targets.contains { $0.fieldValue == value }
     case .notInSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return true }
       return !targets.contains { $0.fieldValue == value }
-      
+
     case .contains(let field, let substring):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.contains(substring)
@@ -466,19 +486,19 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .endsWith(let field, let suffix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
-      
+
     case .like(let field, let pattern):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return Self.matchLike(string: s, pattern: pattern)
-      
+
     case .glob(let field, let pattern):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return Self.matchGlob(string: s, pattern: pattern)
     }
   }
-  
+
   // MARK: - LIKE & GLOB Regex Helpers
-  
+
   private static func matchLike(string: String, pattern: String) -> Bool {
     var regexStr = ""
     for char in pattern {
@@ -493,11 +513,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         }
       }
     }
-    guard let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive) else { return false }
+    guard
+      let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive)
+    else { return false }
     let range = NSRange(string.startIndex..., in: string)
     return regex.firstMatch(in: string, options: [], range: range) != nil
   }
-  
+
   private static func matchGlob(string: String, pattern: String) -> Bool {
     var regexStr = ""
     for char in pattern {
@@ -512,7 +534,9 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         }
       }
     }
-    guard let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: []) else { return false }
+    guard let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: []) else {
+      return false
+    }
     let range = NSRange(string.startIndex..., in: string)
     return regex.firstMatch(in: string, options: [], range: range) != nil
   }
