@@ -17,6 +17,25 @@ public enum CompressionMethod: String, CaseIterable, Codable, Sendable {
   case lzfse
   case lz4
 
+  var byte: UInt8 {
+    switch self {
+    case .none: return 0
+    case .gzip: return 1
+    case .lzfse: return 2
+    case .lz4: return 3
+    }
+  }
+
+  init?(byte: UInt8) {
+    switch byte {
+    case 0: self = .none
+    case 1: self = .gzip
+    case 2: self = .lzfse
+    case 3: self = .lz4
+    default: return nil
+    }
+  }
+
   var flagBit: UInt8 {
     switch self {
     case .none: return 0

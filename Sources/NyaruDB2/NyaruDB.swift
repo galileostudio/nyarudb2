@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 
 /// Database-wide configuration.
@@ -5,15 +6,20 @@ public struct DatabaseOptions: Sendable {
   public var compression: CompressionMethod
   public var fileProtection: FileProtection
   public var format: SerializationFormat
+  public var encryptionKey: SymmetricKey?
 
   public init(
     compression: CompressionMethod = .none,
     fileProtection: FileProtection = .none,
-    format: SerializationFormat = .json
+    format: SerializationFormat = .json,
+    encryptionKey: SymmetricKey? = nil
+
   ) {
     self.compression = compression
     self.fileProtection = fileProtection
     self.format = format
+    self.encryptionKey = encryptionKey
+
   }
 }
 
@@ -74,7 +80,8 @@ public actor NyaruDB {
       indexedFields: collectionOptions.indexedFields.sorted(),
       compression: options.compression,
       fileProtection: options.fileProtection,
-      format: options.format
+      format: options.format,
+      isEncrypted: options.encryptionKey != nil
     )
 
     if let existing = cores[name] {
@@ -104,7 +111,8 @@ public actor NyaruDB {
     let core = try await CollectionCore(
       directory: directory,
       manifest: manifest,
-      format: options.format
+      format: options.format,
+      encryptionKey: options.encryptionKey
     )
     try await core.setIndexedFields(requested.indexedFields)
     cores[name] = core

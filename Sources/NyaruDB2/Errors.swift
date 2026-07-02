@@ -24,6 +24,10 @@ public enum NyaruError: Error, Sendable, CustomStringConvertible {
   case decompressionFailed
   case unsupportedCompression(String)
 
+  //crypto
+  case decryptionFailed
+  case encryptionFailed
+
   // Lifecycle
   case databaseClosed
 
@@ -46,6 +50,8 @@ public enum NyaruError: Error, Sendable, CustomStringConvertible {
     case .decompressionFailed: return "Decompression failed"
     case .unsupportedCompression(let m):
       return "Compression method '\(m)' is not supported on this platform"
+    case .decryptionFailed: return "Decryption failed"
+    case .encryptionFailed: return "Encryption failed"
     case .databaseClosed: return "Database has been closed"
     }
   }

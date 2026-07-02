@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit // <-- ADICIONADO
 
 /// Persisted per-collection configuration.
 struct CollectionManifest: Codable, Equatable, Sendable {
@@ -10,6 +11,7 @@ struct CollectionManifest: Codable, Equatable, Sendable {
   var compression: CompressionMethod
   var fileProtection: FileProtection
   var format: SerializationFormat
+  var isEncrypted: Bool
 
   /// True when everything except `indexedFields` matches. The base
   /// configuration is frozen at creation (changing it would reinterpret
@@ -22,6 +24,7 @@ struct CollectionManifest: Codable, Equatable, Sendable {
       && compression == other.compression
       && fileProtection == other.fileProtection
       && format == other.format
+      && isEncrypted == other.isEncrypted
   }
 }
 
@@ -44,6 +47,7 @@ actor CollectionCore {
   private(set) var manifest: CollectionManifest
   private let directory: URL
   private let format: SerializationFormat
+  private let encryptionKey: SymmetricKey? // <-- ADICIONADO
   private var shards: [String: ShardActor] = [:]
   /// field -> index. Always contains an index for `manifest.idField`.
   private var indexes: [String: OrderedIndex] = [:]
@@ -65,10 +69,11 @@ actor CollectionCore {
 
   // MARK: - Open
 
-  init(directory: URL, manifest: CollectionManifest, format: SerializationFormat) async throws {
+  init(directory: URL, manifest: CollectionManifest, format: SerializationFormat, encryptionKey: SymmetricKey?) async throws {
     self.directory = directory
     self.manifest = manifest
     self.format = format
+    self.encryptionKey = encryptionKey
     let fm = FileManager.default
     try fm.createDirectory(at: shardsDirectory, withIntermediateDirectories: true)
     try fm.createDirectory(at: indexesDirectory, withIntermediateDirectories: true)
@@ -83,7 +88,8 @@ actor CollectionCore {
       let shard = try ShardActor(
         id: shardID, url: url,
         compression: manifest.compression,
-        fileProtection: manifest.fileProtection
+        fileProtection: manifest.fileProtection,
+        encryptionKey: encryptionKey
       )
       if await shard.recoveredFromDirty { anyShardRecovered = true }
       shards[shardID] = shard
@@ -198,7 +204,8 @@ actor CollectionCore {
     let shard = try ShardActor(
       id: id, url: url,
       compression: manifest.compression,
-      fileProtection: manifest.fileProtection
+      fileProtection: manifest.fileProtection,
+      encryptionKey: encryptionKey
     )
     shards[id] = shard
     return shard
@@ -240,8 +247,8 @@ actor CollectionCore {
   }
 
   /// Bulk insert: validates all ids first (against the index and against
-  /// duplicates inside the batch), then writes. Shard headers are only
-  /// synced once per `sync()`/`close()`, not per document.
+  /// duplicates inside the batch) before writing anything. Shard headers
+  /// are only synced once per `sync()`/`close()`, not per document.
   func insertMany(datas: [Data]) async throws {
     try ensureOpen()
     var parsed: [(data: Data, dict: [String: Any], id: FieldValue)] = []
@@ -480,21 +487,25 @@ actor CollectionCore {
       let finalURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru")
       let tempURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru.compact")
       try? fm.removeItem(at: tempURL)
+      
       let fresh = try ShardActor(
         id: shardID, url: tempURL,
         compression: manifest.compression,
-        fileProtection: manifest.fileProtection
+        fileProtection: manifest.fileProtection,
+        encryptionKey: encryptionKey
       )
       for record in records {
         _ = try await fresh.insert(data: record.data)
       }
       try await fresh.close()
       _ = try fm.replaceItemAt(finalURL, withItemAt: tempURL)
+      
       // Reopen on the final path.
       rebuilt[shardID] = try ShardActor(
         id: shardID, url: finalURL,
         compression: manifest.compression,
-        fileProtection: manifest.fileProtection
+        fileProtection: manifest.fileProtection,
+        encryptionKey: encryptionKey
       )
     }
     shards = rebuilt

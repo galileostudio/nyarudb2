@@ -8,13 +8,15 @@ let package = Package(
     .library(name: "NyaruDB2", targets: ["NyaruDB2"])
   ],
   dependencies: [
-    .package(url: "https://github.com/nnabeyang/swift-msgpack", from: "1.2.0")
+    .package(url: "https://github.com/nnabeyang/swift-msgpack", from: "1.2.0"),
+    .package(url: "https://github.com/apple/swift-crypto", from: "4.5.0"),
   ],
   targets: [
     .target(
       name: "NyaruDB2",
       dependencies: [
-        .product(name: "SwiftMsgpack", package: "swift-msgpack")
+        .product(name: "SwiftMsgpack", package: "swift-msgpack"),
+        .product(name: "Crypto", package: "swift-crypto"),
       ],
       path: "Sources/NyaruDB2",
       linkerSettings: [
