@@ -24,6 +24,8 @@ actor ShardActor {
   }
 
   var liveCount: Int { Int(file.liveCount) }
+  var tombstoneCount: UInt32 { file.tombstoneCount }
+  var deadBytes: UInt64 { file.deadBytes }
   var recoveredFromDirty: Bool { file.recoveredFromDirty }
   func sizeInBytes() -> UInt64 { file.sizeInBytes() }
 

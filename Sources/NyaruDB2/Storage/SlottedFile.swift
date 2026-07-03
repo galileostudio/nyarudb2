@@ -80,6 +80,10 @@ final class SlottedFile {
   /// Exposes the real garbage count, rebuilt during `scan()` on open.
   var tombstoneCount: UInt32 { UInt32(freeSlots.count) }
 
+  var deadBytes: UInt64 {
+    freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
+  }
+
   var fragmentationRatio: Double {
     let deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
     let totalUsableBytes = fileSize - SlottedFile.fileHeaderSize

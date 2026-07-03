@@ -37,6 +37,7 @@ public struct CollectionStats: Sendable {
   public let shardCount: Int
   public let sizeInBytes: UInt64
   public let indexes: [String: Int]  // field -> entry count
+  public let fragmentationRatio: Double
 }
 
 /// The type-erased engine behind one collection.
@@ -269,7 +270,9 @@ actor CollectionCore {
     let shard = try shard(for: shardID)
     let pointer = try await shard.insert(data: data)
     for entry in indexEntries(for: dict) {
-      indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
+      guard var index = indexes[entry.field] else { continue }
+      index.insert(key: entry.key, pointer: pointer)
+      indexes[entry.field] = index
     }
   }
 
@@ -315,10 +318,61 @@ actor CollectionCore {
     }
 
     for field in allIndexedFields {
+      guard var index = indexes[field] else { continue }
       let oldKey = FieldExtractor.value(in: oldDict, path: field)
       let newKey = FieldExtractor.value(in: dict, path: field)
-      if let oldKey { indexes[field]?.remove(key: oldKey, pointer: oldPointer) }
-      if let newKey { indexes[field]?.insert(key: newKey, pointer: newPointer) }
+      if let oldKey { index.remove(key: oldKey, pointer: oldPointer) }
+      if let newKey { index.insert(key: newKey, pointer: newPointer) }
+      indexes[field] = index
+    }
+  }
+
+  // MARK: - Partial Update (Patch)
+
+  func patch(id: FieldValue, changes: [String: FieldValue]) async throws {
+    try ensureOpen()
+    guard let pointer = indexes[manifest.idField]?.search(id).first else {
+      throw NyaruError.documentNotFound(id: id.description)
+    }
+
+    let oldShard = try existingShard(pointer.shardID)
+    guard let oldData = try await oldShard.read(at: pointer.offset) else {
+      removeFromAllIndexes(pointer: pointer)
+      throw NyaruError.documentNotFound(id: id.description)
+    }
+
+    // 1. Deserializes the current document into a dictionary
+    let oldDict = try FieldExtractor.parse(oldData, using: format)
+    var newDict = oldDict
+
+    // 2. Applies the changes (merge)
+    for (key, value) in changes {
+      newDict[key] = value.anyValue
+    }
+
+    // 3. Re-serializes to the database format (JSON or MsgPack) using AnyEncodable
+    let newData = try Serializer.encode(AnyEncodable(value: newDict), format: format)
+
+    // 4. Determines the new shard (in case the partition key was changed in the patch)
+    let newShardID = try shardID(forDocument: newDict)
+    let newPointer: RecordPointer
+
+    if newShardID == oldShard.id {
+      newPointer = try await oldShard.update(at: pointer.offset, data: newData)
+    } else {
+      let newShard = try shard(for: newShardID)
+      newPointer = try await newShard.insert(data: newData)
+      try await oldShard.delete(at: pointer.offset)
+    }
+
+    // 5. Reconciles indexes (removes old keys, adds new keys)
+    for field in allIndexedFields {
+      guard var index = indexes[field] else { continue }
+      let oldKey = FieldExtractor.value(in: oldDict, path: field)
+      let newKey = FieldExtractor.value(in: newDict, path: field)
+      if let oldKey { index.remove(key: oldKey, pointer: pointer) }
+      if let newKey { index.insert(key: newKey, pointer: newPointer) }
+      indexes[field] = index
     }
   }
 
@@ -334,16 +388,18 @@ actor CollectionCore {
     try await shard.delete(at: pointer.offset)
     let oldDict = try FieldExtractor.parse(oldData, using: format)
     for field in allIndexedFields {
+      guard var index = indexes[field] else { continue }
       if let key = FieldExtractor.value(in: oldDict, path: field) {
-        indexes[field]?.remove(key: key, pointer: pointer)
+        index.remove(key: key, pointer: pointer)
       }
+      indexes[field] = index
     }
     return true
   }
 
   private func removeFromAllIndexes(pointer: RecordPointer) {
     for field in allIndexedFields {
-      var index = indexes[field] ?? OrderedIndex()
+      guard var index = indexes[field] else { continue }
       for key in index.keys {
         index.remove(key: key, pointer: pointer)
       }
@@ -511,9 +567,30 @@ actor CollectionCore {
     try ensureOpen()
     let allShardIDs = Array(shardURLs.keys)
 
-    for shardID in allShardIDs {
-      let shard = try shard(for: shardID)
-      try await shard.compact()
+    // Concurrency limit to avoid exhausting CPU/FileHandles on the device
+    let maxConcurrent = 3
+    var iterator = allShardIDs.makeIterator()
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      // 1. Starts the initial tasks (up to the limit of 3)
+      for _ in 0..<min(maxConcurrent, allShardIDs.count) {
+        if let shardID = iterator.next() {
+          group.addTask {
+            let shard = try await self.shard(for: shardID)
+            try await shard.compact()
+          }
+        }
+      }
+
+      // 2. As one task finishes, adds the next one from the queue
+      while try await group.next() != nil {
+        if let shardID = iterator.next() {
+          group.addTask {
+            let shard = try await self.shard(for: shardID)
+            try await shard.compact()
+          }
+        }
+      }
     }
 
     try await rebuildAllIndexes()
@@ -522,6 +599,9 @@ actor CollectionCore {
 
   func stats() async -> CollectionStats {
     var size: UInt64 = 0
+    var totalDeadBytes: UInt64 = 0
+
+    // Calculates total on-disk size directly from FileManager (includes shards not opened via Lazy Load)
     for (_, url) in shardURLs {
       if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
         let fileSize = attrs[.size] as? UInt64
@@ -529,16 +609,26 @@ actor CollectionCore {
         size += fileSize
       }
     }
+
+    // Sums garbage (deadBytes) only from shards that are open in memory.
+    for shard in shards.values {
+      totalDeadBytes += await shard.deadBytes
+    }
+
+    let fragRatio = size > 0 ? Double(totalDeadBytes) / Double(size) : 0.0
+
     var indexCounts: [String: Int] = [:]
     for (field, index) in indexes {
       indexCounts[field] = index.entryCount
     }
+
     return CollectionStats(
       name: manifest.name,
       documentCount: count(),
       shardCount: shardURLs.count,
       sizeInBytes: size,
-      indexes: indexCounts
+      indexes: indexCounts,
+      fragmentationRatio: fragRatio
     )
   }
 
