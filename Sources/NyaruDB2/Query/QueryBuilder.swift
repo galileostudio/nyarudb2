@@ -23,7 +23,7 @@ public struct QueryPlan: Sendable {
 // MARK: - Regex Wrapper for Concurrency
 // NSRegularExpression is thread-safe for reading, but doesn't natively conform to Sendable in Swift 5.
 public struct SafeRegex: @unchecked Sendable {
-  let regex: NSRegularExpression
+  let regex: NSRegularExpression?
 }
 
 // MARK: - Predicate Tree
@@ -195,7 +195,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       }
     }
 
-    let regex = try! NSRegularExpression(pattern: "^" + regexStr + "$", options: [])
+    let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: [])
     return adding(.glob(field, pattern, SafeRegex(regex: regex)))
   }
 
@@ -483,10 +483,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   static func evaluate(_ predicate: Predicate, in dict: [String: Any]) -> Bool {
     switch predicate {
+
     case .and(let predicates):
       return predicates.allSatisfy { evaluate($0, in: dict) }
+
     case .or(let predicates):
       return predicates.contains { evaluate($0, in: dict) }
+
     case .not(let pred):
       return !evaluate(pred, in: dict)
 
@@ -506,16 +509,19 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         comparable(value, target.fieldValue)
       else { return false }
       return value < target.fieldValue
+
     case .lessThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value <= target.fieldValue
+
     case .greaterThan(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value > target.fieldValue
+
     case .greaterThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
@@ -531,6 +537,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .inSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return false }
       return targets.contains { $0.fieldValue == value }
+
     case .notInSet(let field, let targets):
       // Documented: Returns true if the field is null, missing, or if the value is not in the set.
       guard let value = FieldExtractor.value(in: dict, path: field) else { return true }
@@ -539,22 +546,26 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .contains(let field, let substring):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.contains(substring)
+
     case .startsWith(let field, let prefix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasPrefix(prefix)
+
     case .endsWith(let field, let suffix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
 
     case .like(let field, _, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
+      guard let regex = safeRegex.regex else { return false }
       let range = NSRange(s.startIndex..., in: s)
-      return safeRegex.regex.firstMatch(in: s, options: [], range: range) != nil
+      return regex.firstMatch(in: s, options: [], range: range) != nil
 
     case .glob(let field, _, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
+      guard let regex = safeRegex.regex else { return false }
       let range = NSRange(s.startIndex..., in: s)
-      return safeRegex.regex.firstMatch(in: s, options: [], range: range) != nil
+      return regex.firstMatch(in: s, options: [], range: range) != nil
     }
   }
 }

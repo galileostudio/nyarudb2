@@ -26,7 +26,6 @@ struct CollectionManifest: Codable, Equatable, Sendable {
       && fileProtection == other.fileProtection
       && format == other.format
       && isEncrypted == other.isEncrypted
-      && maxFragmentation == other.maxFragmentation
   }
 }
 
@@ -87,10 +86,18 @@ actor CollectionCore {
       let shardID = url.deletingPathExtension().lastPathComponent
       shardURLs[shardID] = url
     }
+    /// Checks if any shard is dirty without fully opening them
+    var anyShardDirty = false
+    for (_, url) in shardURLs {
+      if SlottedFile.peekDirty(url: url) {
+        anyShardDirty = true
+        break
+      }
+    }
 
     // 2. Rehydrate indexes. If indexes need rebuilding, open shards on demand.
     let indexSnapshotsLoaded = try loadIndexSnapshots()
-    if !indexSnapshotsLoaded {
+    if anyShardDirty || !indexSnapshotsLoaded {
       try await rebuildAllIndexes()
     }
   }
@@ -214,7 +221,11 @@ actor CollectionCore {
   }
 
   private func existingShard(_ id: String) throws -> ShardActor {
-    return try shard(for: id)
+    if let existing = shards[id] { return existing }
+    if shardURLs[id] != nil {
+      return try shard(for: id)
+    }
+    throw NyaruError.corruptedRecord(offset: 0, reason: "pointer references unknown shard '\(id)'")
   }
 
   // MARK: - Field helpers
@@ -329,8 +340,41 @@ actor CollectionCore {
 
   // MARK: - Partial Update (Patch)
 
-  func patch(id: FieldValue, changes: [String: FieldValue]) async throws {
+  /// Partially updates a document by merging `changes` into the existing document.
+  /// - Parameters:
+  ///   - id: The document's primary key.
+  ///   - changes: A dictionary of field names to new values.
+  /// - Returns: The re-serialized document data.
+  /// - Throws: `NyaruError.documentNotFound` if the document doesn't exist.
+  ///           `NyaruError.unsupportedOperation` if nested paths are attempted or if the ID field is being changed.
+  func patch(id: FieldValue, changes: [String: FieldValue]) async throws -> Data {
     try ensureOpen()
+
+    // Early return: no changes to apply
+    guard !changes.isEmpty else {
+      guard let pointer = indexes[manifest.idField]?.search(id).first else {
+        throw NyaruError.documentNotFound(id: id.description)
+      }
+      let shard = try existingShard(pointer.shardID)
+      guard let oldData = try await shard.read(at: pointer.offset) else {
+        removeFromAllIndexes(pointer: pointer)
+        throw NyaruError.documentNotFound(id: id.description)
+      }
+      return oldData
+    }
+
+    // Validate that we are not trying to change the ID field
+    if changes.keys.contains(manifest.idField) {
+      throw NyaruError.unsupportedOperation("Changing the document ID is not allowed via patch.")
+    }
+
+    // Reject nested paths to avoid ambiguity
+    for key in changes.keys where key.contains(".") {
+      throw NyaruError.unsupportedOperation(
+        "Nested paths (e.g., 'address.city') are not supported in patch. Update the full document instead."
+      )
+    }
+
     guard let pointer = indexes[manifest.idField]?.search(id).first else {
       throw NyaruError.documentNotFound(id: id.description)
     }
@@ -341,19 +385,19 @@ actor CollectionCore {
       throw NyaruError.documentNotFound(id: id.description)
     }
 
-    // 1. Deserializes the current document into a dictionary
+    // 1. Deserialize the current document into a mutable dictionary
     let oldDict = try FieldExtractor.parse(oldData, using: format)
     var newDict = oldDict
 
-    // 2. Applies the changes (merge)
+    // 2. Apply changes (merge)
     for (key, value) in changes {
       newDict[key] = value.anyValue
     }
 
-    // 3. Re-serializes to the database format (JSON or MsgPack) using AnyEncodable
+    // 3. Re-serialize to the database format using AnyEncodable
     let newData = try Serializer.encode(AnyEncodable(value: newDict), format: format)
 
-    // 4. Determines the new shard (in case the partition key was changed in the patch)
+    // 4. Determine the new shard (partition may have changed)
     let newShardID = try shardID(forDocument: newDict)
     let newPointer: RecordPointer
 
@@ -365,7 +409,7 @@ actor CollectionCore {
       try await oldShard.delete(at: pointer.offset)
     }
 
-    // 5. Reconciles indexes (removes old keys, adds new keys)
+    // 5. Reconcile all indexes (remove old keys, add new keys)
     for field in allIndexedFields {
       guard var index = indexes[field] else { continue }
       let oldKey = FieldExtractor.value(in: oldDict, path: field)
@@ -374,6 +418,8 @@ actor CollectionCore {
       if let newKey { index.insert(key: newKey, pointer: newPointer) }
       indexes[field] = index
     }
+
+    return newData
   }
 
   @discardableResult

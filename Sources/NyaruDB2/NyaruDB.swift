@@ -99,8 +99,12 @@ public actor NyaruDB {
     if let raw = try? Data(contentsOf: manifestURL) {
       let dataToDecode: Data
       if let key = options.encryptionKey {
-        let sealedBox = try AES.GCM.SealedBox(combined: raw)
-        dataToDecode = try AES.GCM.open(sealedBox, using: key)
+        do {
+          let sealedBox = try AES.GCM.SealedBox(combined: raw)
+          dataToDecode = try AES.GCM.open(sealedBox, using: key)
+        } catch {
+          throw NyaruError.decryptionFailed
+        }
       } else {
         dataToDecode = raw
       }
@@ -142,10 +146,21 @@ public actor NyaruDB {
     var names: [String] = []
     for url in items {
       let manifestURL = url.appendingPathComponent("manifest.json")
-      if let data = try? Data(contentsOf: manifestURL),
-        let manifest = try? JSONDecoder().decode(CollectionManifest.self, from: data)
-      {
-        names.append(manifest.name)
+      if let raw = try? Data(contentsOf: manifestURL) {
+        let dataToDecode: Data
+        if let key = options.encryptionKey {
+          do {
+            let sealedBox = try AES.GCM.SealedBox(combined: raw)
+            dataToDecode = try AES.GCM.open(sealedBox, using: key)
+          } catch {
+            continue
+          }
+        } else {
+          dataToDecode = raw
+        }
+        if let manifest = try? JSONDecoder().decode(CollectionManifest.self, from: dataToDecode) {
+          names.append(manifest.name)
+        }
       }
     }
     return names.sorted()

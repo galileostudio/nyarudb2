@@ -79,7 +79,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// Partially updates a document without needing to decode the entire struct.
   /// Example: `users.patch(id: 1, changes: ["isActive": false, "age": 31])`
   public func patch(id: FieldValueConvertible, changes: [String: FieldValue]) async throws {
-    try await core.patch(id: id.fieldValue, changes: changes)
+    let newData = try await core.patch(id: id.fieldValue, changes: changes)
+    _ = try decode(newData)
   }
 
   /// Replaces the document with the same id, inserting it if absent.

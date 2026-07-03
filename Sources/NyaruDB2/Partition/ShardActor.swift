@@ -93,25 +93,20 @@ actor ShardActor {
   // MARK: - Maintenance
 
   /// Compacts this specific shard file in place.
-  func compact() async throws {
+  func compact() throws {
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
 
-    // Creates a new (empty) ShardActor
-    let fresh = try ShardActor(
-      id: id, url: tempURL,
-      compression: compression,
-      fileProtection: fileProtection,
-      encryptionKey: encryptionKey,
-      maxFragmentation: maxFragmentation
-    )
+    let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
-    // Calls an internal method that performs raw byte copying
-    try await fresh.copyRawRecords(from: self)
+    // Zero-copy: copies raw payloads directly without decrypting/decompressing
+    try file.forEachLive { liveRecord in
+      _ = try tempFile.append(payload: liveRecord.payload, compression: liveRecord.compression)
+    }
+    try tempFile.sync()
+    try tempFile.close()
 
-    try await fresh.close()
     try file.close()
-
     _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }

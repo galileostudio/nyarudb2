@@ -173,8 +173,12 @@ extension OrderedIndex {
 
     let decompressed: Data
     if let key = encryptionKey {
-      let sealedBox = try AES.GCM.SealedBox(combined: raw)
-      decompressed = try AES.GCM.open(sealedBox, using: key)
+      do {
+        let sealedBox = try AES.GCM.SealedBox(combined: raw)
+        decompressed = try AES.GCM.open(sealedBox, using: key)
+      } catch {
+        throw NyaruError.decryptionFailed
+      }
     } else {
       decompressed = raw
     }

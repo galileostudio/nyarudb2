@@ -18,6 +18,11 @@ public enum NyaruCrypto {
   ///   - password: The user's password (e.g., entered on the app's login screen).
   ///   - salt: A unique random value per installation (store in Keychain/UserDefaults).
   /// - Returns: A `SymmetricKey` ready to be used in `DatabaseOptions`.
+  /// /// - Warning: HKDF is designed for high-entropy key material, NOT for raw user passwords.
+  ///   If you pass a user password directly, it is vulnerable to brute-force attacks.
+  ///   For user passwords, you MUST hash them with a slow KDF (like Argon2 or PBKDF2)
+  ///   before passing the result to this method, OR use `generateRandomKey()`
+  ///   and store it securely in the device's Keychain.
   public static func deriveKey(from password: String, salt: String) -> SymmetricKey {
     let passwordData = Data(password.utf8)
     let saltData = Data(salt.utf8)

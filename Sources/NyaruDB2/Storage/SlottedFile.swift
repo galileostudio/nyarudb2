@@ -511,4 +511,15 @@ final class SlottedFile {
     liveCount += 1
     return offset
   }
+
+  /// Reads the dirty flag from the header without opening a persistent FileHandle.
+  /// Used during lazy open to check if crash recovery is needed.
+  static func peekDirty(url: URL) -> Bool {
+    guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+    defer { try? handle.close() }
+    try? handle.seek(toOffset: 6)
+    guard let data = try? handle.read(upToCount: 2), data.count == 2 else { return false }
+    let flags = Binary.readUInt16(data, at: 0) ?? 0
+    return (flags & SlottedFile.dirtyFlag) != 0
+  }
 }
