@@ -491,20 +491,25 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   static func evaluate(_ predicate: Predicate, in dict: [String: Any]) -> Bool {
     switch predicate {
+ 
     case .and(let predicates):
       return predicates.allSatisfy { evaluate($0, in: dict) }
+    
     case .or(let predicates):
       return predicates.contains { evaluate($0, in: dict) }
+    
     case .not(let pred):
       return !evaluate(pred, in: dict)
 
     case .exists(let field):
       return FieldExtractor.value(in: dict, path: field) != nil
+    
     case .notExists(let field):
       return FieldExtractor.value(in: dict, path: field) == nil
 
     case .equal(let field, let target):
       return FieldExtractor.value(in: dict, path: field) == target.fieldValue
+    
     case .notEqual(let field, let target):
       return FieldExtractor.value(in: dict, path: field) != target.fieldValue
 
@@ -513,16 +518,19 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         comparable(value, target.fieldValue)
       else { return false }
       return value < target.fieldValue
+    
     case .lessThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value <= target.fieldValue
+    
     case .greaterThan(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value > target.fieldValue
+    
     case .greaterThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
@@ -538,6 +546,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .inSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return false }
       return targets.contains { $0.fieldValue == value }
+    
     case .notInSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return true }
       return !targets.contains { $0.fieldValue == value }
@@ -545,9 +554,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .contains(let field, let substring):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.contains(substring)
+    
     case .startsWith(let field, let prefix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasPrefix(prefix)
+    
     case .endsWith(let field, let suffix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
