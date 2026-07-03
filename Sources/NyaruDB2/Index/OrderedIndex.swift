@@ -9,7 +9,11 @@ import SwiftMsgpack
 /// simpler to implement correctly and test. Since the index is kept entirely in memory,
 /// the O(n) insertion cost of shifting array elements is acceptable for typical mobile
 /// workloads. Persistence is O(n) (serializing the whole array at once).
-public struct OrderedIndex: Codable, Sendable {
+///
+/// Implemented as a `final class` to avoid Swift's Copy-on-Write (COW) performance
+/// penalties during bulk inserts, which would otherwise duplicate the entire array
+/// on every mutation.
+public final class OrderedIndex: Codable, @unchecked Sendable {
   @usableFromInline internal private(set) var keys: [FieldValue] = []
   @usableFromInline internal private(set) var postings: [[RecordPointer]] = []
 
@@ -71,7 +75,7 @@ public struct OrderedIndex: Codable, Sendable {
 
   // MARK: - Mutation
 
-  public mutating func insert(key: FieldValue, pointer: RecordPointer) {
+  public func insert(key: FieldValue, pointer: RecordPointer) {
     let pos = lowerBound(key)
     if pos < keys.count && keys[pos] == key {
       postings[pos].append(pointer)
@@ -81,7 +85,7 @@ public struct OrderedIndex: Codable, Sendable {
     }
   }
 
-  public mutating func remove(key: FieldValue, pointer: RecordPointer) {
+  public func remove(key: FieldValue, pointer: RecordPointer) {
     let pos = lowerBound(key)
     guard pos < keys.count, keys[pos] == key else { return }
 
@@ -97,7 +101,7 @@ public struct OrderedIndex: Codable, Sendable {
   /// Replaces `old` pointer with `new` pointer for a given key.
   /// Assumes the key itself has not changed.
   @discardableResult
-  public mutating func replace(key: FieldValue, old: RecordPointer, new: RecordPointer) -> Bool {
+  public func replace(key: FieldValue, old: RecordPointer, new: RecordPointer) -> Bool {
     let pos = lowerBound(key)
     guard pos < keys.count, keys[pos] == key else { return false }
     guard let i = postings[pos].firstIndex(of: old) else { return false }
@@ -140,11 +144,9 @@ public struct OrderedIndex: Codable, Sendable {
     }
     return low
   }
-}
 
-// MARK: - Persistence
+  // MARK: - Persistence
 
-extension OrderedIndex {
   /// Persists the index to disk using MsgPack + Gzip, optionally encrypted with AES-GCM.
   public func persist(to url: URL, encryptionKey: SymmetricKey?) throws {
     let data = try MsgPackEncoder().encode(self)

@@ -123,7 +123,6 @@ actor CollectionCore {
     try fm.createDirectory(at: shardsDirectory, withIntermediateDirectories: true)
     try fm.createDirectory(at: indexesDirectory, withIntermediateDirectories: true)
 
-    // 1. Only list files on disk. Does NOT open FileHandle!
     let files =
       (try? fm.contentsOfDirectory(at: shardsDirectory, includingPropertiesForKeys: nil)) ?? []
     for url in files where url.pathExtension == "nyaru" {
@@ -131,7 +130,6 @@ actor CollectionCore {
       shardURLs[shardID] = url
     }
 
-    // 2. Check if any shard is dirty without fully opening them.
     var anyShardDirty = false
     for (_, url) in shardURLs {
       if SlottedFile.peekDirty(url: url) {
@@ -140,14 +138,12 @@ actor CollectionCore {
       }
     }
 
-    // 3. Rehydrate indexes. If any shard was dirty, ignore snapshots and rebuild.
     let indexSnapshotsLoaded = try loadIndexSnapshots()
     if anyShardDirty || !indexSnapshotsLoaded {
       try await rebuildAllIndexes()
     }
   }
 
-  /// Returns false when any snapshot is missing/unreadable.
   private func loadIndexSnapshots() throws -> Bool {
     var loaded: [String: OrderedIndex] = [:]
     let fm = FileManager.default
@@ -298,14 +294,13 @@ actor CollectionCore {
     let dict = try FieldExtractor.parse(data, using: format)
     guard let actualID = FieldExtractor.value(in: dict, path: manifest.idField), actualID == id
     else {
-      if var index = indexes[manifest.idField] {
-        index.remove(key: id, pointer: pointer)
-        indexes[manifest.idField] = index
-      }
+      // Zero COW e zero warnings.
+      indexes[manifest.idField]?.remove(key: id, pointer: pointer)
       return nil
     }
     return (data, dict)
   }
+
   // MARK: - CRUD
 
   func insert(data: Data) async throws {
@@ -344,9 +339,7 @@ actor CollectionCore {
     let shard = try shard(for: shardID)
     let pointer = try await shard.insert(data: data)
     for entry in indexEntries(for: dict) {
-      guard var index = indexes[entry.field] else { continue }
-      index.insert(key: entry.key, pointer: pointer)
-      indexes[entry.field] = index
+      indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
     }
   }
 
@@ -356,11 +349,9 @@ actor CollectionCore {
     let shard = try existingShard(pointer.shardID)
     guard let data = try await shard.read(at: pointer.offset) else { return nil }
 
-    // BELT AND SUSPENDERS: Verifies that the read document's ID matches the requested ID.
-    // If not, the pointer was stale (e.g., compaction ran in the background).
     if let dict = try? FieldExtractor.parse(data, using: format),
-      let actualId = FieldExtractor.value(in: dict, path: manifest.idField),
-      actualId != id
+      let actualID = FieldExtractor.value(in: dict, path: manifest.idField),
+      actualID != id
     {
       return nil
     }
@@ -402,16 +393,12 @@ actor CollectionCore {
     }
 
     for field in allIndexedFields {
-      guard var index = indexes[field] else { continue }
       let oldKey = FieldExtractor.value(in: oldDict, path: field)
       let newKey = FieldExtractor.value(in: dict, path: field)
-      if let oldKey { index.remove(key: oldKey, pointer: oldPointer) }
-      if let newKey { index.insert(key: newKey, pointer: newPointer) }
-      indexes[field] = index
+      if let oldKey { indexes[field]?.remove(key: oldKey, pointer: oldPointer) }
+      if let newKey { indexes[field]?.insert(key: newKey, pointer: newPointer) }
     }
   }
-
-  // MARK: - Partial Update (Patch)
 
   // MARK: - Partial Update (Patch)
   // Two-phase by construction: the merged document is built and handed to
@@ -427,7 +414,6 @@ actor CollectionCore {
     validate: @Sendable (Data) throws -> Void
   ) async throws -> Data {
     try ensureOpen()
-    // Early return: no changes to apply
     guard !changes.isEmpty else {
       guard let pointer = indexes[manifest.idField]?.search(id).first,
         let current = try await verifiedRead(pointer: pointer, expecting: id)
@@ -436,11 +422,9 @@ actor CollectionCore {
       }
       return current.data
     }
-    // Validate that we are not trying to change the ID field
     if changes.keys.contains(manifest.idField) {
       throw NyaruError.unsupportedOperation("Changing the document ID is not allowed via patch.")
     }
-    // Reject nested paths to avoid ambiguity
     for key in changes.keys where key.contains(".") {
       throw NyaruError.unsupportedOperation(
         "Nested paths (e.g., 'address.city') are not supported in patch. Update the full document instead."
@@ -454,18 +438,14 @@ actor CollectionCore {
       throw NyaruError.documentNotFound(id: id.description)
     }
     let oldShard = try existingShard(pointer.shardID)
-    // 1. Merge changes over the current document
     let oldDict = old.dict
     var newDict = oldDict
     for (key, value) in changes {
       newDict[key] = value.anyValue
     }
-    // 2. Re-serialize to the database format using AnyEncodable
     let newData = try Serializer.encode(AnyEncodable(value: newDict), format: format)
-    // 3. PHASE ONE — validate before any write. If this throws, nothing
-    // was persisted and no index was touched.
     try validate(newData)
-    // 4. PHASE TWO — persist. Determine the new shard (partition may have changed)
+
     let newShardID = try shardID(forDocument: newDict)
     let newPointer: RecordPointer
     if newShardID == oldShard.id {
@@ -475,14 +455,12 @@ actor CollectionCore {
       newPointer = try await newShard.insert(data: newData)
       try await oldShard.delete(at: pointer.offset)
     }
-    // 5. Reconcile all indexes (remove old keys, add new keys)
+
     for field in allIndexedFields {
-      guard var index = indexes[field] else { continue }
       let oldKey = FieldExtractor.value(in: oldDict, path: field)
       let newKey = FieldExtractor.value(in: newDict, path: field)
-      if let oldKey { index.remove(key: oldKey, pointer: pointer) }
-      if let newKey { index.insert(key: newKey, pointer: newPointer) }
-      indexes[field] = index
+      if let oldKey { indexes[field]?.remove(key: oldKey, pointer: pointer) }
+      if let newKey { indexes[field]?.insert(key: newKey, pointer: newPointer) }
     }
     return newData
   }
@@ -499,22 +477,19 @@ actor CollectionCore {
     try await shard.delete(at: pointer.offset)
     let oldDict = try FieldExtractor.parse(oldData, using: format)
     for field in allIndexedFields {
-      guard var index = indexes[field] else { continue }
       if let key = FieldExtractor.value(in: oldDict, path: field) {
-        index.remove(key: key, pointer: pointer)
+        indexes[field]?.remove(key: key, pointer: pointer)
       }
-      indexes[field] = index
     }
     return true
   }
 
   private func removeFromAllIndexes(pointer: RecordPointer) {
     for field in allIndexedFields {
-      guard var index = indexes[field] else { continue }
+      guard let index = indexes[field] else { continue }
       for key in index.keys {
         index.remove(key: key, pointer: pointer)
       }
-      indexes[field] = index
     }
   }
 
@@ -558,7 +533,6 @@ actor CollectionCore {
     }
 
     manifest.indexedFields = sorted
-    // Uses ManifestIO to ensure it's encrypted if a key exists
     try ManifestIO.write(manifest, to: manifestURL, encryptionKey: encryptionKey)
   }
 
@@ -613,7 +587,6 @@ actor CollectionCore {
   // behind a slow consumer materialized the whole collection in memory,
   // defeating the point of streaming.
   func shardIDList() -> [String] {
-    // Sorted for deterministic iteration order across runs.
     shardURLs.keys.sorted()
   }
 
@@ -626,12 +599,15 @@ actor CollectionCore {
     let batch = try await shard.readLiveBatch(from: pos, maxCount: max(1, maxCount))
     return (batch.items.map(\.data), batch.nextPos)
   }
+
   func isIndexed(field: String) -> Bool {
     indexes[field] != nil
   }
+
   func indexSearch(field: String, key: FieldValue) -> [RecordPointer] {
     indexes[field]?.search(key) ?? []
   }
+
   func indexRange(
     field: String,
     lower: FieldValue?, lowerInclusive: Bool,
@@ -656,7 +632,6 @@ actor CollectionCore {
     return out
   }
 
-    
   private func getShardsForStreaming() async throws -> [ShardActor] {
     try ensureOpen()
     var actors: [ShardActor] = []
@@ -675,12 +650,10 @@ actor CollectionCore {
     try ensureOpen()
     let allShardIDs = Array(shardURLs.keys)
 
-    // Concurrency limit to avoid exhausting CPU/FileHandles on the device
     let maxConcurrent = 3
     var iterator = allShardIDs.makeIterator()
 
     try await withThrowingTaskGroup(of: Void.self) { group in
-      // 1. Starts the initial tasks (up to the limit of 3)
       for _ in 0..<min(maxConcurrent, allShardIDs.count) {
         if let shardID = iterator.next() {
           group.addTask {
@@ -690,7 +663,6 @@ actor CollectionCore {
         }
       }
 
-      // 2. As one task finishes, adds the next one from the queue
       while try await group.next() != nil {
         if let shardID = iterator.next() {
           group.addTask {
@@ -709,7 +681,6 @@ actor CollectionCore {
     var size: UInt64 = 0
     var totalDeadBytes: UInt64 = 0
 
-    // Calculates total on-disk size directly from FileManager (includes shards not opened via Lazy Load)
     for (_, url) in shardURLs {
       if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
         let fileSize = attrs[.size] as? UInt64
@@ -718,7 +689,6 @@ actor CollectionCore {
       }
     }
 
-    // Sums garbage (deadBytes) only from shards that are open in memory.
     for shard in shards.values {
       totalDeadBytes += await shard.deadBytes
     }
