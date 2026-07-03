@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
   name: "NyaruDB2",
-  platforms: [.iOS(.v15), .macOS(.v12)],
+  platforms: [.iOS(.v15), .macOS(.v13)],
   products: [
     .library(name: "NyaruDB2", targets: ["NyaruDB2"])
   ],
@@ -28,6 +28,15 @@ let package = Package(
       name: "NyaruDB2Tests",
       dependencies: ["NyaruDB2"],
       path: "Tests/NyaruDB2Tests"
+    ),
+    .executableTarget(
+      name: "NyaruDB2Benchmark",
+      dependencies: ["NyaruDB2"],
+      path: "Sources/Benchmark",
+      linkerSettings: [
+        .linkedLibrary("z"),
+        .linkedLibrary("compression", .when(platforms: [.macOS])),
+      ]
     ),
   ]
 )
