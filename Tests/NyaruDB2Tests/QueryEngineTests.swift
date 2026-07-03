@@ -124,4 +124,26 @@ final class QueryEngineTests: XCTestCase {
     let count = await users.count()
     XCTAssertEqual(count, 6, "The old document was not tombstoned correctly")
   }
+
+  func testPartialUpdatePatch() async throws {
+    let changes: [String: FieldValue] = ["age": 26, "country": "PT"]
+    try await users.patch(id: 1, changes: changes)
+
+    // 1. Verifies the document was updated
+    let fetched = try await users.get(id: 1)
+    XCTAssertEqual(fetched?.age, 26)
+    XCTAssertEqual(fetched?.country, "PT")
+
+    // 2. Verifies the "age" index was updated (25 removed, 26 added)
+    let age26 = try await users.find().where("age", isEqualTo: 26).execute()
+    XCTAssertEqual(age26.count, 1)
+
+    let age25 = try await users.find().where("age", isEqualTo: 25).execute()
+    XCTAssertEqual(age25.count, 1)  // Eve still has 25
+    XCTAssertFalse(age25.contains { $0.id == 1 })  // Alice no longer has 25
+
+    // 3. Verifies the partition changed from BR to PT
+    let inPT = try await users.find().where("country", isEqualTo: "PT").execute()
+    XCTAssertTrue(inPT.contains { $0.id == 1 })
+  }
 }
