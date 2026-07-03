@@ -128,7 +128,7 @@ struct OrderedIndex: Codable {
   }
 
   static func load(from url: URL, encryptionKey: SymmetricKey?) throws -> OrderedIndex {
-    let raw = try Data(contentsOf: url)
+    let raw = try Data(contentsOf: url, options: .alwaysMapped)
     let decompressed: Data
 
     if let key = encryptionKey {

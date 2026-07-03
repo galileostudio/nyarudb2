@@ -76,6 +76,17 @@ final class SlottedFile {
   private var handle: FileHandle
   private var fileSize: UInt64
   private(set) var liveCount: UInt32 = 0
+
+  /// Exposes the real garbage count, rebuilt during `scan()` on open.
+  var tombstoneCount: UInt32 { UInt32(freeSlots.count) }
+
+  var fragmentationRatio: Double {
+    let deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
+    let totalUsableBytes = fileSize - SlottedFile.fileHeaderSize
+    guard totalUsableBytes > 0 else { return 0.0 }
+    return Double(deadBytes) / Double(totalUsableBytes)
+  }
+
   /// True when this open found the dirty flag set and ran crash recovery.
   /// Callers use this to invalidate index snapshots.
   private(set) var recoveredFromDirty = false
@@ -83,6 +94,10 @@ final class SlottedFile {
   /// Tombstoned slots available for reuse: capacity -> offsets.
   /// Kept as a flat array sorted by capacity for best-fit lookup.
   private var freeSlots: [(offset: UInt64, capacity: UInt32)] = []
+
+  /// Static buffer for the 3 reserved bytes in the record header.
+  /// Avoids allocating an array on every write.
+  private static let reservedBytes = Data(count: 3)
 
   var path: String { url.path }
 
@@ -159,6 +174,37 @@ final class SlottedFile {
     }
   }
 
+  func forEachLive(_ block: (LiveRecord) throws -> Void) throws {
+    var pos = SlottedFile.fileHeaderSize
+    while pos + SlottedFile.recordHeaderSize <= fileSize {
+      try handle.seek(toOffset: pos)
+      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
+        head.count == Int(SlottedFile.recordHeaderSize),
+        let capacity = Binary.readUInt32(head, at: 0),
+        let payloadLength = Binary.readUInt32(head, at: 4),
+        payloadLength <= capacity,
+        pos + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
+      else { break }
+
+      let flags = head[head.startIndex + 8]
+      if flags & RecordFlags.tombstone == 0 {
+        guard let payload = try handle.read(upToCount: Int(payloadLength)),
+          payload.count == Int(payloadLength)
+        else {
+          throw NyaruError.corruptedRecord(offset: pos, reason: "short payload")
+        }
+        try block(
+          LiveRecord(
+            offset: pos,
+            payload: payload,
+            compression: CompressionMethod(recordFlags: flags)
+          )
+        )
+      }
+      pos += SlottedFile.recordHeaderSize + UInt64(capacity)
+    }
+  }
+
   /// Walks every slot: rebuilds liveCount and the free list.
   /// With `verifyCRC`, corrupt records are tombstoned; with `repair`, a
   /// torn trailing write is truncated.
@@ -230,6 +276,9 @@ final class SlottedFile {
 
   /// Persists liveCount and clears the dirty flag.
   func sync() throws {
+    // OPTIMIZATION: If no mutation occurred, skip I/O.
+    guard isDirty else { return }
+
     var patch = Data()
     Binary.append(UInt16(0), to: &patch)  // flags: clean
     Binary.append(liveCount, to: &patch)  // liveCount
@@ -301,7 +350,10 @@ final class SlottedFile {
     Binary.append(capacity, to: &record)
     Binary.append(UInt32(payload.count), to: &record)
     record.append(compression.flagBit)
-    record.append(contentsOf: [0, 0, 0])
+
+    // OPTIMIZATION: Use a static Data instead of allocating [0,0,0] each write.
+    record.append(Self.reservedBytes)
+
     Binary.append(Compressor.crc32Checksum(payload), to: &record)
     record.append(payload)
     if pad {
@@ -405,39 +457,54 @@ final class SlottedFile {
     try handle.write(contentsOf: Data([existingFlags | RecordFlags.tombstone]))
   }
 
-  /// Sequentially yields every live record.
-  func scanLive() throws -> [LiveRecord] {
-    var results: [LiveRecord] = []
-    var pos = SlottedFile.fileHeaderSize
-    while pos + SlottedFile.recordHeaderSize <= fileSize {
-      try handle.seek(toOffset: pos)
-      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
-        head.count == Int(SlottedFile.recordHeaderSize),
-        let capacity = Binary.readUInt32(head, at: 0),
-        let payloadLength = Binary.readUInt32(head, at: 4),
-        payloadLength <= capacity,
-        pos + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
-      else { break }
-      let flags = head[head.startIndex + 8]
-      if flags & RecordFlags.tombstone == 0 {
-        guard let payload = try handle.read(upToCount: Int(payloadLength)),
-          payload.count == Int(payloadLength)
-        else {
-          throw NyaruError.corruptedRecord(offset: pos, reason: "short payload")
-        }
-        results.append(
-          LiveRecord(
-            offset: pos,
-            payload: payload,
-            compression: CompressionMethod(recordFlags: flags)
-          )
-        )
-      }
-      pos += SlottedFile.recordHeaderSize + UInt64(capacity)
-    }
-    return results
-  }
-
   /// Approximate on-disk size in bytes.
   func sizeInBytes() -> UInt64 { fileSize }
+
+  struct RawRecord {
+    let offset: UInt64
+    let payload: Data
+    let compression: CompressionMethod
+  }
+
+  /// Reads the raw payload without decompression/decryption (for zero-copy compaction).
+  func readRaw(at offset: UInt64) throws -> RawRecord? {
+    try handle.seek(toOffset: offset)
+    guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
+      head.count == Int(SlottedFile.recordHeaderSize),
+      let capacity = Binary.readUInt32(head, at: 0),
+      capacity > 0,  // Validação extra
+      let payloadLength = Binary.readUInt32(head, at: 4),
+      payloadLength <= capacity
+    else {  // Garante que o payload não é maior que o slot
+      return nil
+    }
+    let flags = head[head.startIndex + 8]
+    let payload = try handle.read(upToCount: Int(payloadLength)) ?? Data()
+    return RawRecord(
+      offset: offset, payload: payload, compression: CompressionMethod(recordFlags: flags))
+  }
+
+  /// Appends a raw payload directly to the new file, bypassing compression/encryption.
+  func appendRaw(payload: Data, compression: CompressionMethod) throws -> UInt64 {
+    try markDirtyIfNeeded()
+    let length = UInt32(payload.count)
+
+    // Reuse free slot if possible
+    if let index = bestFitFreeSlot(for: length) {
+      let slot = freeSlots.remove(at: index)
+      try writeRecord(
+        at: slot.offset, capacity: slot.capacity, payload: payload, compression: compression)
+      liveCount += 1
+      return slot.offset
+    }
+
+    // Append at EOF
+    let capacity = SlottedFile.roundUpCapacity(length)
+    let offset = fileSize
+    try writeRecord(
+      at: offset, capacity: capacity, payload: payload, compression: compression, pad: true)
+    fileSize = offset + SlottedFile.recordHeaderSize + UInt64(capacity)
+    liveCount += 1
+    return offset
+  }
 }

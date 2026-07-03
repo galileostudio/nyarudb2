@@ -7,19 +7,21 @@ public struct DatabaseOptions: Sendable {
   public var fileProtection: FileProtection
   public var format: SerializationFormat
   public var encryptionKey: SymmetricKey?
+  public var maxFragmentation: Double
 
   public init(
     compression: CompressionMethod = .none,
     fileProtection: FileProtection = .none,
     format: SerializationFormat = .json,
-    encryptionKey: SymmetricKey? = nil
+    encryptionKey: SymmetricKey? = nil,
+    maxFragmentation: Double = 0.2
 
   ) {
     self.compression = compression
     self.fileProtection = fileProtection
     self.format = format
     self.encryptionKey = encryptionKey
-
+    self.maxFragmentation = maxFragmentation
   }
 }
 
@@ -81,7 +83,8 @@ public actor NyaruDB {
       compression: options.compression,
       fileProtection: options.fileProtection,
       format: options.format,
-      isEncrypted: options.encryptionKey != nil
+      isEncrypted: options.encryptionKey != nil,
+      maxFragmentation: options.maxFragmentation
     )
 
     if let existing = cores[name] {

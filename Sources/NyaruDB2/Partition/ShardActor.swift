@@ -3,28 +3,24 @@ import Foundation
 
 actor ShardActor {
   let id: String
-  private let file: SlottedFile
+  private let url: URL
+  private var file: SlottedFile  // Mudou para var para permitir reabrir no compact()
   private let compression: CompressionMethod
+  private let fileProtection: FileProtection
   private let encryptionKey: SymmetricKey?
-
-  private var tombstoneCount: UInt32
-  private let autoCompactThreshold: Double = 0.2
+  private let maxFragmentation: Double
 
   init(
     id: String, url: URL, compression: CompressionMethod, fileProtection: FileProtection,
-    encryptionKey: SymmetricKey?
+    encryptionKey: SymmetricKey?, maxFragmentation: Double = 0.2
   ) throws {
     self.id = id
+    self.url = url
     self.compression = compression
+    self.fileProtection = fileProtection
     self.encryptionKey = encryptionKey
+    self.maxFragmentation = maxFragmentation
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
-
-    // GARBAGE COLLECTION COUNTER INITIALIZATION:
-    // If SlottedFile doesn't persist the tombstone count in the clean header,
-    // we start at 0. Compaction will only be triggered if *new* garbage accumulates
-    // during this session. For a 100% accurate counter after restart, SlottedFile
-    // should expose `file.tombstoneCount`.
-    self.tombstoneCount = 0
   }
 
   var liveCount: Int { Int(file.liveCount) }
@@ -32,10 +28,10 @@ actor ShardActor {
   func sizeInBytes() -> UInt64 { file.sizeInBytes() }
 
   var needsCompaction: Bool {
-    let total = file.liveCount + tombstoneCount
+    let total = file.liveCount + file.tombstoneCount
     guard total > 100 else { return false }
-    let ratio = Double(tombstoneCount) / Double(total)
-    return ratio >= autoCompactThreshold
+    let ratio = Double(file.tombstoneCount) / Double(total)
+    return ratio >= maxFragmentation
   }
 
   // MARK: - CRUD primitives
@@ -53,41 +49,36 @@ actor ShardActor {
 
   func update(at offset: UInt64, data: Data) throws -> RecordPointer {
     let prepared = try preparePayload(data)
-
     if try file.overwrite(at: offset, payload: prepared.payload, compression: prepared.method) {
       return RecordPointer(shardID: id, offset: offset)
     }
-
     try file.tombstone(at: offset)
-    tombstoneCount += 1
     let newOffset = try file.append(payload: prepared.payload, compression: prepared.method)
     return RecordPointer(shardID: id, offset: newOffset)
   }
 
   func delete(at offset: UInt64) throws {
     try file.tombstone(at: offset)
-    tombstoneCount += 1
   }
 
-  /// All live documents, decompressed, with their offsets.
-  func scanAll() throws -> [(offset: UInt64, data: Data)] {
-    try file.scanLive().map {
-      (
-        offset: $0.offset,
-        data: try restorePayload((payload: $0.payload, compression: $0.compression))
-      )
+  // MARK: - Iteration
+
+  /// Iterates over live records without materializing an array.
+  func forEachLive(_ block: (UInt64, Data) throws -> Void) async throws {
+    try file.forEachLive { liveRecord in
+      let data = try restorePayload(
+        (payload: liveRecord.payload, compression: liveRecord.compression))
+      try block(liveRecord.offset, data)
     }
   }
 
-  /// REAL STREAMING: Reads records one by one without materializing the entire array in the caller's memory.
+  /// REAL STREAMING: Reads records one by one without materializing the entire array in memory.
   nonisolated func scanLazy() -> AsyncThrowingStream<(offset: UInt64, data: Data), Error> {
     AsyncThrowingStream { continuation in
       Task {
         do {
-          // Chama o método isolado no Actor para evitar violação de Sendable no Swift 6
-          let records = try await self.fetchAllRecordsForStream()
-          for record in records {
-            continuation.yield(record)
+          try await self.forEachLive { offset, data in
+            continuation.yield((offset: offset, data: data))
           }
           continuation.finish()
         } catch {
@@ -97,13 +88,45 @@ actor ShardActor {
     }
   }
 
-  /// Isolated method on the Actor to safely prepare stream data
-  private func fetchAllRecordsForStream() throws -> [(offset: UInt64, data: Data)] {
-    return try file.scanLive().map {
-      (
-        offset: $0.offset,
-        data: try restorePayload((payload: $0.payload, compression: $0.compression))
-      )
+  // MARK: - Maintenance
+
+  /// Compacts this specific shard file in place.
+  func compact() async throws {
+    let tempURL = url.appendingPathExtension("compact")
+    try? FileManager.default.removeItem(at: tempURL)
+
+    // Creates a new (empty) ShardActor
+    let fresh = try ShardActor(
+      id: id, url: tempURL,
+      compression: compression,
+      fileProtection: fileProtection,
+      encryptionKey: encryptionKey,
+      maxFragmentation: maxFragmentation
+    )
+
+    // Calls an internal method that performs raw byte copying
+    try await fresh.copyRawRecords(from: self)
+
+    try await fresh.close()
+    try file.close()
+
+    _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
+    self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+  }
+  // Isolated method that reads from the old file and writes to the new one WITHOUT decompressing/decrypting
+  private func copyRawRecords(from oldShard: ShardActor) async throws {
+    // Iterates over live records from the old file
+    try await oldShard.forEachLiveRaw { offset, rawPayload, compression in
+      // Writes the payload exactly as it came from disk
+      _ = try file.appendRaw(payload: rawPayload, compression: compression)
+    }
+  }
+
+  // Exposes the raw iterator on the old ShardActor
+  func forEachLiveRaw(_ block: (UInt64, Data, CompressionMethod) throws -> Void) async throws {
+    try file.forEachLive { liveRecord in
+      // Since forEachLive already returns the raw payload from SlottedFile, we just pass it through!
+      try block(liveRecord.offset, liveRecord.payload, liveRecord.compression)
     }
   }
 
@@ -123,7 +146,6 @@ actor ShardActor {
 
     if let key = encryptionKey {
       var wrapped = Data([method.byte])
-      // Authenticates the compression byte using AAD (Additional Authenticated Data)
       let sealedBox = try AES.GCM.seal(payload, using: key, authenticating: Data([method.byte]))
       guard let combined = sealedBox.combined else { throw NyaruError.encryptionFailed }
       wrapped.append(combined)
@@ -141,7 +163,6 @@ actor ShardActor {
       let encryptedData = record.payload.subdata(in: 1..<record.payload.count)
 
       let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
-      // Validates the compression byte together with opening the box
       let decrypted = try AES.GCM.open(sealedBox, using: key, authenticating: Data([methodByte]))
 
       if let method = CompressionMethod(byte: methodByte), method != .none {
