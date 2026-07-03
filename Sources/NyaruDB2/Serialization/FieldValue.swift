@@ -10,7 +10,8 @@ import Foundation
 /// `int(2^60 + 1) != double(2^60)`.
 public enum FieldValue: Codable, Sendable, CustomStringConvertible,
   ExpressibleByIntegerLiteral, ExpressibleByStringLiteral,
-  ExpressibleByBooleanLiteral, ExpressibleByFloatLiteral
+  ExpressibleByBooleanLiteral, ExpressibleByFloatLiteral,
+  ExpressibleByNilLiteral
 {
   case null
   case bool(Bool)
@@ -19,22 +20,14 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
   case string(String)
 
   // MARK: - ExpressibleBy Literals
-  // Permite passar literais direto no código: ["age": 31, "name": "Alice"]
-  public init(integerLiteral value: Int) {
-    self = .int(Int64(value))
-  }
-  public init(stringLiteral value: String) {
-    self = .string(value)
-  }
-  public init(booleanLiteral value: Bool) {
-    self = .bool(value)
-  }
-  public init(floatLiteral value: Double) {
-    self = .number(value)
-  }
 
-  /// Converts the FieldValue back to the native Swift `Any` type.
-  /// Used by the Patch operation to inject values into a dynamic dictionary.
+  public init(integerLiteral value: Int) { self = .int(Int64(value)) }
+  public init(stringLiteral value: String) { self = .string(value) }
+  public init(booleanLiteral value: Bool) { self = .bool(value) }
+  public init(floatLiteral value: Double) { self = .number(value) }
+  public init(nilLiteral: ()) { self = .null }
+
+  /// Returns the native Swift `Any` representation of this value.
   public var anyValue: Any {
     switch self {
     case .null: return NSNull()
@@ -45,8 +38,9 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// null < bool < number < string. `.int` and `.double` share a rank.
-  private var typeRank: Int {
+  /// Type rank for total ordering: null < bool < number < string.
+  @inlinable
+  internal var typeRank: Int {
     switch self {
     case .null: return 0
     case .bool: return 1
@@ -55,14 +49,16 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
+  /// Canonicalizes a Double: integral values that fit Int64 exactly become `.int`.
   public static func number(_ d: Double) -> FieldValue {
     if let i = Int64(exactly: d) { return .int(i) }
     return .double(d)
   }
 
-  // MARK: - Exact mixed numeric comparison
+  // MARK: - Exact Numeric Comparison
 
-  private static func compare(_ i: Int64, _ d: Double) -> Int {
+  @inlinable
+  internal static func compare(_ i: Int64, _ d: Double) -> Int {
     if d.isNaN { return -1 }
     if d >= 9_223_372_036_854_775_808.0 { return -1 }
     if d < -9_223_372_036_854_775_808.0 { return 1 }
@@ -72,7 +68,8 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     return d > floor ? -1 : 0
   }
 
-  private static func compareDoubles(_ a: Double, _ b: Double) -> Int {
+  @inlinable
+  internal static func compareDoubles(_ a: Double, _ b: Double) -> Int {
     switch (a.isNaN, b.isNaN) {
     case (true, true): return 0
     case (true, false): return 1
@@ -84,7 +81,9 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  static func compare(_ lhs: FieldValue, _ rhs: FieldValue) -> Int {
+  /// Total ordering across all FieldValue variants.
+  @inlinable
+  public static func compare(_ lhs: FieldValue, _ rhs: FieldValue) -> Int {
     if lhs.typeRank != rhs.typeRank {
       return lhs.typeRank < rhs.typeRank ? -1 : 1
     }
@@ -114,9 +113,8 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// Builds a canonical FieldValue from an object produced by
-  /// JSONSerialization. Returns nil for non-scalar values (arrays, dicts).
-  static func from(jsonObject value: Any?) -> FieldValue? {
+  /// Converts any value from a deserialized dictionary into a canonical FieldValue.
+  public static func fromAny(_ value: Any?) -> FieldValue? {
     switch value {
     case nil, is NSNull:
       return .null
@@ -137,9 +135,14 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
 }
 
 // MARK: - Comparable / Equatable / Hashable
+
 extension FieldValue: Comparable {
-  public static func < (lhs: FieldValue, rhs: FieldValue) -> Bool { compare(lhs, rhs) < 0 }
-  public static func == (lhs: FieldValue, rhs: FieldValue) -> Bool { compare(lhs, rhs) == 0 }
+  @inlinable public static func < (lhs: FieldValue, rhs: FieldValue) -> Bool {
+    compare(lhs, rhs) < 0
+  }
+  @inlinable public static func == (lhs: FieldValue, rhs: FieldValue) -> Bool {
+    compare(lhs, rhs) == 0
+  }
 }
 
 extension FieldValue: Hashable {
@@ -157,6 +160,7 @@ extension FieldValue: Hashable {
 }
 
 // MARK: - FieldValueConvertible
+
 public protocol FieldValueConvertible: Sendable {
   var fieldValue: FieldValue { get }
 }
@@ -182,6 +186,7 @@ extension Optional: FieldValueConvertible where Wrapped: FieldValueConvertible {
 }
 
 // MARK: - FieldExtractor
+
 enum FieldExtractor {
   static func parse(_ data: Data, using format: SerializationFormat) throws -> [String: Any] {
     let obj = try Serializer.unpack(data, format: format)
@@ -193,8 +198,19 @@ enum FieldExtractor {
 
   static func value(in dict: [String: Any], path: String) -> FieldValue? {
     var current: Any = dict
-    for component in path.split(separator: ".") {
-      let key = String(component)
+    var start = path.startIndex
+
+    while start < path.endIndex {
+      // Pula separadores (caso haja pontos múltiplos acidentais)
+      while start < path.endIndex && path[start] == "." {
+        start = path.index(after: start)
+      }
+      guard start < path.endIndex else { break }
+
+      let end = path[start...].firstIndex(of: ".") ?? path.endIndex
+      let key = String(path[start..<end])
+      start = end
+
       if let currentDict = current as? [String: Any] {
         guard let next = currentDict[key] else { return nil }
         current = next
@@ -205,7 +221,7 @@ enum FieldExtractor {
         return nil
       }
     }
-    return FieldValue.from(jsonObject: current)
+    return FieldValue.fromAny(current)
   }
 
   static func value(in data: Data, path: String, using format: SerializationFormat) throws
