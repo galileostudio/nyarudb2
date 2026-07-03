@@ -1,5 +1,5 @@
-import Crypto
 import Foundation
+import Crypto
 
 /// Persisted per-collection configuration.
 struct CollectionManifest: Codable, Equatable, Sendable {
@@ -49,6 +49,7 @@ actor CollectionCore {
   private let format: SerializationFormat
   private let encryptionKey: SymmetricKey?
   private var shards: [String: ShardActor] = [:]
+  private var shardURLs: [String: URL] = [:] // Maps on-disk files without opening FileHandle
   /// field -> index. Always contains an index for `manifest.idField`.
   private var indexes: [String: OrderedIndex] = [:]
   private var isClosed = false
@@ -81,29 +82,17 @@ actor CollectionCore {
     try fm.createDirectory(at: shardsDirectory, withIntermediateDirectories: true)
     try fm.createDirectory(at: indexesDirectory, withIntermediateDirectories: true)
 
-    // Open every existing shard. SlottedFile performs crash recovery
-    // internally when it finds the dirty flag set.
-    var anyShardRecovered = false
+    // 1. Only list files on disk. Does NOT open FileHandle!
     let files =
       (try? fm.contentsOfDirectory(at: shardsDirectory, includingPropertiesForKeys: nil)) ?? []
     for url in files where url.pathExtension == "nyaru" {
       let shardID = url.deletingPathExtension().lastPathComponent
-      let shard = try ShardActor(
-        id: shardID, url: url,
-        compression: manifest.compression,
-        fileProtection: manifest.fileProtection,
-        encryptionKey: encryptionKey
-      )
-      if await shard.recoveredFromDirty { anyShardRecovered = true }
-      shards[shardID] = shard
+      shardURLs[shardID] = url
     }
 
-    // Rehydrate indexes. If any shard needed crash recovery, the
-    // persisted snapshots may be stale — rebuild everything from data.
-    // (The old engine simply never reloaded indexes on reopen, so every
-    // restart silently lost all indexes.)
+    // 2. Rehydrate indexes. If indexes need rebuilding, open shards on demand.
     let indexSnapshotsLoaded = try loadIndexSnapshots()
-    if anyShardRecovered || !indexSnapshotsLoaded {
+    if !indexSnapshotsLoaded {
       try await rebuildAllIndexes()
     }
   }
@@ -118,7 +107,8 @@ actor CollectionCore {
       guard fm.fileExists(atPath: url.path) else { return false }
 
       do {
-        loaded[field] = try OrderedIndex.load(from: url)
+        // Pass the encryption key to the index for decryption
+        loaded[field] = try OrderedIndex.load(from: url, encryptionKey: encryptionKey)
       } catch {
         return false
       }
@@ -134,7 +124,10 @@ actor CollectionCore {
   private func rebuildAllIndexes() async throws {
     var fresh: [String: OrderedIndex] = [:]
     for field in allIndexedFields { fresh[field] = OrderedIndex() }
-    for (shardID, shard) in shards {
+    
+    // Iterate over mapped on-disk IDs, opening them on demand (Lazy Load)
+    for shardID in shardURLs.keys {
+      let shard = try shard(for: shardID)
       let records = try await shard.scanAll()
       for record in records {
         let pointer = RecordPointer(shardID: shardID, offset: record.offset)
@@ -156,7 +149,8 @@ actor CollectionCore {
     try ensureOpen()
 
     for (field, index) in indexes {
-      try index.persist(to: snapshotURL(for: field))
+      // Pass the encryption key to the index for encryption
+      try index.persist(to: snapshotURL(for: field), encryptionKey: encryptionKey)
     }
 
     for shard in shards.values {
@@ -199,11 +193,34 @@ actor CollectionCore {
     guard let value = FieldExtractor.value(in: dict, path: partitionKey) else {
       throw NyaruError.partitionKeyMissing(field: partitionKey)
     }
-    return Self.sanitizeFileComponent(value.description)
+    let rawID = value.description
+    
+    // If encryption is enabled, use HMAC to avoid leaking partition values in filenames
+    if let key = encryptionKey {
+      let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
+      return Data(hmac).map { String(format: "%02x", $0) }.joined()
+    } else {
+      return Self.sanitizeFileComponent(rawID)
+    }
   }
 
   private func shard(for id: String) throws -> ShardActor {
+    // If already open in memory, use it
     if let existing = shards[id] { return existing }
+    
+    // If it exists on disk but is not open, OPEN IT NOW (Lazy Load)
+    if let url = shardURLs[id] {
+      let shard = try ShardActor(
+        id: id, url: url,
+        compression: manifest.compression,
+        fileProtection: manifest.fileProtection,
+        encryptionKey: encryptionKey
+      )
+      shards[id] = shard
+      return shard
+    }
+    
+    // If it doesn't exist on disk, create a new file
     let url = shardsDirectory.appendingPathComponent("\(id).nyaru")
     let shard = try ShardActor(
       id: id, url: url,
@@ -212,15 +229,13 @@ actor CollectionCore {
       encryptionKey: encryptionKey
     )
     shards[id] = shard
+    shardURLs[id] = url
     return shard
   }
 
   private func existingShard(_ id: String) throws -> ShardActor {
-    guard let shard = shards[id] else {
-      throw NyaruError.corruptedRecord(
-        offset: 0, reason: "pointer references unknown shard '\(id)'")
-    }
-    return shard
+    // Try to get from memory or disk (Lazy Load)
+    return try shard(for: id)
   }
 
   // MARK: - Field helpers
@@ -397,7 +412,10 @@ actor CollectionCore {
     if !missing.isEmpty {
       var fresh: [String: OrderedIndex] = [:]
       for field in missing { fresh[field] = OrderedIndex() }
-      for (shardID, shard) in shards {
+      
+      // Iterate over all shards on disk (Lazy Load)
+      for shardID in shardURLs.keys {
+        let shard = try shard(for: shardID)
         let records = try await shard.scanAll()
         for record in records {
           let pointer = RecordPointer(shardID: shardID, offset: record.offset)
@@ -413,7 +431,6 @@ actor CollectionCore {
     }
 
     manifest.indexedFields = sorted
-    // O manifesto de config pode continuar sendo JSON, é um arquivo minúsculo.
     let data = try JSONEncoder().encode(manifest)
     try data.write(to: manifestURL, options: .atomic)
   }
@@ -423,6 +440,11 @@ actor CollectionCore {
   /// Full scan of all shards (parallel across shards).
   func scanAll() async throws -> [Data] {
     try ensureOpen()
+    // Ensure all shards mapped on disk are open
+    for shardID in shardURLs.keys {
+      _ = try shard(for: shardID)
+    }
+    
     let allShards = Array(shards.values)
     return try await withThrowingTaskGroup(of: [Data].self) { group in
       for shard in allShards {
@@ -439,8 +461,17 @@ actor CollectionCore {
   /// Restricts a full scan to a single partition when possible.
   func scanPartition(value: FieldValue) async throws -> [Data] {
     try ensureOpen()
-    let id = Self.sanitizeFileComponent(value.description)
-    guard let shard = shards[id] else { return [] }
+    let rawID = value.description
+    let id: String
+    if let key = encryptionKey {
+      let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
+      id = Data(hmac).map { String(format: "%02x", $0) }.joined()
+    } else {
+      id = Self.sanitizeFileComponent(rawID)
+    }
+    
+    // Use the Lazy Load router
+    guard let shard = try? shard(for: id) else { return [] }
     return try await shard.scanAll().map(\.data)
   }
 
@@ -485,14 +516,18 @@ actor CollectionCore {
   func compact() async throws {
     try ensureOpen()
     let fm = FileManager.default
-    var rebuilt: [String: ShardActor] = [:]
-    for (shardID, shard) in shards {
+    
+    let allShardIDs = Array(shardURLs.keys)
+    
+    for shardID in allShardIDs {
+      let shard = try shard(for: shardID)
       let records = try await shard.scanAll()
       try await shard.close()
+      
       let finalURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru")
       let tempURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru.compact")
       try? fm.removeItem(at: tempURL)
-
+      
       let fresh = try ShardActor(
         id: shardID, url: tempURL,
         compression: manifest.compression,
@@ -504,24 +539,27 @@ actor CollectionCore {
       }
       try await fresh.close()
       _ = try fm.replaceItemAt(finalURL, withItemAt: tempURL)
-
-      // Reopen on the final path.
-      rebuilt[shardID] = try ShardActor(
+      
+      // Reopen on the final path
+      shards[shardID] = try ShardActor(
         id: shardID, url: finalURL,
         compression: manifest.compression,
         fileProtection: manifest.fileProtection,
         encryptionKey: encryptionKey
       )
     }
-    shards = rebuilt
     try await rebuildAllIndexes()
     try await sync()
   }
 
   func stats() async -> CollectionStats {
     var size: UInt64 = 0
-    for shard in shards.values {
-      size += await shard.sizeInBytes()
+    // Calculate size directly from disk to avoid forcing shard opens (Lazy Load)
+    for (_, url) in shardURLs {
+      if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+         let fileSize = attrs[.size] as? UInt64 {
+        size += fileSize
+      }
     }
     var indexCounts: [String: Int] = [:]
     for (field, index) in indexes {
@@ -530,7 +568,7 @@ actor CollectionCore {
     return CollectionStats(
       name: manifest.name,
       documentCount: count(),
-      shardCount: shards.count,
+      shardCount: shardURLs.count,
       sizeInBytes: size,
       indexes: indexCounts
     )
@@ -543,12 +581,16 @@ actor CollectionCore {
       try? await shard.close()
     }
     shards = [:]
+    shardURLs = [:]
     indexes = [:]
     isClosed = true
     try FileManager.default.removeItem(at: directory)
   }
 
   func checkNeedsCompaction() async -> Bool {
+    // Iterate over open shards. If any need compaction, return true.
+    // Shards not yet opened (Lazy) don't have tombstoneCount yet, but if they aren't open,
+    // they aren't being actively updated.
     for shard in shards.values {
       if await shard.needsCompaction {
         return true

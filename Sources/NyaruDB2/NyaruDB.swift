@@ -93,21 +93,33 @@ public actor NyaruDB {
     }
 
     let manifest: CollectionManifest
-    if let data = try? Data(contentsOf: manifestURL) {
-      let persisted = try JSONDecoder().decode(CollectionManifest.self, from: data)
+    if let raw = try? Data(contentsOf: manifestURL) {
+      let dataToDecode: Data
+      if let key = options.encryptionKey {
+        let sealedBox = try AES.GCM.SealedBox(combined: raw)
+        dataToDecode = try AES.GCM.open(sealedBox, using: key)
+      } else {
+        dataToDecode = raw
+      }
+      let persisted = try JSONDecoder().decode(CollectionManifest.self, from: dataToDecode)
       guard persisted.sameBase(as: requested) else {
         throw NyaruError.collectionTypeMismatch(name)
       }
       manifest = persisted
     } else {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      // O manifesto em si sempre é salvo em JSON para não depender do formatador do banco
-      let data = try JSONEncoder().encode(requested)
-      try data.write(to: manifestURL, options: .atomic)
+      let jsonData = try JSONEncoder().encode(requested)
+      let dataToWrite: Data
+      if let key = options.encryptionKey {
+        let sealedBox = try AES.GCM.seal(jsonData, using: key)
+        dataToWrite = sealedBox.combined!
+      } else {
+        dataToWrite = jsonData
+      }
+      try dataToWrite.write(to: manifestURL, options: .atomic)
       manifest = requested
     }
 
-    // PASSA O FORMATO DE SERIALIAZAÇÃO PARA O CORE
     let core = try await CollectionCore(
       directory: directory,
       manifest: manifest,

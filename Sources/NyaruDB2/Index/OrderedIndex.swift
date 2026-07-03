@@ -1,5 +1,6 @@
 import Foundation
 import SwiftMsgpack
+import Crypto
 
 /// In-memory ordered index: sorted unique keys with posting lists of
 /// `RecordPointer`s.
@@ -112,15 +113,32 @@ struct OrderedIndex: Codable {
     return pos < keys.count && keys[pos] == key
   }
 
-  func persist(to url: URL) throws {
-    let data = try MsgPackEncoder().encode(self)
-    let compressed = try Compressor.compress(data, method: .gzip)
-    try compressed.write(to: url, options: .atomic)
-  }
+    func persist(to url: URL, encryptionKey: SymmetricKey?) throws {
+            let data = try MsgPackEncoder().encode(self)
+            let compressed = try Compressor.compress(data, method: .gzip)
+            
+            let finalData: Data
+            if let key = encryptionKey {
+                let sealedBox = try AES.GCM.seal(compressed, using: key)
+                finalData = sealedBox.combined!
+            } else {
+                finalData = compressed
+            }
+            try finalData.write(to: url, options: .atomic)
+        }
 
-  static func load(from url: URL) throws -> OrderedIndex {
-    let raw = try Data(contentsOf: url)
-    let data = try Compressor.decompress(raw, method: .gzip)
-    return try MsgPackDecoder().decode(OrderedIndex.self, from: data)
-  }
+    static func load(from url: URL, encryptionKey: SymmetricKey?) throws -> OrderedIndex {
+        let raw = try Data(contentsOf: url)
+        let decompressed: Data
+        
+        if let key = encryptionKey {
+            let sealedBox = try AES.GCM.SealedBox(combined: raw)
+            decompressed = try AES.GCM.open(sealedBox, using: key)
+        } else {
+            decompressed = raw
+        }
+        
+        let data = try Compressor.decompress(decompressed, method: .gzip)
+        return try MsgPackDecoder().decode(OrderedIndex.self, from: data)
+    }
 }
