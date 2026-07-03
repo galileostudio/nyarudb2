@@ -238,7 +238,8 @@ final class SlottedFileTests: XCTestCase {
     XCTAssertNil(try file.read(at: a))
     XCTAssertEqual(file.liveCount, 1)
     // Navigation across the tombstone still works.
-    XCTAssertEqual(try file.scanLive().map(\.offset), [b])
+    let liveRecords = try collectLive(file)
+    XCTAssertEqual(liveRecords.map(\.offset), [b])
     try file.close()
   }
 
@@ -279,7 +280,8 @@ final class SlottedFileTests: XCTestCase {
     let reopened = try SlottedFile(url: url)
     XCTAssertFalse(reopened.recoveredFromDirty)
     XCTAssertEqual(reopened.liveCount, 1)
-    XCTAssertEqual(try reopened.scanLive().first?.payload, Data("persist me".utf8))
+    let liveRecords = try collectLive(reopened)
+    XCTAssertEqual(liveRecords.first?.payload, Data("persist me".utf8))
     try reopened.close()
   }
 
@@ -293,7 +295,8 @@ final class SlottedFileTests: XCTestCase {
     let reopened = try SlottedFile(url: url)
     XCTAssertTrue(reopened.recoveredFromDirty)
     XCTAssertEqual(reopened.liveCount, 1)
-    XCTAssertEqual(try reopened.scanLive().first?.payload, Data("survivor".utf8))
+    let liveRecords = try collectLive(reopened)
+    XCTAssertEqual(liveRecords.first?.payload, Data("survivor".utf8))
     try reopened.close()
   }
 
@@ -313,7 +316,7 @@ final class SlottedFileTests: XCTestCase {
     let reopened = try SlottedFile(url: url)
     XCTAssertTrue(reopened.recoveredFromDirty)
     XCTAssertEqual(reopened.liveCount, 1)
-    let records = try reopened.scanLive()
+    let records = try collectLive(reopened)
     XCTAssertEqual(records.count, 1)
     XCTAssertEqual(records.first?.payload, Data("good record".utf8))
     // New appends after truncation must work.
@@ -339,7 +342,40 @@ final class SlottedFileTests: XCTestCase {
 
     let reopened = try SlottedFile(url: url)
     XCTAssertEqual(reopened.liveCount, 1, "corrupt record must be dropped")
-    XCTAssertEqual(try reopened.scanLive().first?.payload, Data("second".utf8))
+    let liveRecords = try collectLive(reopened)
+    XCTAssertEqual(liveRecords.first?.payload, Data("second".utf8))
     try reopened.close()
+  }
+
+  // MARK: - Helpers
+
+  // Replaces the old scanLive() by collecting results from forEachLive
+  private func collectLive(_ file: SlottedFile) throws -> [SlottedFile.LiveRecord] {
+    var results: [SlottedFile.LiveRecord] = []
+    try file.forEachLive { results.append($0) }
+    return results
+  }
+  func testFragmentationRatioCalculation() throws {
+    let file = try SlottedFile(url: fileURL())
+
+    // Inserts 3 records of 100 bytes (rounded up to 128-byte slots)
+    let a = try file.append(payload: Data(repeating: 1, count: 100), compression: .none)
+    let b = try file.append(payload: Data(repeating: 2, count: 100), compression: .none)
+    _ = try file.append(payload: Data(repeating: 3, count: 100), compression: .none)
+
+    // No garbage, ratio should be 0
+    XCTAssertEqual(file.fragmentationRatio, 0.0)
+
+    // Deletes 2 records
+    try file.tombstone(at: a)
+    try file.tombstone(at: b)
+
+    // 2 dead slots of 128 bytes each = 256 bytes of garbage
+    // Total usable space = 3 * (16 + 128) = 432 bytes
+    // Ratio = 256 / 432 ≈ 0.5925
+    let expectedRatio = 256.0 / 432.0
+    XCTAssertEqual(file.fragmentationRatio, expectedRatio, accuracy: 0.001)
+
+    try file.close()
   }
 }
