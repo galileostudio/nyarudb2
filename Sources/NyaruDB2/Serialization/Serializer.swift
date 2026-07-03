@@ -7,7 +7,10 @@ public enum SerializationFormat: String, CaseIterable, Codable, Sendable {
   case msgpack
 }
 
+/// Centralized serialization/deserialization for JSON and MessagePack.
 enum Serializer {
+
+  @inlinable
   static func encode<T: Encodable>(_ value: T, format: SerializationFormat) throws -> Data {
     switch format {
     case .json:
@@ -17,6 +20,7 @@ enum Serializer {
     }
   }
 
+  @inlinable
   static func decode<T: Decodable>(_ type: T.Type, from data: Data, format: SerializationFormat)
     throws -> T
   {
@@ -28,11 +32,11 @@ enum Serializer {
     }
   }
 
-  /// Converts Data to a generic [String: Any] dictionary for FieldExtractor to read.
+  /// Converts Data to a generic `[String: Any]` dictionary for FieldExtractor.
+  /// Uses `AnyDecodable` to avoid `NSNumber` bridging issues.
   static func unpack(_ data: Data, format: SerializationFormat) throws -> Any {
     switch format {
     case .json:
-      // Uses native JSONDecoder instead of JSONSerialization to avoid NSNumber bridging issues.
       let anyDecodable = try JSONDecoder().decode(AnyDecodable.self, from: data)
       return anyDecodable.value
     case .msgpack:
@@ -42,18 +46,23 @@ enum Serializer {
   }
 }
 
-// MARK: - AnyDecodable Bridge
-// Native Swift trick to decode anything into `Any` using the Codable API.
-// This ensures we only get pure Swift types (Int64, Bool, String), bypassing Objective-C's NSNumber.
+// MARK: - AnyDecodable
 
+/// Decodes any JSON/MsgPack value into Swift native types (Int64, Bool, Double, String, etc.)
+/// avoiding `NSNumber` and preserving type information.
 struct AnyDecodable: Decodable {
   let value: Any
 
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
+
     if container.decodeNil() {
       self.value = NSNull()
-    } else if let v = try? container.decode(Bool.self) {
+      return
+    }
+
+    // Ordered to prevent Int64 from swallowing Bools or vice-versa
+    if let v = try? container.decode(Bool.self) {
       self.value = v
     } else if let v = try? container.decode(Int64.self) {
       self.value = v
@@ -71,62 +80,77 @@ struct AnyDecodable: Decodable {
   }
 }
 
-// MARK: - AnyEncodable Bridge
-// Allows encoding a [String: Any] dictionary using Swift's native Encoder (JSON or MsgPack).
+// MARK: - AnyEncodable
 
+/// Encodes a dynamic `[String: Any]` dictionary using Swift's native Encoder.
+/// Supports: Bool, Int, Int64, Double, String, [Any], and [String: Any].
 struct AnyEncodable: Encodable {
   let value: Any
 
-  init(value: Any) { self.value = value }
+  init(value: Any) {
+    self.value = value
+  }
 
   func encode(to encoder: Encoder) throws {
     try encodeAny(value, to: encoder)
   }
 
   private func encodeAny(_ value: Any, to encoder: Encoder) throws {
-    if let dict = value as? [String: Any] {
+    switch value {
+    case let dict as [String: Any]:
       var container = encoder.container(keyedBy: AnyCodingKey.self)
       for (key, val) in dict {
-        try encodeAny(val, to: container.superEncoder(forKey: AnyCodingKey(stringValue: key)!))
+        // AnyCodingKey init is non-failable, so no force unwrapping needed
+        try encodeAny(val, to: container.superEncoder(forKey: AnyCodingKey(stringValue: key)))
       }
-      return
-    }
-    if let arr = value as? [Any] {
+
+    case let arr as [Any]:
       var container = encoder.unkeyedContainer()
       for val in arr {
         try encodeAny(val, to: container.superEncoder())
       }
-      return
-    }
 
-    var container = encoder.singleValueContainer()
-    if value is NSNull {
-      try container.encodeNil()
-    } else if let v = value as? Bool {
-      try container.encode(v)
-    } else if let v = value as? Int64 {
-      try container.encode(v)
-    } else if let v = value as? Int {
-      try container.encode(v)
-    } else if let v = value as? Double {
-      try container.encode(v)
-    } else if let v = value as? String {
-      try container.encode(v)
-    } else {
-      try container.encodeNil()
+    default:
+      var container = encoder.singleValueContainer()
+      switch value {
+      case is NSNull:
+        try container.encodeNil()
+      case let v as Bool:
+        try container.encode(v)
+      case let v as Int:
+        try container.encode(v)
+      case let v as Int64:
+        try container.encode(v)
+      case let v as Double:
+        try container.encode(v)
+      case let v as String:
+        try container.encode(v)
+      default:
+        // Fail fast: do not silently encode unsupported types as nil
+        let context = EncodingError.Context(
+          codingPath: encoder.codingPath,
+          debugDescription: "Unsupported type for AnyEncodable: \(type(of: value))"
+        )
+        throw EncodingError.invalidValue(value, context)
+      }
     }
   }
 }
 
-struct AnyCodingKey: CodingKey {
-  var stringValue: String
-  var intValue: Int?
+// MARK: - AnyCodingKey
 
-  init?(stringValue: String) {
+/// Simple CodingKey implementation supporting both string and integer keys.
+/// Non-failable to avoid force-unwrapping in `AnyEncodable`.
+struct AnyCodingKey: CodingKey {
+  let stringValue: String
+  let intValue: Int?
+
+  init(stringValue: String) {
     self.stringValue = stringValue
+    self.intValue = nil
   }
 
-  init?(intValue: Int) {
+  init(intValue: Int) {
     self.stringValue = String(intValue)
     self.intValue = intValue
   }
