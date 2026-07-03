@@ -433,7 +433,8 @@ final class SlottedFile {
 
   /// Marks the record at `offset` as deleted. slotCapacity is untouched, so
   /// file navigation remains valid; the slot becomes reusable.
-  func tombstone(at offset: UInt64) throws {
+  @discardableResult
+  func tombstone(at offset: UInt64) throws -> Bool {
     try handle.seek(toOffset: offset)
     guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
       head.count == Int(SlottedFile.recordHeaderSize),
@@ -442,7 +443,7 @@ final class SlottedFile {
       throw NyaruError.corruptedRecord(offset: offset, reason: "short header")
     }
     let flags = head[head.startIndex + 8]
-    if flags & RecordFlags.tombstone != 0 { return }  // already deleted
+    if flags & RecordFlags.tombstone != 0 { return false }  // already deleted
     try markDirtyIfNeeded()
     try writeTombstoneFlag(at: offset, existingFlags: flags)
     if liveCount > 0 { liveCount -= 1 }
@@ -454,6 +455,7 @@ final class SlottedFile {
       if freeSlots[mid].capacity < capacity { low = mid + 1 } else { high = mid }
     }
     freeSlots.insert((offset: offset, capacity: capacity), at: low)
+    return true
   }
 
   private func writeTombstoneFlag(at offset: UInt64, existingFlags: UInt8) throws {

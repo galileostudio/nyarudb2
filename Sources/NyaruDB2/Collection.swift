@@ -60,48 +60,58 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
 
   /// Inserts a new document. Throws `NyaruError.duplicateID` if a document
   /// with the same id already exists (use `upsert` to overwrite).
+  
   public func insert(_ document: T) async throws {
     try await core.insert(data: encode(document))
   }
 
   /// Inserts a batch. Validates every id (including duplicates inside the
   /// batch) before writing anything.
+  
   public func insert(contentsOf documents: [T]) async throws {
     try await core.insertMany(datas: documents.map(encode))
   }
 
   /// Replaces the document with the same id. Throws
   /// `NyaruError.documentNotFound` if it does not exist.
+  
   public func update(_ document: T) async throws {
     try await core.update(data: encode(document), upsert: false)
   }
 
-  /// Partially updates a document without needing to decode the entire struct.
-  /// Example: `users.patch(id: 1, changes: ["isActive": false, "age": 31])`
-  public func patch(id: FieldValueConvertible, changes: [String: FieldValue]) async throws {
-    let newData = try await core.patch(id: id.fieldValue, changes: changes)
-    _ = try decode(newData)
-  }
-
   /// Replaces the document with the same id, inserting it if absent.
+  
   public func upsert(_ document: T) async throws {
     try await core.update(data: encode(document), upsert: true)
   }
 
   /// Deletes by id. Returns true if a document was removed.
+  
   @discardableResult
   public func delete(id: FieldValueConvertible) async throws -> Bool {
     try await core.delete(id: id.fieldValue)
   }
 
+  // MARK: - Partial Update
+
+  /// Partially updates a document without needing to decode the full struct.
+  /// Example: `users.patch(id: 1, changes: ["isActive": false, "age": 31])`
+  public func patch(id: FieldValueConvertible, changes: [String: FieldValue]) async throws {
+    let newData = try await core.patch(id: id.fieldValue, changes: changes)
+    // Validate against T to avoid poisoning the document with the wrong type
+    _ = try decode(newData)
+  }
+
   // MARK: - Reads
 
   /// Point lookup by id through the primary index.
+  
   public func get(id: FieldValueConvertible) async throws -> T? {
     guard let data = try await core.get(id: id.fieldValue) else { return nil }
     return try decode(data)
   }
 
+  
   public func count() async -> Int {
     await core.count()
   }
@@ -111,7 +121,6 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.scanAll().map(decode)
   }
 
-  /// Streams all documents without materializing the full array of `T`.
   /// Streams all documents without materializing the full array of `T`.
   public func stream() -> AsyncThrowingStream<T, Error> {
     let core = self.core
@@ -133,6 +142,7 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   }
 
   /// Starts a fluent query.
+  
   public func find() -> QueryBuilder<T> {
     QueryBuilder(core: core, partitionKey: partitionKey, format: format)
   }
@@ -153,5 +163,4 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   public func needsCompaction() async -> Bool {
     return await core.checkNeedsCompaction()
   }
-
 }

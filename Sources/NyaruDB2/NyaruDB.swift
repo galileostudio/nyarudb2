@@ -15,7 +15,6 @@ public struct DatabaseOptions: Sendable {
     format: SerializationFormat = .json,
     encryptionKey: SymmetricKey? = nil,
     maxFragmentation: Double = 0.2
-
   ) {
     self.compression = compression
     self.fileProtection = fileProtection
@@ -119,7 +118,12 @@ public actor NyaruDB {
       let dataToWrite: Data
       if let key = options.encryptionKey {
         let sealedBox = try AES.GCM.seal(jsonData, using: key)
-        dataToWrite = sealedBox.combined!
+        // Safe unwrap: combined is only nil if a nonce is manually provided and fails,
+        // which we don't do. Handling it safely avoids crashes.
+        guard let combined = sealedBox.combined else {
+          throw NyaruError.encryptionFailed
+        }
+        dataToWrite = combined
       } else {
         dataToWrite = jsonData
       }
@@ -146,22 +150,24 @@ public actor NyaruDB {
     var names: [String] = []
     for url in items {
       let manifestURL = url.appendingPathComponent("manifest.json")
-      if let raw = try? Data(contentsOf: manifestURL) {
-        let dataToDecode: Data
-        if let key = options.encryptionKey {
-          do {
-            let sealedBox = try AES.GCM.SealedBox(combined: raw)
-            dataToDecode = try AES.GCM.open(sealedBox, using: key)
-          } catch {
-            continue
-          }
-        } else {
-          dataToDecode = raw
+      guard fm.fileExists(atPath: manifestURL.path) else { continue }
+      
+      let raw = try Data(contentsOf: manifestURL)
+      let dataToDecode: Data
+      if let key = options.encryptionKey {
+        do {
+          let sealedBox = try AES.GCM.SealedBox(combined: raw)
+          dataToDecode = try AES.GCM.open(sealedBox, using: key)
+        } catch {
+          // Don't silently skip: if the key is wrong, the user needs to know.
+          throw NyaruError.decryptionFailed
         }
-        if let manifest = try? JSONDecoder().decode(CollectionManifest.self, from: dataToDecode) {
-          names.append(manifest.name)
-        }
+      } else {
+        dataToDecode = raw
       }
+      
+      let manifest = try JSONDecoder().decode(CollectionManifest.self, from: dataToDecode)
+      names.append(manifest.name)
     }
     return names.sorted()
   }
@@ -188,19 +194,36 @@ public actor NyaruDB {
   /// returns, a crash will reopen without any recovery work.
   public func sync() async throws {
     try ensureOpen()
+    var firstError: Error? = nil
+    
     for core in cores.values {
-      try await core.sync()
+      do {
+        try await core.sync()
+      } catch {
+        if firstError == nil { firstError = error }
+      }
     }
+    
+    if let error = firstError { throw error }
   }
 
   /// Syncs and closes every collection. The instance cannot be used
   /// afterwards.
   public func close() async throws {
     guard !isClosed else { return }
+    var firstError: Error? = nil
+    
     for core in cores.values {
-      try await core.close()
+      do {
+        try await core.close()
+      } catch {
+        if firstError == nil { firstError = error }
+      }
     }
+    
     cores = [:]
     isClosed = true
+    
+    if let error = firstError { throw error }
   }
 }

@@ -4,7 +4,7 @@ import Foundation
 actor ShardActor {
   let id: String
   private let url: URL
-  private var file: SlottedFile  // Mudou para var para permitir reabrir no compact()
+  private var file: SlottedFile
   private let compression: CompressionMethod
   private let fileProtection: FileProtection
   private let encryptionKey: SymmetricKey?
@@ -23,11 +23,10 @@ actor ShardActor {
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }
 
-  var liveCount: Int { Int(file.liveCount) }
-  var tombstoneCount: UInt32 { file.tombstoneCount }
-  var deadBytes: UInt64 { file.deadBytes }
-  var recoveredFromDirty: Bool { file.recoveredFromDirty }
-  func sizeInBytes() -> UInt64 { file.sizeInBytes() }
+  @inlinable var liveCount: Int { Int(file.liveCount) }
+  @inlinable var tombstoneCount: UInt32 { file.tombstoneCount }
+  @inlinable var deadBytes: UInt64 { file.deadBytes }
+  @inlinable var isEmpty: Bool { file.liveCount == 0 }
 
   var needsCompaction: Bool {
     let total = file.liveCount + file.tombstoneCount
@@ -59,18 +58,30 @@ actor ShardActor {
     return RecordPointer(shardID: id, offset: newOffset)
   }
 
-  func delete(at offset: UInt64) throws {
-    try file.tombstone(at: offset)
+  @discardableResult
+  func delete(at offset: UInt64) throws -> Bool {
+    // Returns true if it was successfully tombstoned, false if it was already dead
+    return try file.tombstone(at: offset)
   }
 
   // MARK: - Iteration
 
   /// Iterates over live records without materializing an array.
-  func forEachLive(_ block: (UInt64, Data) throws -> Void) async throws {
+  internal func forEachLive(_ block: (UInt64, Data) throws -> Void) async throws {
     try file.forEachLive { liveRecord in
       let data = try restorePayload(
         (payload: liveRecord.payload, compression: liveRecord.compression))
       try block(liveRecord.offset, data)
+    }
+  }
+
+  /// Iterates over raw payloads (zero-copy, no decryption/decompression).
+  /// Used internally for fast compaction.
+  internal func forEachLiveRaw(_ block: (UInt64, Data, CompressionMethod) throws -> Void)
+    async throws
+  {
+    try file.forEachLive { liveRecord in
+      try block(liveRecord.offset, liveRecord.payload, liveRecord.compression)
     }
   }
 
@@ -92,7 +103,8 @@ actor ShardActor {
 
   // MARK: - Maintenance
 
-  /// Compacts this specific shard file in place.
+  /// Compacts this shard file in place atomically.
+  /// Uses SlottedFile directly to avoid actor reentrancy issues during copy.
   func compact() throws {
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
@@ -109,22 +121,6 @@ actor ShardActor {
     try file.close()
     _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
-  }
-  // Isolated method that reads from the old file and writes to the new one WITHOUT decompressing/decrypting
-  private func copyRawRecords(from oldShard: ShardActor) async throws {
-    // Iterates over live records from the old file
-    try await oldShard.forEachLiveRaw { offset, rawPayload, compression in
-      // Writes the payload exactly as it came from disk
-      _ = try file.appendRaw(payload: rawPayload, compression: compression)
-    }
-  }
-
-  // Exposes the raw iterator on the old ShardActor
-  func forEachLiveRaw(_ block: (UInt64, Data, CompressionMethod) throws -> Void) async throws {
-    try file.forEachLive { liveRecord in
-      // Since forEachLive already returns the raw payload from SlottedFile, we just pass it through!
-      try block(liveRecord.offset, liveRecord.payload, liveRecord.compression)
-    }
   }
 
   // MARK: - Payload Preparation
