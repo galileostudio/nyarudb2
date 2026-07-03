@@ -82,11 +82,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private let partitionKey: String?
   private let format: SerializationFormat
 
-   internal var rootPredicate: Predicate = .and([])
-   internal var sortField: String?
-   internal var sortAscending = true
-   internal var limitCount: Int?
-   internal var offsetCount = 0
+  internal var rootPredicate: Predicate = .and([])
+  internal var sortField: String?
+  internal var sortAscending = true
+  internal var limitCount: Int?
+  internal var offsetCount = 0
 
   init(core: CollectionCore, partitionKey: String?, format: SerializationFormat) {
     self.core = core
@@ -96,7 +96,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   // MARK: - Fluent predicate API
 
-   internal func adding(_ predicate: Predicate) -> Self {
+  internal func adding(_ predicate: Predicate) -> Self {
     var copy = self
     if case .and(var arr) = copy.rootPredicate {
       arr.append(predicate)
@@ -107,54 +107,53 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return copy
   }
 
-  
   public func `where`(_ field: String, isEqualTo value: FieldValueConvertible) -> Self {
     adding(.equal(field, value))
   }
-  
+
   public func `where`(_ field: String, isNotEqualTo value: FieldValueConvertible) -> Self {
     adding(.notEqual(field, value))
   }
-  
+
   public func `where`(_ field: String, isLessThan value: FieldValueConvertible) -> Self {
     adding(.lessThan(field, value))
   }
-  
+
   public func `where`(_ field: String, isLessThanOrEqualTo value: FieldValueConvertible) -> Self {
     adding(.lessThanOrEqual(field, value))
   }
-  
+
   public func `where`(_ field: String, isGreaterThan value: FieldValueConvertible) -> Self {
     adding(.greaterThan(field, value))
   }
-  
+
   public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self
   {
     adding(.greaterThanOrEqual(field, value))
   }
-  
+
   public func `where`(
     _ field: String, isBetween lower: FieldValueConvertible, and upper: FieldValueConvertible
   ) -> Self {
     adding(.between(field, lower, upper))
   }
-  
+
   public func `where`(_ field: String, isIn values: [FieldValueConvertible]) -> Self {
     adding(.inSet(field, values))
   }
-  
+
   public func `where`(_ field: String, isNotIn values: [FieldValueConvertible]) -> Self {
     adding(.notInSet(field, values))
   }
-  
+
   public func `where`(_ field: String, contains substring: String) -> Self {
     adding(.contains(field, substring))
   }
-  
+
   public func `where`(_ field: String, startsWith prefix: String) -> Self {
     adding(.startsWith(field, prefix))
   }
-  
+
   public func `where`(_ field: String, endsWith suffix: String) -> Self {
     adding(.endsWith(field, suffix))
   }
@@ -204,11 +203,10 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return adding(.glob(field, pattern, SafeRegex(regex: regex)))
   }
 
-  
   public func whereExists(_ field: String) -> Self {
     adding(.exists(field))
   }
-  
+
   public func whereNotExists(_ field: String) -> Self {
     adding(.notExists(field))
   }
@@ -217,7 +215,6 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     adding(predicate)
   }
 
-  
   public func sort(by field: String, ascending: Bool = true) -> Self {
     var copy = self
     copy.sortField = field
@@ -225,14 +222,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return copy
   }
 
-  
   public func limit(_ count: Int) -> Self {
     var copy = self
     copy.limitCount = max(0, count)
     return copy
   }
 
-  
   public func offset(_ count: Int) -> Self {
     var copy = self
     copy.offsetCount = max(0, count)

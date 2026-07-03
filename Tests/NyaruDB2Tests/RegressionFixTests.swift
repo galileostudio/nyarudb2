@@ -1,0 +1,286 @@
+//
+//  a.swift
+//  NyaruDB2
+//
+//  Created by Demetrius Albuquerque on 2026-07-03.
+//
+
+import Crypto
+import XCTest
+
+@testable import NyaruDB2
+
+/// Regression tests for the fixes applied in this round. Each test name maps
+/// to a specific bug class; if one of these starts failing after a refactor,
+/// the corresponding bug is back.
+final class RegressionFixTests: XCTestCase {
+  var baseURL: URL!
+
+  override func setUp() async throws {
+    baseURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nyaru-regression-\(UUID().uuidString)", isDirectory: true)
+  }
+
+  override func tearDown() async throws {
+    try? FileManager.default.removeItem(at: baseURL)
+  }
+
+  struct User: Codable, Sendable, Equatable {
+    var id: Int
+    var name: String
+    var age: Int
+    var city: String
+  }
+
+  func user(_ id: Int, age: Int = 30, city: String = "BR") -> User {
+    User(id: id, name: "user\(id)", age: age, city: city)
+  }
+
+  // MARK: - Fix 1: encrypted manifest survives index evolution
+
+  func testEncryptedManifestSurvivesIndexEvolution() async throws {
+    let key = NyaruCrypto.generateRandomKey()
+    let opts = DatabaseOptions(encryptionKey: key)
+    do {
+      let db = try await NyaruDB(path: baseURL, options: opts)
+      let users = try await db.collection(
+        "users", of: User.self,
+        options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+      try await users.insert(user(1))
+      try await db.close()
+    }
+    // Evolving indexedFields on an encrypted collection used to rewrite the
+    // manifest as plaintext JSON, bricking the collection on the NEXT open.
+    do {
+      let db = try await NyaruDB(path: baseURL, options: opts)
+      let users = try await db.collection(
+        "users", of: User.self,
+        options: CollectionOptions(idField: "id", indexedFields: ["age", "name"]))
+      try await users.insert(user(2))
+      try await db.close()
+    }
+    // Third open is where the brick used to manifest.
+    let db = try await NyaruDB(path: baseURL, options: opts)
+    let users = try await db.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["age", "name"]))
+    XCTAssertEqual(try await users.get(id: 1), user(1))
+    XCTAssertEqual(try await users.get(id: 2), user(2))
+    let listed = try await db.listCollections()
+    XCTAssertEqual(listed, ["users"])
+    try await db.close()
+  }
+
+  // MARK: - Fix 3: patch validates BEFORE anything is written
+
+  func testPatchRejectionDoesNotPersistPoison() async throws {
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    try await users.insert(user(1, age: 30))
+
+    // "age" as a string no longer decodes as User: the patch must throw...
+    do {
+      try await users.patch(id: 1, changes: ["age": .string("banana")])
+      XCTFail("patch should have been rejected")
+    } catch {}
+
+    // ...and the stored document must be untouched (this was the bug: the
+    // poison was persisted first and the error surfaced after).
+    XCTAssertEqual(try await users.get(id: 1), user(1, age: 30))
+
+    // A valid patch still works and survives reopen.
+    try await users.patch(id: 1, changes: ["age": 44])
+    XCTAssertEqual(try await users.get(id: 1)?.age, 44)
+    try await db.close()
+
+    let db2 = try await NyaruDB(path: baseURL)
+    let users2 = try await db2.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    XCTAssertEqual(try await users2.get(id: 1)?.age, 44)
+    try await db2.close()
+  }
+
+  func testPatchRejectsDotPathAndIDChange() async throws {
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    try await users.insert(user(1))
+    do {
+      try await users.patch(id: 1, changes: ["address.city": .string("Recife")])
+      XCTFail("dot-path key must be rejected")
+    } catch {}
+    do {
+      try await users.patch(id: 1, changes: ["id": 2])
+      XCTFail("id change must be rejected")
+    } catch {}
+    XCTAssertEqual(try await users.get(id: 1), user(1))
+    try await db.close()
+  }
+
+  // MARK: - Fix 2: reads never return the wrong document during compact
+
+  func testGetNeverReturnsWrongDocumentDuringCompact() async throws {
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    // Enough churn that compaction actually shifts offsets.
+    try await users.insert(contentsOf: (1...300).map { user($0, age: $0) })
+    for id in stride(from: 1, through: 300, by: 2) {
+      _ = try await users.delete(id: id)
+    }
+    let survivors = Array(stride(from: 2, through: 300, by: 2))
+
+    // Hammer reads concurrently with compaction. The invariant under test:
+    // get(id:) either returns the document with that exact id, or nil —
+    // never a different document (stale pointer landing on a valid record).
+    let readers = Task { () -> Bool in
+      var identityHeld = true
+      for _ in 0..<50 {
+        for id in survivors.shuffled().prefix(20) {
+          if let doc = try? await users.get(id: id), doc.id != id {
+            identityHeld = false
+          }
+        }
+      }
+      return identityHeld
+    }
+    try await users.compact()
+    let identityHeld = await readers.value
+    XCTAssertTrue(identityHeld, "get(id:) returned a document with a different id")
+
+    // After compact everything is reachable and correct.
+    for id in survivors {
+      XCTAssertEqual(try await users.get(id: id)?.id, id)
+    }
+    let count = await users.count()
+    XCTAssertEqual(count, survivors.count)
+    try await db.close()
+  }
+
+  func testCompactPreservesDataAndIndexesAcrossReopen() async throws {
+    do {
+      let db = try await NyaruDB(path: baseURL)
+      let users = try await db.collection(
+        "users", of: User.self,
+        options: CollectionOptions(idField: "id", partitionKey: "city", indexedFields: ["age"]))
+      try await users.insert(contentsOf: (1...50).map { user($0, age: $0, city: $0 % 2 == 0 ? "BR" : "PT") })
+      for id in 1...25 { _ = try await users.delete(id: id) }
+      try await users.compact()
+      // Secondary index must be consistent immediately after compact.
+      let found = try await users.find().where("age", isEqualTo: 40).execute()
+      XCTAssertEqual(found.map(\.id), [40])
+      try await db.close()
+    }
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", partitionKey: "city", indexedFields: ["age"]))
+    let count = await users.count()
+    XCTAssertEqual(count, 25)
+    XCTAssertEqual(try await users.get(id: 40)?.age, 40)
+    try await db.close()
+  }
+
+  // MARK: - Fix 4: pull-based stream
+
+  func testStreamDeliversAllWithSmallBatches() async throws {
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", partitionKey: "city"))
+    let brs = (1...57).map { user($0, city: "BR") }
+    let pts = (58...100).map { user($0, city: "PT") }
+    try await users.insert(contentsOf: brs + pts)
+
+    var seen = Set<Int>()
+    for try await u in users.stream(batchSize: 7) {
+      XCTAssertTrue(seen.insert(u.id).inserted, "duplicate \(u.id) in stream")
+    }
+    XCTAssertEqual(seen.count, 100)
+
+    // Early break: consume 5 and stop. Pull-based means nothing runs ahead,
+    // so this must neither hang nor keep reading in the background.
+    var taken = 0
+    for try await _ in users.stream(batchSize: 3) {
+      taken += 1
+      if taken == 5 { break }
+    }
+    XCTAssertEqual(taken, 5)
+    try await db.close()
+  }
+
+  // MARK: - peekDirty: crash-sim reopen rebuilds indexes from data
+
+  func testCrashReopenSeesPostSyncWrites() async throws {
+    do {
+      let db = try await NyaruDB(path: baseURL)
+      let users = try await db.collection(
+        "users", of: User.self,
+        options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+      try await users.insert(user(1))
+      try await db.sync()  // index snapshots persisted here; dirty flag cleared
+      try await users.insert(user(2))  // after snapshot; shard dirty again
+      // no close(): simulated crash — snapshots on disk are now stale
+    }
+    let db = try await NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    XCTAssertEqual(
+      try await users.get(id: 2), user(2),
+      "write made after the last sync must be visible after a crash reopen")
+    let count = await users.count()
+    XCTAssertEqual(count, 2)
+    // Duplicate protection must hold for the doc recovered from data.
+    do {
+      try await users.insert(user(2))
+      XCTFail("duplicate must be rejected after rebuild")
+    } catch {}
+    try await db.close()
+  }
+
+  // MARK: - Fix 7: PBKDF2 key derivation
+
+  func testPBKDF2IsDeterministicAndSaltSensitive() throws {
+    let salt = Data("fixed-salt-16byte".utf8)
+    let k1 = try NyaruCrypto.deriveKey(fromPassword: "correct horse", salt: salt, iterations: 1_000)
+    let k2 = try NyaruCrypto.deriveKey(fromPassword: "correct horse", salt: salt, iterations: 1_000)
+    let k3 = try NyaruCrypto.deriveKey(
+      fromPassword: "correct horse", salt: Data("other-salt".utf8), iterations: 1_000)
+    let k4 = try NyaruCrypto.deriveKey(fromPassword: "wrong horse", salt: salt, iterations: 1_000)
+    let bytes = { (k: SymmetricKey) in k.withUnsafeBytes { Data($0) } }
+    XCTAssertEqual(bytes(k1), bytes(k2))
+    XCTAssertNotEqual(bytes(k1), bytes(k3))
+    XCTAssertNotEqual(bytes(k1), bytes(k4))
+  }
+
+  func testPBKDF2KeyOpensEncryptedDatabase() async throws {
+    let salt = NyaruCrypto.generateSalt()
+    let key = try NyaruCrypto.deriveKey(fromPassword: "s3nh4", salt: salt, iterations: 1_000)
+    do {
+      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: key))
+      let users = try await db.collection(
+        "users", of: User.self, options: CollectionOptions(idField: "id"))
+      try await users.insert(user(7))
+      try await db.close()
+    }
+    // Re-derive from the same password/salt: must open and read.
+    let sameKey = try NyaruCrypto.deriveKey(fromPassword: "s3nh4", salt: salt, iterations: 1_000)
+    do {
+      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: sameKey))
+      let users = try await db.collection(
+        "users", of: User.self, options: CollectionOptions(idField: "id"))
+      XCTAssertEqual(try await users.get(id: 7), user(7))
+      try await db.close()
+    }
+    // Wrong password must fail loudly at open (manifest is the key check).
+    let wrong = try NyaruCrypto.deriveKey(fromPassword: "errada", salt: salt, iterations: 1_000)
+    do {
+      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: wrong))
+      _ = try await db.collection(
+        "users", of: User.self, options: CollectionOptions(idField: "id"))
+      XCTFail("wrong key must fail at open")
+    } catch {}
+  }
+}

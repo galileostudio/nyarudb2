@@ -101,6 +101,25 @@ actor ShardActor {
     }
   }
 
+  // Pull-based batch read: the consumer drives the pace, so at most one
+  // decoded batch lives in memory at a time (real backpressure, unlike the
+  // previous AsyncThrowingStream whose unbounded buffer let a fast producer
+  // materialize the whole shard behind a slow consumer).
+  // `from == nil` starts at the beginning; a nil `nextPos` means exhausted.
+  func readLiveBatch(from pos: UInt64?, maxCount: Int) throws
+    -> (items: [(offset: UInt64, data: Data)], nextPos: UInt64?)
+  {
+    let batch = try file.readLiveBatch(
+      from: pos ?? SlottedFile.fileHeaderSize, maxCount: maxCount)
+    let items = try batch.records.map { record in
+      (
+        offset: record.offset,
+        data: try restorePayload((payload: record.payload, compression: record.compression))
+      )
+    }
+    return (items: items, nextPos: batch.nextPos)
+  }
+
   // MARK: - Maintenance
 
   /// Compacts this shard file in place atomically.

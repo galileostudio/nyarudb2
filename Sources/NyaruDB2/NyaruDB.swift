@@ -94,40 +94,18 @@ public actor NyaruDB {
       return existing
     }
 
+    // All manifest I/O goes through ManifestIO so encryption is applied (or
+    // not) in exactly one place — see the regression note on ManifestIO.
     let manifest: CollectionManifest
-    if let raw = try? Data(contentsOf: manifestURL) {
-      let dataToDecode: Data
-      if let key = options.encryptionKey {
-        do {
-          let sealedBox = try AES.GCM.SealedBox(combined: raw)
-          dataToDecode = try AES.GCM.open(sealedBox, using: key)
-        } catch {
-          throw NyaruError.decryptionFailed
-        }
-      } else {
-        dataToDecode = raw
-      }
-      let persisted = try JSONDecoder().decode(CollectionManifest.self, from: dataToDecode)
+    if FileManager.default.fileExists(atPath: manifestURL.path) {
+      let persisted = try ManifestIO.read(at: manifestURL, encryptionKey: options.encryptionKey)
       guard persisted.sameBase(as: requested) else {
         throw NyaruError.collectionTypeMismatch(name)
       }
       manifest = persisted
     } else {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      let jsonData = try JSONEncoder().encode(requested)
-      let dataToWrite: Data
-      if let key = options.encryptionKey {
-        let sealedBox = try AES.GCM.seal(jsonData, using: key)
-        // Safe unwrap: combined is only nil if a nonce is manually provided and fails,
-        // which we don't do. Handling it safely avoids crashes.
-        guard let combined = sealedBox.combined else {
-          throw NyaruError.encryptionFailed
-        }
-        dataToWrite = combined
-      } else {
-        dataToWrite = jsonData
-      }
-      try dataToWrite.write(to: manifestURL, options: .atomic)
+      try ManifestIO.write(requested, to: manifestURL, encryptionKey: options.encryptionKey)
       manifest = requested
     }
 
@@ -151,22 +129,9 @@ public actor NyaruDB {
     for url in items {
       let manifestURL = url.appendingPathComponent("manifest.json")
       guard fm.fileExists(atPath: manifestURL.path) else { continue }
-      
-      let raw = try Data(contentsOf: manifestURL)
-      let dataToDecode: Data
-      if let key = options.encryptionKey {
-        do {
-          let sealedBox = try AES.GCM.SealedBox(combined: raw)
-          dataToDecode = try AES.GCM.open(sealedBox, using: key)
-        } catch {
-          // Don't silently skip: if the key is wrong, the user needs to know.
-          throw NyaruError.decryptionFailed
-        }
-      } else {
-        dataToDecode = raw
-      }
-      
-      let manifest = try JSONDecoder().decode(CollectionManifest.self, from: dataToDecode)
+
+      // Delegates decryption and decoding to ManifestIO
+      let manifest = try ManifestIO.read(at: manifestURL, encryptionKey: options.encryptionKey)
       names.append(manifest.name)
     }
     return names.sorted()
@@ -195,7 +160,7 @@ public actor NyaruDB {
   public func sync() async throws {
     try ensureOpen()
     var firstError: Error? = nil
-    
+
     for core in cores.values {
       do {
         try await core.sync()
@@ -203,7 +168,7 @@ public actor NyaruDB {
         if firstError == nil { firstError = error }
       }
     }
-    
+
     if let error = firstError { throw error }
   }
 
@@ -212,7 +177,7 @@ public actor NyaruDB {
   public func close() async throws {
     guard !isClosed else { return }
     var firstError: Error? = nil
-    
+
     for core in cores.values {
       do {
         try await core.close()
@@ -220,10 +185,10 @@ public actor NyaruDB {
         if firstError == nil { firstError = error }
       }
     }
-    
+
     cores = [:]
     isClosed = true
-    
+
     if let error = firstError { throw error }
   }
 }

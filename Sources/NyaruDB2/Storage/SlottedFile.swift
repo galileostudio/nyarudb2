@@ -524,4 +524,50 @@ final class SlottedFile {
     let flags = Binary.readUInt16(data, at: 0) ?? 0
     return (flags & SlottedFile.dirtyFlag) != 0
   }
+
+  // MARK: - Cursor-based batch reads (pull-driven streaming)
+
+  struct LiveBatch {
+    let records: [LiveRecord]
+    // Position to resume from; nil when the scan reached EOF.
+    let nextPos: UInt64?
+  }
+
+  // Reads up to `maxCount` live records starting at `pos` (pass
+  // `SlottedFile.fileHeaderSize` for the first call). The returned cursor is
+  // a plain file position, so the caller holds no FileHandle state between
+  // batches — records appended after a batch was read may or may not be
+  // observed by later batches (no snapshot isolation; documented behavior).
+  func readLiveBatch(from pos: UInt64, maxCount: Int) throws -> LiveBatch {
+    var records: [LiveRecord] = []
+    var cursor = max(pos, SlottedFile.fileHeaderSize)
+    while records.count < maxCount, cursor + SlottedFile.recordHeaderSize <= fileSize {
+      try handle.seek(toOffset: cursor)
+      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
+        head.count == Int(SlottedFile.recordHeaderSize),
+        let capacity = Binary.readUInt32(head, at: 0),
+        let payloadLength = Binary.readUInt32(head, at: 4),
+        payloadLength <= capacity,
+        cursor + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
+      else { return LiveBatch(records: records, nextPos: nil) }
+      let flags = head[head.startIndex + 8]
+      if flags & RecordFlags.tombstone == 0 {
+        guard let payload = try handle.read(upToCount: Int(payloadLength)),
+          payload.count == Int(payloadLength)
+        else {
+          throw NyaruError.corruptedRecord(offset: cursor, reason: "short payload")
+        }
+        records.append(
+          LiveRecord(
+            offset: cursor,
+            payload: payload,
+            compression: CompressionMethod(recordFlags: flags)
+          )
+        )
+      }
+      cursor += SlottedFile.recordHeaderSize + UInt64(capacity)
+    }
+    let atEOF = cursor + SlottedFile.recordHeaderSize > fileSize
+    return LiveBatch(records: records, nextPos: atEOF ? nil : cursor)
+  }
 }
