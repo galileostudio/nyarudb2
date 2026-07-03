@@ -85,22 +85,6 @@ actor ShardActor {
     }
   }
 
-  /// REAL STREAMING: Reads records one by one without materializing the entire array in memory.
-  nonisolated func scanLazy() -> AsyncThrowingStream<(offset: UInt64, data: Data), Error> {
-    AsyncThrowingStream { continuation in
-      Task {
-        do {
-          try await self.forEachLive { offset, data in
-            continuation.yield((offset: offset, data: data))
-          }
-          continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
-      }
-    }
-  }
-
   // Pull-based batch read: the consumer drives the pace, so at most one
   // decoded batch lives in memory at a time (real backpressure, unlike the
   // previous AsyncThrowingStream whose unbounded buffer let a fast producer

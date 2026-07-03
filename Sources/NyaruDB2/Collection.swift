@@ -124,7 +124,7 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     await core.count()
   }
 
-  /// All documents, decoded. For large collections prefer `stream()`.
+ /// All documents, decoded. For large collections prefer `stream()`.
   public func all() async throws -> [T] {
     try await core.scanAll().map(decode)
   }
