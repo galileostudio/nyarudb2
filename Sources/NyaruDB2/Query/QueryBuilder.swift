@@ -21,18 +21,16 @@ public struct QueryPlan: Sendable {
 }
 
 // MARK: - Regex Wrapper for Concurrency
-// NSRegularExpression is thread-safe for reading, but doesn't natively conform to Sendable in Swift 5.
 public struct SafeRegex: @unchecked Sendable {
-  let regex: NSRegularExpression?
+  public let regex: NSRegularExpression?
 }
 
 // MARK: - Predicate Tree
 
 /// A recursive predicate tree allowing complex boolean logic (AND, OR, NOT).
 public indirect enum Predicate: Sendable {
-  // Comparisons (accepts any type that conforms to FieldValueConvertible)
+  // Comparisons
   case equal(String, any FieldValueConvertible)
-  /// Returns `false` if the field is null or missing.
   case notEqual(String, any FieldValueConvertible)
   case lessThan(String, any FieldValueConvertible)
   case lessThanOrEqual(String, any FieldValueConvertible)
@@ -40,10 +38,9 @@ public indirect enum Predicate: Sendable {
   case greaterThanOrEqual(String, any FieldValueConvertible)
   case between(String, any FieldValueConvertible, any FieldValueConvertible)
   case inSet(String, [any FieldValueConvertible])
-  /// Returns `true` if the field is null, missing, or if the value is not in the set.
   case notInSet(String, [any FieldValueConvertible])
 
-  // Text matching (native Strings, pre-compiled Regex)
+  // Text matching
   case contains(String, String)
   case startsWith(String, String)
   case endsWith(String, String)
@@ -84,11 +81,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private let core: CollectionCore
   private let partitionKey: String?
   private let format: SerializationFormat
-  private var rootPredicate: Predicate = .and([])
-  private var sortField: String?
-  private var sortAscending = true
-  private var limitCount: Int?
-  private var offsetCount = 0
+
+  @usableFromInline internal var rootPredicate: Predicate = .and([])
+  @usableFromInline internal var sortField: String?
+  @usableFromInline internal var sortAscending = true
+  @usableFromInline internal var limitCount: Int?
+  @usableFromInline internal var offsetCount = 0
 
   init(core: CollectionCore, partitionKey: String?, format: SerializationFormat) {
     self.core = core
@@ -98,7 +96,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   // MARK: - Fluent predicate API
 
-  private func adding(_ predicate: Predicate) -> Self {
+  @usableFromInline internal func adding(_ predicate: Predicate) -> Self {
     var copy = self
     if case .and(var arr) = copy.rootPredicate {
       arr.append(predicate)
@@ -109,42 +107,54 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return copy
   }
 
+  @inlinable
   public func `where`(_ field: String, isEqualTo value: FieldValueConvertible) -> Self {
     adding(.equal(field, value))
   }
+  @inlinable
   public func `where`(_ field: String, isNotEqualTo value: FieldValueConvertible) -> Self {
     adding(.notEqual(field, value))
   }
+  @inlinable
   public func `where`(_ field: String, isLessThan value: FieldValueConvertible) -> Self {
     adding(.lessThan(field, value))
   }
+  @inlinable
   public func `where`(_ field: String, isLessThanOrEqualTo value: FieldValueConvertible) -> Self {
     adding(.lessThanOrEqual(field, value))
   }
+  @inlinable
   public func `where`(_ field: String, isGreaterThan value: FieldValueConvertible) -> Self {
     adding(.greaterThan(field, value))
   }
+  @inlinable
   public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self
   {
     adding(.greaterThanOrEqual(field, value))
   }
+  @inlinable
   public func `where`(
     _ field: String, isBetween lower: FieldValueConvertible, and upper: FieldValueConvertible
   ) -> Self {
     adding(.between(field, lower, upper))
   }
+  @inlinable
   public func `where`(_ field: String, isIn values: [FieldValueConvertible]) -> Self {
     adding(.inSet(field, values))
   }
+  @inlinable
   public func `where`(_ field: String, isNotIn values: [FieldValueConvertible]) -> Self {
     adding(.notInSet(field, values))
   }
+  @inlinable
   public func `where`(_ field: String, contains substring: String) -> Self {
     adding(.contains(field, substring))
   }
+  @inlinable
   public func `where`(_ field: String, startsWith prefix: String) -> Self {
     adding(.startsWith(field, prefix))
   }
+  @inlinable
   public func `where`(_ field: String, endsWith suffix: String) -> Self {
     adding(.endsWith(field, suffix))
   }
@@ -163,21 +173,18 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         }
       }
     }
-    // Pre-compiles the Regex to avoid recompiling for every evaluated document
-    let regex = try! NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive)
+    let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive)
     return adding(.like(field, pattern, SafeRegex(regex: regex)))
   }
 
   public func `where`(_ field: String, glob pattern: String) -> Self {
     var regexStr = ""
-    var inClass = false  // Flag to track if we're inside brackets [ ]
+    var inClass = false
 
     for char in pattern {
       switch char {
-      case "*":
-        regexStr += inClass ? String(char) : ".*"
-      case "?":
-        regexStr += inClass ? String(char) : "."
+      case "*": regexStr += inClass ? String(char) : ".*"
+      case "?": regexStr += inClass ? String(char) : "."
       case "[":
         regexStr += "["
         inClass = true
@@ -185,8 +192,6 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         regexStr += "]"
         inClass = false
       default:
-        // If inside [], most characters don't need escaping
-        // If outside, escape regex meta-characters
         if !inClass && "\\^$.|+(){}".contains(char) {
           regexStr += "\\\(char)"
         } else {
@@ -199,9 +204,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return adding(.glob(field, pattern, SafeRegex(regex: regex)))
   }
 
+  @inlinable
   public func whereExists(_ field: String) -> Self {
     adding(.exists(field))
   }
+  @inlinable
   public func whereNotExists(_ field: String) -> Self {
     adding(.notExists(field))
   }
@@ -210,6 +217,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     adding(predicate)
   }
 
+  @inlinable
   public func sort(by field: String, ascending: Bool = true) -> Self {
     var copy = self
     copy.sortField = field
@@ -217,12 +225,14 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return copy
   }
 
+  @inlinable
   public func limit(_ count: Int) -> Self {
     var copy = self
     copy.limitCount = max(0, count)
     return copy
   }
 
+  @inlinable
   public func offset(_ count: Int) -> Self {
     var copy = self
     copy.offsetCount = max(0, count)
@@ -418,7 +428,6 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
-    // Safety: offset without sort produces non-deterministic results in TaskGroups.
     if offsetCount > 0 && sortField == nil {
       throw NyaruError.unsupportedOperation(
         "Pagination (offset) requires a sort field to guarantee deterministic order.")
@@ -443,7 +452,6 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
           }
           matched.append((dict, json))
 
-          // Memory Optimization: If there's no sort and we've reached the limit, stop reading from disk.
           if let limitCount, matched.count >= limitCount {
             break
           }
@@ -483,13 +491,10 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   static func evaluate(_ predicate: Predicate, in dict: [String: Any]) -> Bool {
     switch predicate {
-
     case .and(let predicates):
       return predicates.allSatisfy { evaluate($0, in: dict) }
-
     case .or(let predicates):
       return predicates.contains { evaluate($0, in: dict) }
-
     case .not(let pred):
       return !evaluate(pred, in: dict)
 
@@ -501,7 +506,6 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .equal(let field, let target):
       return FieldExtractor.value(in: dict, path: field) == target.fieldValue
     case .notEqual(let field, let target):
-      // Documented: Returns true if the field is null or missing.
       return FieldExtractor.value(in: dict, path: field) != target.fieldValue
 
     case .lessThan(let field, let target):
@@ -509,19 +513,16 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         comparable(value, target.fieldValue)
       else { return false }
       return value < target.fieldValue
-
     case .lessThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value <= target.fieldValue
-
     case .greaterThan(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
       else { return false }
       return value > target.fieldValue
-
     case .greaterThanOrEqual(let field, let target):
       guard let value = FieldExtractor.value(in: dict, path: field),
         comparable(value, target.fieldValue)
@@ -537,20 +538,16 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .inSet(let field, let targets):
       guard let value = FieldExtractor.value(in: dict, path: field) else { return false }
       return targets.contains { $0.fieldValue == value }
-
     case .notInSet(let field, let targets):
-      // Documented: Returns true if the field is null, missing, or if the value is not in the set.
       guard let value = FieldExtractor.value(in: dict, path: field) else { return true }
       return !targets.contains { $0.fieldValue == value }
 
     case .contains(let field, let substring):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.contains(substring)
-
     case .startsWith(let field, let prefix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasPrefix(prefix)
-
     case .endsWith(let field, let suffix):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
