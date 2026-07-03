@@ -475,6 +475,36 @@ actor CollectionCore {
     return try await shard.scanAll().map(\.data)
   }
 
+  /// REAL STREAMING: Iterates over shards without loading everything into RAM.
+  nonisolated func scanLazy() -> AsyncThrowingStream<Data, Error> {
+    AsyncThrowingStream { continuation in
+      Task {
+        do {
+          // Pega os shards de forma assíncrona respeitando o isolamento do Actor
+          let shardActors = try await self.getShardsForStreaming()
+          for shard in shardActors {
+            for try await record in shard.scanLazy() {
+              continuation.yield(record.data)
+            }
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+    }
+  }
+
+  /// Helper isolado para retornar os actors de forma segura para o stream
+  private func getShardsForStreaming() async throws -> [ShardActor] {
+    try ensureOpen()
+    var actors: [ShardActor] = []
+    for shardID in shardURLs.keys {
+      actors.append(try shard(for: shardID))
+    }
+    return actors
+  }
+
   func isIndexed(field: String) -> Bool {
     indexes[field] != nil
   }

@@ -105,16 +105,16 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   }
 
   /// Streams all documents without materializing the full array of `T`.
+  /// Streams all documents without materializing the full array of `T`.
   public func stream() -> AsyncThrowingStream<T, Error> {
     let core = self.core
     let format = self.format
     return AsyncThrowingStream { continuation in
       let task = Task {
         do {
-          let data = try await core.scanAll()
-          for docData in data {
+          for try await data in core.scanLazy() {
             try Task.checkCancellation()
-            continuation.yield(try Serializer.decode(T.self, from: docData, format: format))
+            continuation.yield(try Serializer.decode(T.self, from: data, format: format))
           }
           continuation.finish()
         } catch {

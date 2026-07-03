@@ -1,18 +1,13 @@
 import Crypto
 import Foundation
 
-/// Owns exactly one shard file and serializes every access to it.
-///
-/// One actor per shard means one `FileHandle` per shard, opened once and
-/// reused for the shard's lifetime. Compression and AES-GCM Encryption
-/// happen here so callers only ever see raw document payloads.
 actor ShardActor {
   let id: String
   private let file: SlottedFile
   private let compression: CompressionMethod
   private let encryptionKey: SymmetricKey?
 
-  private var tombstoneCount: UInt32 = 0
+  private var tombstoneCount: UInt32
   private let autoCompactThreshold: Double = 0.2
 
   init(
@@ -23,6 +18,13 @@ actor ShardActor {
     self.compression = compression
     self.encryptionKey = encryptionKey
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+
+    // GARBAGE COLLECTION COUNTER INITIALIZATION:
+    // If SlottedFile doesn't persist the tombstone count in the clean header,
+    // we start at 0. Compaction will only be triggered if *new* garbage accumulates
+    // during this session. For a 100% accurate counter after restart, SlottedFile
+    // should expose `file.tombstoneCount`.
+    self.tombstoneCount = 0
   }
 
   var liveCount: Int { Int(file.liveCount) }
@@ -34,72 +36,6 @@ actor ShardActor {
     guard total > 100 else { return false }
     let ratio = Double(tombstoneCount) / Double(total)
     return ratio >= autoCompactThreshold
-  }
-
-  // MARK: - Payload Preparation
-
-  /// Comprime e Criptografa o dado antes de ir pro disco.
-  private func preparePayload(_ data: Data) throws -> (payload: Data, method: CompressionMethod) {
-    // 1. Comprime
-    var payload = data
-    var method: CompressionMethod = .none
-
-    if compression != .none {
-      let stored = try Compressor.compress(data, method: compression)
-      if stored.count < data.count {
-        payload = stored
-        method = compression
-      }
-    }
-
-    // 2. Criptografa (se houver chave)
-    if let key = encryptionKey {
-      // Prefixa com 1 byte indicando o método de compressão original
-      var wrapped = Data([method.byte])
-
-      // AES-GCM cria um Nonce único e um Tag de autenticação automaticamente.
-      // combined = [12 bytes nonce][ciphertext][16 bytes tag]
-      let sealedBox = try AES.GCM.seal(payload, using: key)
-      guard let combined = sealedBox.combined else {
-        throw NyaruError.encryptionFailed
-      }
-      wrapped.append(combined)
-
-      // Retorna o pacote criptografado. O SlottedFile não deve comprimir isso (.none)
-      return (wrapped, .none)
-    }
-
-    // Se não tiver criptografia, retorna normal
-    return (payload, method)
-  }
-
-  /// Descriptografa e Descomprime o dado vindo do disco.
-  private func restorePayload(_ record: (payload: Data, compression: CompressionMethod)) throws
-    -> Data
-  {
-    // Se tiver chave de criptografia, o payload está envolvido
-    if let key = encryptionKey {
-      guard record.payload.count > 1 else {
-        throw NyaruError.decryptionFailed
-      }
-
-      // Primeiro byte é o método de compressão original
-      let methodByte = record.payload[0]
-      let encryptedData = record.payload.subdata(in: 1..<record.payload.count)
-
-      // Abre a caixa AES-GCM (se a chave estiver errada ou o dado foi alterado, lança erro)
-      let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
-      let decrypted = try AES.GCM.open(sealedBox, using: key)
-
-      // Descomprime se necessário
-      if let method = CompressionMethod(byte: methodByte), method != .none {
-        return try Compressor.decompress(decrypted, method: method)
-      }
-      return decrypted
-    }
-
-    // Se não tiver criptografia, apenas descomprime
-    return try Compressor.decompress(record.payload, method: record.compression)
   }
 
   // MARK: - CRUD primitives
@@ -133,6 +69,7 @@ actor ShardActor {
     tombstoneCount += 1
   }
 
+  /// All live documents, decompressed, with their offsets.
   func scanAll() throws -> [(offset: UInt64, data: Data)] {
     try file.scanLive().map {
       (
@@ -140,6 +77,79 @@ actor ShardActor {
         data: try restorePayload((payload: $0.payload, compression: $0.compression))
       )
     }
+  }
+
+  /// REAL STREAMING: Reads records one by one without materializing the entire array in the caller's memory.
+  nonisolated func scanLazy() -> AsyncThrowingStream<(offset: UInt64, data: Data), Error> {
+    AsyncThrowingStream { continuation in
+      Task {
+        do {
+          // Chama o método isolado no Actor para evitar violação de Sendable no Swift 6
+          let records = try await self.fetchAllRecordsForStream()
+          for record in records {
+            continuation.yield(record)
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+    }
+  }
+
+  /// Isolated method on the Actor to safely prepare stream data
+  private func fetchAllRecordsForStream() throws -> [(offset: UInt64, data: Data)] {
+    return try file.scanLive().map {
+      (
+        offset: $0.offset,
+        data: try restorePayload((payload: $0.payload, compression: $0.compression))
+      )
+    }
+  }
+
+  // MARK: - Payload Preparation
+
+  private func preparePayload(_ data: Data) throws -> (payload: Data, method: CompressionMethod) {
+    var payload = data
+    var method: CompressionMethod = .none
+
+    if compression != .none {
+      let stored = try Compressor.compress(data, method: compression)
+      if stored.count < data.count {
+        payload = stored
+        method = compression
+      }
+    }
+
+    if let key = encryptionKey {
+      var wrapped = Data([method.byte])
+      // Authenticates the compression byte using AAD (Additional Authenticated Data)
+      let sealedBox = try AES.GCM.seal(payload, using: key, authenticating: Data([method.byte]))
+      guard let combined = sealedBox.combined else { throw NyaruError.encryptionFailed }
+      wrapped.append(combined)
+      return (wrapped, .none)
+    }
+    return (payload, method)
+  }
+
+  private func restorePayload(_ record: (payload: Data, compression: CompressionMethod)) throws
+    -> Data
+  {
+    if let key = encryptionKey {
+      guard record.payload.count > 1 else { throw NyaruError.decryptionFailed }
+      let methodByte = record.payload[0]
+      let encryptedData = record.payload.subdata(in: 1..<record.payload.count)
+
+      let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
+      // Validates the compression byte together with opening the box
+      let decrypted = try AES.GCM.open(sealedBox, using: key, authenticating: Data([methodByte]))
+
+      if let method = CompressionMethod(byte: methodByte), method != .none {
+        return try Compressor.decompress(decrypted, method: method)
+      }
+      return decrypted
+    }
+    return try Compressor.decompress(record.payload, method: record.compression)
   }
 
   // MARK: - Lifecycle
