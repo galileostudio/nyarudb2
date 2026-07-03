@@ -170,18 +170,31 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   public func `where`(_ field: String, glob pattern: String) -> Self {
     var regexStr = ""
+    var inClass = false  // Flag to track if we're inside brackets [ ]
+
     for char in pattern {
       switch char {
-      case "*": regexStr += ".*"
-      case "?": regexStr += "."
+      case "*":
+        regexStr += inClass ? String(char) : ".*"
+      case "?":
+        regexStr += inClass ? String(char) : "."
+      case "[":
+        regexStr += "["
+        inClass = true
+      case "]":
+        regexStr += "]"
+        inClass = false
       default:
-        if "\\^$.|*+()[]{}".contains(char) {
+        // If inside [], most characters don't need escaping
+        // If outside, escape regex meta-characters
+        if !inClass && "\\^$.|+(){}".contains(char) {
           regexStr += "\\\(char)"
         } else {
           regexStr += String(char)
         }
       }
     }
+
     let regex = try! NSRegularExpression(pattern: "^" + regexStr + "$", options: [])
     return adding(.glob(field, pattern, SafeRegex(regex: regex)))
   }
