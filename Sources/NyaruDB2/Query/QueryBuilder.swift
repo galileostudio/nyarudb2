@@ -2,11 +2,8 @@ import Foundation
 
 /// How a query will be executed. Returned by `QueryBuilder.explain()`.
 public enum QueryStrategy: Sendable, Equatable, CustomStringConvertible {
-  /// Candidate set resolved through the index on the given field.
   case indexLookup(field: String)
-  /// Scan restricted to a single partition shard.
   case partitionScan(value: String)
-  /// Every live document is scanned.
   case fullScan
 
   public var description: String {
@@ -23,12 +20,19 @@ public struct QueryPlan: Sendable {
   public let residualPredicates: Int
 }
 
+// MARK: - Regex Wrapper for Concurrency
+// NSRegularExpression is thread-safe for reading, but doesn't natively conform to Sendable in Swift 5.
+public struct SafeRegex: @unchecked Sendable {
+  let regex: NSRegularExpression
+}
+
 // MARK: - Predicate Tree
 
 /// A recursive predicate tree allowing complex boolean logic (AND, OR, NOT).
 public indirect enum Predicate: Sendable {
-  // Comparisons (aceitam qualquer tipo que conforme com FieldValueConvertible)
+  // Comparisons (accepts any type that conforms to FieldValueConvertible)
   case equal(String, any FieldValueConvertible)
+  /// Returns `false` if the field is null or missing.
   case notEqual(String, any FieldValueConvertible)
   case lessThan(String, any FieldValueConvertible)
   case lessThanOrEqual(String, any FieldValueConvertible)
@@ -36,14 +40,15 @@ public indirect enum Predicate: Sendable {
   case greaterThanOrEqual(String, any FieldValueConvertible)
   case between(String, any FieldValueConvertible, any FieldValueConvertible)
   case inSet(String, [any FieldValueConvertible])
+  /// Returns `true` if the field is null, missing, or if the value is not in the set.
   case notInSet(String, [any FieldValueConvertible])
 
-  // Text matching (Strings nativas)
+  // Text matching (native Strings, pre-compiled Regex)
   case contains(String, String)
   case startsWith(String, String)
   case endsWith(String, String)
-  case like(String, String)
-  case glob(String, String)
+  case like(String, String, SafeRegex)
+  case glob(String, String, SafeRegex)
 
   // Existence
   case exists(String)
@@ -63,7 +68,7 @@ public indirect enum Predicate: Sendable {
       .between(let f, _, _), .inSet(let f, _),
       .notInSet(let f, _), .contains(let f, _),
       .startsWith(let f, _), .endsWith(let f, _),
-      .like(let f, _), .glob(let f, _),
+      .like(let f, _, _), .glob(let f, _, _),
       .exists(let f), .notExists(let f):
       return f
     case .and, .or, .not:
@@ -143,12 +148,44 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   public func `where`(_ field: String, endsWith suffix: String) -> Self {
     adding(.endsWith(field, suffix))
   }
+
   public func `where`(_ field: String, like pattern: String) -> Self {
-    adding(.like(field, pattern))
+    var regexStr = ""
+    for char in pattern {
+      switch char {
+      case "%": regexStr += ".*"
+      case "_": regexStr += "."
+      default:
+        if "\\^$.|?*+()[]{}".contains(char) {
+          regexStr += "\\\(char)"
+        } else {
+          regexStr += String(char)
+        }
+      }
+    }
+    // Pre-compiles the Regex to avoid recompiling for every evaluated document
+    let regex = try! NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive)
+    return adding(.like(field, pattern, SafeRegex(regex: regex)))
   }
+
   public func `where`(_ field: String, glob pattern: String) -> Self {
-    adding(.glob(field, pattern))
+    var regexStr = ""
+    for char in pattern {
+      switch char {
+      case "*": regexStr += ".*"
+      case "?": regexStr += "."
+      default:
+        if "\\^$.|*+()[]{}".contains(char) {
+          regexStr += "\\\(char)"
+        } else {
+          regexStr += String(char)
+        }
+      }
+    }
+    let regex = try! NSRegularExpression(pattern: "^" + regexStr + "$", options: [])
+    return adding(.glob(field, pattern, SafeRegex(regex: regex)))
   }
+
   public func whereExists(_ field: String) -> Self {
     adding(.exists(field))
   }
@@ -317,9 +354,9 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   public func execute() async throws -> [T] {
     let matching = try await matchingDocuments()
-    return try matching.map { data in
+    return try matching.map { json in
       do {
-        return try Serializer.decode(T.self, from: data, format: format)
+        return try Serializer.decode(T.self, from: json, format: format)
       } catch {
         throw NyaruError.decodingFailed(String(describing: error))
       }
@@ -368,6 +405,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
+    // Safety: offset without sort produces non-deterministic results in TaskGroups.
+    if offsetCount > 0 && sortField == nil {
+      throw NyaruError.unsupportedOperation(
+        "Pagination (offset) requires a sort field to guarantee deterministic order.")
+    }
+
     let raw = try await candidates()
     let requiresFullEvaluation = sortField != nil
 
@@ -387,6 +430,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
           }
           matched.append((dict, json))
 
+          // Memory Optimization: If there's no sort and we've reached the limit, stop reading from disk.
           if let limitCount, matched.count >= limitCount {
             break
           }
@@ -441,6 +485,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     case .equal(let field, let target):
       return FieldExtractor.value(in: dict, path: field) == target.fieldValue
     case .notEqual(let field, let target):
+      // Documented: Returns true if the field is null or missing.
       return FieldExtractor.value(in: dict, path: field) != target.fieldValue
 
     case .lessThan(let field, let target):
@@ -474,6 +519,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       guard let value = FieldExtractor.value(in: dict, path: field) else { return false }
       return targets.contains { $0.fieldValue == value }
     case .notInSet(let field, let targets):
+      // Documented: Returns true if the field is null, missing, or if the value is not in the set.
       guard let value = FieldExtractor.value(in: dict, path: field) else { return true }
       return !targets.contains { $0.fieldValue == value }
 
@@ -487,57 +533,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
 
-    case .like(let field, let pattern):
+    case .like(let field, _, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
-      return Self.matchLike(string: s, pattern: pattern)
+      let range = NSRange(s.startIndex..., in: s)
+      return safeRegex.regex.firstMatch(in: s, options: [], range: range) != nil
 
-    case .glob(let field, let pattern):
+    case .glob(let field, _, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
-      return Self.matchGlob(string: s, pattern: pattern)
+      let range = NSRange(s.startIndex..., in: s)
+      return safeRegex.regex.firstMatch(in: s, options: [], range: range) != nil
     }
-  }
-
-  // MARK: - LIKE & GLOB Regex Helpers
-
-  private static func matchLike(string: String, pattern: String) -> Bool {
-    var regexStr = ""
-    for char in pattern {
-      switch char {
-      case "%": regexStr += ".*"
-      case "_": regexStr += "."
-      default:
-        if "\\^$.|?*+()[]{}".contains(char) {
-          regexStr += "\\\(char)"
-        } else {
-          regexStr += String(char)
-        }
-      }
-    }
-    guard
-      let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: .caseInsensitive)
-    else { return false }
-    let range = NSRange(string.startIndex..., in: string)
-    return regex.firstMatch(in: string, options: [], range: range) != nil
-  }
-
-  private static func matchGlob(string: String, pattern: String) -> Bool {
-    var regexStr = ""
-    for char in pattern {
-      switch char {
-      case "*": regexStr += ".*"
-      case "?": regexStr += "."
-      default:
-        if "\\^$.|*+()[]{}".contains(char) {
-          regexStr += "\\\(char)"
-        } else {
-          regexStr += String(char)
-        }
-      }
-    }
-    guard let regex = try? NSRegularExpression(pattern: "^" + regexStr + "$", options: []) else {
-      return false
-    }
-    let range = NSRange(string.startIndex..., in: string)
-    return regex.firstMatch(in: string, options: [], range: range) != nil
   }
 }

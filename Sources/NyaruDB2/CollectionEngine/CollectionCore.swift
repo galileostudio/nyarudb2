@@ -1,5 +1,5 @@
-import Foundation
 import Crypto
+import Foundation
 
 /// Persisted per-collection configuration.
 struct CollectionManifest: Codable, Equatable, Sendable {
@@ -49,7 +49,7 @@ actor CollectionCore {
   private let format: SerializationFormat
   private let encryptionKey: SymmetricKey?
   private var shards: [String: ShardActor] = [:]
-  private var shardURLs: [String: URL] = [:] // Maps on-disk files without opening FileHandle
+  private var shardURLs: [String: URL] = [:]  // Maps on-disk files without opening FileHandle
   /// field -> index. Always contains an index for `manifest.idField`.
   private var indexes: [String: OrderedIndex] = [:]
   private var isClosed = false
@@ -124,7 +124,7 @@ actor CollectionCore {
   private func rebuildAllIndexes() async throws {
     var fresh: [String: OrderedIndex] = [:]
     for field in allIndexedFields { fresh[field] = OrderedIndex() }
-    
+
     // Iterate over mapped on-disk IDs, opening them on demand (Lazy Load)
     for shardID in shardURLs.keys {
       let shard = try shard(for: shardID)
@@ -194,7 +194,7 @@ actor CollectionCore {
       throw NyaruError.partitionKeyMissing(field: partitionKey)
     }
     let rawID = value.description
-    
+
     // If encryption is enabled, use HMAC to avoid leaking partition values in filenames
     if let key = encryptionKey {
       let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
@@ -207,7 +207,7 @@ actor CollectionCore {
   private func shard(for id: String) throws -> ShardActor {
     // If already open in memory, use it
     if let existing = shards[id] { return existing }
-    
+
     // If it exists on disk but is not open, OPEN IT NOW (Lazy Load)
     if let url = shardURLs[id] {
       let shard = try ShardActor(
@@ -219,7 +219,7 @@ actor CollectionCore {
       shards[id] = shard
       return shard
     }
-    
+
     // If it doesn't exist on disk, create a new file
     let url = shardsDirectory.appendingPathComponent("\(id).nyaru")
     let shard = try ShardActor(
@@ -412,7 +412,7 @@ actor CollectionCore {
     if !missing.isEmpty {
       var fresh: [String: OrderedIndex] = [:]
       for field in missing { fresh[field] = OrderedIndex() }
-      
+
       // Iterate over all shards on disk (Lazy Load)
       for shardID in shardURLs.keys {
         let shard = try shard(for: shardID)
@@ -444,7 +444,7 @@ actor CollectionCore {
     for shardID in shardURLs.keys {
       _ = try shard(for: shardID)
     }
-    
+
     let allShards = Array(shards.values)
     return try await withThrowingTaskGroup(of: [Data].self) { group in
       for shard in allShards {
@@ -469,7 +469,7 @@ actor CollectionCore {
     } else {
       id = Self.sanitizeFileComponent(rawID)
     }
-    
+
     // Use the Lazy Load router
     guard let shard = try? shard(for: id) else { return [] }
     return try await shard.scanAll().map(\.data)
@@ -516,18 +516,18 @@ actor CollectionCore {
   func compact() async throws {
     try ensureOpen()
     let fm = FileManager.default
-    
+
     let allShardIDs = Array(shardURLs.keys)
-    
+
     for shardID in allShardIDs {
       let shard = try shard(for: shardID)
       let records = try await shard.scanAll()
       try await shard.close()
-      
+
       let finalURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru")
       let tempURL = shardsDirectory.appendingPathComponent("\(shardID).nyaru.compact")
       try? fm.removeItem(at: tempURL)
-      
+
       let fresh = try ShardActor(
         id: shardID, url: tempURL,
         compression: manifest.compression,
@@ -539,7 +539,7 @@ actor CollectionCore {
       }
       try await fresh.close()
       _ = try fm.replaceItemAt(finalURL, withItemAt: tempURL)
-      
+
       // Reopen on the final path
       shards[shardID] = try ShardActor(
         id: shardID, url: finalURL,
@@ -557,7 +557,8 @@ actor CollectionCore {
     // Calculate size directly from disk to avoid forcing shard opens (Lazy Load)
     for (_, url) in shardURLs {
       if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-         let fileSize = attrs[.size] as? UInt64 {
+        let fileSize = attrs[.size] as? UInt64
+      {
         size += fileSize
       }
     }
