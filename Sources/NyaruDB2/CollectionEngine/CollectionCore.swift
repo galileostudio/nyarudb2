@@ -334,6 +334,19 @@ actor CollectionCore {
   ///
   /// - Parameter raw: The raw string (e.g. a collection or shard name).
   /// - Returns: A filesystem-safe string.
+  private static let _hexChars: [UInt8] = Array("0123456789abcdef".utf8)
+
+  static func hmacHex(_ hmacBytes: some ContiguousBytes) -> String {
+    hmacBytes.withUnsafeBytes { ptr in
+      var out = [UInt8](repeating: 0, count: ptr.count * 2)
+      for (i, byte) in ptr.enumerated() {
+        out[i * 2] = Self._hexChars[Int(byte >> 4)]
+        out[i * 2 + 1] = Self._hexChars[Int(byte & 0x0F)]
+      }
+      return String(bytes: out, encoding: .ascii)!
+    }
+  }
+
   static func sanitizeFileComponent(_ raw: String) -> String {
     let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
     var out = ""
@@ -369,7 +382,7 @@ actor CollectionCore {
 
     if let key = encryptionKey {
       let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
-      return Data(hmac).map { String(format: "%02x", $0) }.joined()
+      return Self.hmacHex(hmac)
     } else {
       return Self.sanitizeFileComponent(rawID)
     }
@@ -562,7 +575,7 @@ actor CollectionCore {
     let rawID = value.description
     if let key = encryptionKey {
       let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
-      return Data(hmac).map { String(format: "%02x", $0) }.joined()
+      return Self.hmacHex(hmac)
     } else {
       return Self.sanitizeFileComponent(rawID)
     }
@@ -734,17 +747,12 @@ actor CollectionCore {
       try await oldShard.delete(at: pointer.offset)
     }
 
-    let oldMetadata = try Serializer.extractMetadata(
-      from: old.data, idField: manifest.idField, partitionKey: manifest.partitionKey,
-      indexedFields: allIndexedFields, format: format)
-
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
-      let oldKey = oldMetadata.indexEntries.first(where: { $0.field == field })?.key
+      let oldKey = FieldExtractor.value(in: old.dict, path: field)
       let newKey = newMetadata.indexEntries.first(where: { $0.field == field })?.key
 
       if oldKey == newKey, let key = oldKey {
-
         index.replace(key: key, old: pointer, new: newPointer)
       } else {
         if let oldKey { index.remove(key: oldKey, pointer: pointer) }
@@ -770,9 +778,11 @@ actor CollectionCore {
     }
     try await shard.delete(at: pointer.offset)
 
-    for field in allIndexedFields {
-      if let key = Serializer.fieldValue(in: oldData, path: field, format: format) {
-        indexes[field]?.remove(key: key, pointer: pointer)
+    if let oldDict = try? FieldExtractor.parse(oldData, using: format) {
+      for field in allIndexedFields {
+        if let key = FieldExtractor.value(in: oldDict, path: field) {
+          indexes[field]?.remove(key: key, pointer: pointer)
+        }
       }
     }
     return true

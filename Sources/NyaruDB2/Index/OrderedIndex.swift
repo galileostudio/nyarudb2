@@ -111,7 +111,9 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     guard start <= end, start < keys.count else { return [] }
     let safeEnd = min(end, keys.count)
 
+    let total = postings[start..<safeEnd].reduce(0) { $0 + $1.count }
     var out: [RecordPointer] = []
+    out.reserveCapacity(total)
     for i in start..<safeEnd {
       out.append(contentsOf: postings[i])
     }
