@@ -315,6 +315,10 @@ enum FieldExtractor {
   ///   - path: A dot-separated field path.
   /// - Returns: The `FieldValue` at the path, or `nil` if not found.
   static func value(in dict: [String: Any], path: String) -> FieldValue? {
+    if path.firstIndex(of: ".") == nil {
+      guard let raw = dict[path] else { return nil }
+      return FieldValue.fromAny(raw)
+    }
     var current: Any = dict
     var start = path.startIndex
 

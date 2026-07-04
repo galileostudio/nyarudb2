@@ -118,16 +118,13 @@ final class SlottedFile {
   var tombstoneCount: UInt32 { UInt32(freeSlots.count) }
 
   /// Total bytes consumed by tombstoned slots (available for reuse).
-  var deadBytes: UInt64 {
-    freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
-  }
+  var deadBytes: UInt64 { _deadBytes }
 
   /// Ratio of dead bytes to total usable file bytes.
   var fragmentationRatio: Double {
-    let deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
     let totalUsableBytes = fileSize - SlottedFile.fileHeaderSize
     guard totalUsableBytes > 0 else { return 0.0 }
-    return Double(deadBytes) / Double(totalUsableBytes)
+    return Double(_deadBytes) / Double(totalUsableBytes)
   }
 
   /// Whether this open found the dirty flag set and ran crash recovery.
@@ -137,6 +134,8 @@ final class SlottedFile {
   /// Tombstoned slots available for reuse, sorted by capacity ascending.
   /// Each entry stores the offset and the immutable slot capacity.
   private var freeSlots: [(offset: UInt64, capacity: UInt32)] = []
+  /// Cached sum of all free-slot capacities; updated incrementally to avoid O(N) reduce.
+  private var _deadBytes: UInt64 = 0
 
   /// A static, pre-allocated buffer of 3 zero bytes for the reserved field
   /// in every record header. Avoids allocating a new array on every write.
@@ -340,6 +339,7 @@ final class SlottedFile {
       pos += SlottedFile.recordHeaderSize + UInt64(capacity)
     }
     freeSlots.sort { $0.capacity < $1.capacity }
+    _deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
   }
 
   // MARK: - Dirty flag / sync
@@ -406,6 +406,7 @@ final class SlottedFile {
 
     if let index = bestFitFreeSlot(for: length) {
       let slot = freeSlots.remove(at: index)
+      _deadBytes -= UInt64(slot.capacity)
       try writeRecord(
         at: slot.offset, capacity: slot.capacity,
         payload: payload, compression: compression
@@ -654,6 +655,7 @@ final class SlottedFile {
       if freeSlots[mid].capacity < capacity { low = mid + 1 } else { high = mid }
     }
     freeSlots.insert((offset: offset, capacity: capacity), at: low)
+    _deadBytes += UInt64(capacity)
     return true
   }
 

@@ -563,11 +563,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       case .equal(_, let value):
         return await core.indexSearch(field: field, key: value.fieldValue)
       case .inSet(_, let values):
-        var out: [RecordPointer] = []
-        for value in values {
-          out.append(contentsOf: await core.indexSearch(field: field, key: value.fieldValue))
-        }
-        return out
+        return await core.indexSearchBatch(field: field, keys: values.map { $0.fieldValue })
       case .between(_, let lower, let upper):
         return await core.indexRange(
           field: field,

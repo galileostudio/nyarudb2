@@ -271,7 +271,7 @@ actor ShardActor {
     var payload = data
     var method: CompressionMethod = .none
 
-    if compression != .none {
+    if compression != .none && data.count >= 80 {
       let stored = try Compressor.compress(data, method: compression)
       if stored.count < data.count {
         payload = stored

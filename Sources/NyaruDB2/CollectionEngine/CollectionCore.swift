@@ -668,13 +668,15 @@ actor CollectionCore {
       try await oldShard.delete(at: oldPointer.offset)
     }
 
+    let oldKeyByField = Dictionary(uniqueKeysWithValues: oldMetadata.indexEntries.map { ($0.field, $0.key) })
+    let newKeyByField = Dictionary(uniqueKeysWithValues: metadata.indexEntries.map { ($0.field, $0.key) })
+
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
-      let oldKey = oldMetadata.indexEntries.first(where: { $0.field == field })?.key
-      let newKey = metadata.indexEntries.first(where: { $0.field == field })?.key
+      let oldKey = oldKeyByField[field]
+      let newKey = newKeyByField[field]
 
       if oldKey == newKey, let key = oldKey {
-
         index.replace(key: key, old: oldPointer, new: newPointer)
       } else {
         if let oldKey { index.remove(key: oldKey, pointer: oldPointer) }
@@ -747,10 +749,12 @@ actor CollectionCore {
       try await oldShard.delete(at: pointer.offset)
     }
 
+    let newKeyByField = Dictionary(uniqueKeysWithValues: newMetadata.indexEntries.map { ($0.field, $0.key) })
+
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
       let oldKey = FieldExtractor.value(in: old.dict, path: field)
-      let newKey = newMetadata.indexEntries.first(where: { $0.field == field })?.key
+      let newKey = newKeyByField[field]
 
       if oldKey == newKey, let key = oldKey {
         index.replace(key: key, old: pointer, new: newPointer)
@@ -826,22 +830,41 @@ actor CollectionCore {
 
     let missing = wanted.filter { indexes[$0] == nil }
     if !missing.isEmpty {
-      var fresh: [String: OrderedIndex] = [:]
-      for field in missing { fresh[field] = OrderedIndex() }
+      for shardID in shardURLs.keys { _ = try shard(for: shardID) }
+      let allShards = Array(shards)
+      let capturedFormat = format
+      let capturedMissing = Array(missing)
 
-      for shardID in shardURLs.keys {
-        let shard = try shard(for: shardID)
-        try await shard.forEachLive { offset, data in
-          let pointer = RecordPointer(shardID: shardID, offset: offset)
-          guard let dict = try? FieldExtractor.parse(data, using: format) else { return }
-          for field in missing {
-            if let key = FieldExtractor.value(in: dict, path: field) {
-              fresh[field]?.insert(key: key, pointer: pointer)
+      typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
+      let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
+        for (shardID, shard) in allShards {
+          group.addTask {
+            var entries: [Entry] = []
+            try await shard.forEachLive { offset, data in
+              let pointer = RecordPointer(shardID: shardID, offset: offset)
+              guard let dict = try? FieldExtractor.parse(data, using: capturedFormat) else { return }
+              for field in capturedMissing {
+                if let key = FieldExtractor.value(in: dict, path: field) {
+                  entries.append((field: field, key: key, pointer: pointer))
+                }
+              }
             }
+            return entries
           }
         }
+        var all: [Entry] = []
+        for try await chunk in group { all.append(contentsOf: chunk) }
+        return all
       }
-      for (field, index) in fresh { indexes[field] = index }
+
+      var byField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+      for field in capturedMissing { byField[field] = [] }
+      for entry in allEntries { byField[entry.field, default: []].append((key: entry.key, pointer: entry.pointer)) }
+      for (field, entries) in byField {
+        let idx = OrderedIndex()
+        idx.bulkLoad(entries)
+        indexes[field] = idx
+      }
     }
 
     manifest.indexedFields = sorted
@@ -885,7 +908,7 @@ actor CollectionCore {
     let id: String
     if let key = encryptionKey {
       let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
-      id = Data(hmac).map { String(format: "%02x", $0) }.joined()
+      id = Self.hmacHex(hmac)
     } else {
       id = Self.sanitizeFileComponent(rawID)
     }
@@ -937,6 +960,14 @@ actor CollectionCore {
   /// Searches an index for all pointers matching the given key.
   func indexSearch(field: String, key: FieldValue) -> [RecordPointer] {
     indexes[field]?.search(key) ?? []
+  }
+
+  /// Searches an index for all pointers matching any of the given keys — single actor hop.
+  func indexSearchBatch(field: String, keys: [FieldValue]) -> [RecordPointer] {
+    guard let index = indexes[field] else { return [] }
+    var out: [RecordPointer] = []
+    for key in keys { out.append(contentsOf: index.search(key)) }
+    return out
   }
 
   /// Performs a range lookup on an indexed field.
