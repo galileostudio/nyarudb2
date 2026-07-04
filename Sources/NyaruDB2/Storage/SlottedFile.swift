@@ -1,74 +1,111 @@
 import Foundation
 
-/// Record header flag bits.
+/// Defines flag-bit constants used in the record header flags byte.
+///
+/// Bit layout:
+/// - Bit 0: tombstone (record is deleted)
+/// - Bit 1: gzip compression
+/// - Bit 2: lzfse compression
+/// - Bit 3: lz4 compression
 enum RecordFlags {
+  /// The record is tombstoned (deleted). The slot capacity remains valid
+  /// for file navigation, but the record should not be served.
   static let tombstone: UInt8 = 1 << 0
+  /// Payload is compressed with gzip.
   static let gzip: UInt8 = 1 << 1
+  /// Payload is compressed with Apple LZFSE.
   static let lzfse: UInt8 = 1 << 2
+  /// Payload is compressed with Apple LZ4.
   static let lz4: UInt8 = 1 << 3
 }
 
-/// File protection level applied to shard files (iOS only; no-op elsewhere).
+/// Describes the file protection level applied to shard files on iOS.
+///
+/// This is a no-op on non-Apple platforms. On iOS, the value is mapped to
+/// the corresponding `Foundation.FileProtectionType` and applied to every
+/// shard file at creation time.
 public enum FileProtection: String, CaseIterable, Codable, Sendable {
+  /// No file protection. The file is always accessible.
   case none
+  /// The file is accessible only when the device is unlocked.
   case complete
+  /// The file is accessible while the device is unlocked, or after unlock
+  /// until the file handle is closed.
   case completeUnlessOpen
+  /// The file is accessible from the first user authentication after boot
+  /// until the device is shut down.
   case completeUntilFirstUserAuthentication
 }
 
-/// A single slotted shard file.
+/// A single slotted shard file that stores records with immutable slot
+/// capacities, CRC-32 integrity checks, and a dirty-flag crash-recovery
+/// mechanism.
 ///
-/// Layout:
+/// **File layout:**
 /// ```
+/// [FileHeader] [Record] [Record] ...
+///
 /// FileHeader (32 bytes):
-///   magic            4 bytes  "NYU2"
+///   magic            4 bytes  0x4E 0x59 0x55 0x32  ("NYU2")
 ///   version          u16      currently 1
-///   flags            u16      bit0 = dirty
-///   liveCount        u32      live (non-tombstoned) records at last clean sync
+///   flags            u16      bit0 = dirty flag
+///   liveCount        u32      live record count at last clean sync
 ///   reserved         20 bytes
 ///
-/// Record (repeated until EOF):
-///   slotCapacity     u32      IMMUTABLE size of the slot's data area
+/// Record (variable-length, min 16 + slotGranularity bytes):
+///   slotCapacity     u32      IMMUTABLE size of the data area
 ///   payloadLength    u32      bytes of the data area actually in use
-///   flags            u8       bit0 tombstone, bits1-3 compression method
+///   flags            u8       bit0=tombstone, bits1-3=compression
 ///   reserved         3 bytes
 ///   crc32            u32      CRC-32 of the stored payload bytes
 ///   data             slotCapacity bytes (payload + padding)
 /// ```
 ///
-/// Design invariants (each one exists because violating it caused a real,
-/// catalogued corruption bug in the previous engine):
+/// **Design invariants** (each one exists because violating it caused a
+/// real, catalogued corruption bug in the previous engine):
 ///
-/// 1. `slotCapacity` is written once and NEVER changes. Navigation always
-///    advances by `16 + slotCapacity`. Deletes and shrinking updates only
-///    touch `payloadLength`/`flags`, so a reader can always walk the file
+/// 1. **`slotCapacity` is immutable.** It is written once when the slot is
+///    created and never changes. Navigation always advances by
+///    `16 + slotCapacity`. Deletes and shrinking updates only touch
+///    `payloadLength` and `flags`, so a reader can always walk the file
 ///    even across tombstones. (The old format used a single `size` field for
 ///    both navigation and payload length; shrinking it broke the walk.)
-/// 2. All integers are little-endian and assembled byte-by-byte — no
-///    unaligned loads, portable to any architecture.
-/// 3. The dirty flag is set (and fsync'd) before the first mutation after a
-///    clean state. On open with the dirty flag set, every record's CRC is
-///    verified, corrupt records are tombstoned, and a torn trailing append
-///    is truncated.
 ///
-/// `SlottedFile` is NOT thread-safe. It is owned by exactly one `ShardActor`,
-/// which serializes all access through a single `FileHandle`.
+/// 2. **All integers are little-endian**, assembled byte by byte — no
+///    unaligned loads, portable to any architecture including ARM64.
+///
+/// 3. **Dirty-flag crash recovery.** The dirty flag is set (and fsync'd)
+///    before the first mutation after a clean state. On open with the dirty
+///    flag set, every record's CRC is verified, corrupt records are
+///    tombstoned, and a torn trailing append is truncated.
+///
+/// **Thread safety.** `SlottedFile` is NOT thread-safe. It is owned by
+/// exactly one `ShardActor`, which serialises all access.
 final class SlottedFile {
-  static let magic: [UInt8] = [0x4E, 0x59, 0x55, 0x32]  // "NYU2"
+  /// Magic bytes identifying the file format: `"NYU2"`.
+  static let magic: [UInt8] = [0x4E, 0x59, 0x55, 0x32]
+  /// Current file format version.
   static let version: UInt16 = 1
+  /// Size of the file header in bytes.
   static let fileHeaderSize: UInt64 = 32
+  /// Size of the record header (everything before the payload data area).
   static let recordHeaderSize: UInt64 = 16
+  /// Bitmask for the dirty flag in the header flags field.
   static let dirtyFlag: UInt16 = 1 << 0
   /// Slot capacities are rounded up to this granularity so records have
-  /// headroom for small in-place growth.
+  /// headroom for small in-place growth without relocation.
   static let slotGranularity: UInt32 = 32
-  /// Sanity ceiling for a single record (64 MiB). Anything above this in a
+  /// Maximum allowed payload size per record (64 MiB). Anything larger in a
   /// header is treated as corruption.
   static let maxRecordSize: UInt32 = 64 * 1024 * 1024
 
+  /// A live (non-tombstoned) record read from the file.
   struct LiveRecord {
+    /// Byte offset of the record header within the file.
     let offset: UInt64
+    /// The raw payload data (still compressed as stored).
     let payload: Data
+    /// The compression method used when the payload was written.
     let compression: CompressionMethod
   }
 
@@ -77,13 +114,15 @@ final class SlottedFile {
   private var fileSize: UInt64
   private(set) var liveCount: UInt32 = 0
 
-  /// Exposes the real garbage count, rebuilt during `scan()` on open.
+  /// The number of tombstoned (deleted) slots, rebuilt during `scan()`.
   var tombstoneCount: UInt32 { UInt32(freeSlots.count) }
 
+  /// Total bytes consumed by tombstoned slots (available for reuse).
   var deadBytes: UInt64 {
     freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
   }
 
+  /// Ratio of dead bytes to total usable file bytes.
   var fragmentationRatio: Double {
     let deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
     let totalUsableBytes = fileSize - SlottedFile.fileHeaderSize
@@ -91,22 +130,35 @@ final class SlottedFile {
     return Double(deadBytes) / Double(totalUsableBytes)
   }
 
-  /// True when this open found the dirty flag set and ran crash recovery.
-  /// Callers use this to invalidate index snapshots.
+  /// Whether this open found the dirty flag set and ran crash recovery.
+  /// Callers use this to decide whether index snapshots need rebuilding.
   private(set) var recoveredFromDirty = false
   private var isDirty = false
-  /// Tombstoned slots available for reuse: capacity -> offsets.
-  /// Kept as a flat array sorted by capacity for best-fit lookup.
+  /// Tombstoned slots available for reuse, sorted by capacity ascending.
+  /// Each entry stores the offset and the immutable slot capacity.
   private var freeSlots: [(offset: UInt64, capacity: UInt32)] = []
 
-  /// Static buffer for the 3 reserved bytes in the record header.
-  /// Avoids allocating an array on every write.
+  /// A static, pre-allocated buffer of 3 zero bytes for the reserved field
+  /// in every record header. Avoids allocating a new array on every write.
   private static let reservedBytes = Data(count: 3)
 
   var path: String { url.path }
 
   // MARK: - Open / create
 
+  /// Opens an existing shard file or creates a new one with a valid header.
+  ///
+  /// On creation, a file header is written with magic bytes, version 1,
+  /// clean flags, and zero live count. On open, the header is validated
+  /// and the file is scanned to rebuild `liveCount` and the free slot list.
+  /// If the dirty flag is set, crash recovery (CRC verification + repair)
+  /// is performed.
+  ///
+  /// - Parameters:
+  ///   - url: The file URL for the shard.
+  ///   - fileProtection: iOS file protection level.
+  /// - Throws: `NyaruError.invalidFileFormat` if the magic or version is
+  ///   wrong, `NyaruError.ioError` if the file cannot be opened.
   init(url: URL, fileProtection: FileProtection = .none) throws {
     self.url = url
     let fm = FileManager.default
@@ -134,6 +186,7 @@ final class SlottedFile {
     try validateHeaderAndScan()
   }
 
+  /// Applies the given file protection level to the file (iOS only).
   private static func applyFileProtection(_ protection: FileProtection, at url: URL) {
     #if os(iOS) || os(tvOS) || os(watchOS)
       guard protection != .none else { return }
@@ -150,6 +203,10 @@ final class SlottedFile {
     #endif
   }
 
+  /// Validates the file header and scans all records to rebuild state.
+  ///
+  /// If the dirty flag is set, scan runs with CRC verification and repair —
+  /// corrupt records are tombstoned and torn trailing writes are truncated.
   private func validateHeaderAndScan() throws {
     guard fileSize >= SlottedFile.fileHeaderSize else {
       throw NyaruError.invalidFileFormat("File shorter than header: \(url.lastPathComponent)")
@@ -173,11 +230,18 @@ final class SlottedFile {
     try scan(verifyCRC: wasDirty, repair: wasDirty)
     if wasDirty {
       recoveredFromDirty = true
-      // Recovery finished; persist a clean header with the recomputed count.
       try sync()
     }
   }
 
+  /// Iterates over every live record and invokes the block with a `LiveRecord`.
+  ///
+  /// Tombstoned records are skipped. The file is walked sequentially by
+  /// advancing by `recordHeaderSize + slotCapacity` for every slot.
+  ///
+  /// - Parameter block: A closure called with each live record.
+  /// - Throws: `NyaruError.corruptedRecord` if a record header is invalid
+  ///   or a payload is truncated. Re-throws errors from the block.
   func forEachLive(_ block: (LiveRecord) throws -> Void) throws {
     var pos = SlottedFile.fileHeaderSize
     while pos + SlottedFile.recordHeaderSize <= fileSize {
@@ -209,9 +273,14 @@ final class SlottedFile {
     }
   }
 
-  /// Walks every slot: rebuilds liveCount and the free list.
-  /// With `verifyCRC`, corrupt records are tombstoned; with `repair`, a
-  /// torn trailing write is truncated.
+  /// Walks every slot in the file to rebuild `liveCount` and the free-slot
+  /// list. When `verifyCRC` is true, corrupt records are tombstoned; when
+  /// `repair` is true, a torn trailing append is truncated.
+  ///
+  /// - Parameters:
+  ///   - verifyCRC: Whether to check CRC-32 on each live record and
+  ///     tombstoned mismatches.
+  ///   - repair: Whether to truncate a torn append at the end of the file.
   private func scan(verifyCRC: Bool, repair: Bool) throws {
     liveCount = 0
     freeSlots = []
@@ -236,7 +305,6 @@ final class SlottedFile {
 
       if !headerLooksValid {
         if repair {
-          // Torn append at the tail — cut it off.
           try handle.truncate(atOffset: pos)
           fileSize = pos
         }
@@ -252,7 +320,6 @@ final class SlottedFile {
         if payload.count != Int(payloadLength)
           || Compressor.crc32Checksum(payload) != storedCRC
         {
-          // Corrupt record: neutralize it so it can never be served.
           try writeTombstoneFlag(at: pos, existingFlags: recordFlags)
           freeSlots.append((offset: pos, capacity: capacity))
         } else {
@@ -268,6 +335,17 @@ final class SlottedFile {
 
   // MARK: - Dirty flag / sync
 
+  /// Sets the dirty flag in the file header and immediately fsyncs it, but
+  /// only when this is the first mutation since the last clean state.
+  ///
+  /// This is called before **every** mutation — append, overwrite, tombstone,
+  /// and appendRaw. The dirty flag tells a future open that crash recovery
+  /// (CRC verification + torn-write repair) is required.
+  ///
+  /// After all mutations are done, `sync()` must be called to clear the
+  /// dirty flag and persist the updated `liveCount`. If the process crashes
+  /// between `markDirtyIfNeeded()` and the next `sync()`, the dirty flag
+  /// remains set and recovery runs on the next open.
   private func markDirtyIfNeeded() throws {
     guard !isDirty else { return }
     var flagBytes = Data()
@@ -278,9 +356,12 @@ final class SlottedFile {
     isDirty = true
   }
 
-  /// Persists liveCount and clears the dirty flag.
+  /// Persists the live count and clears the dirty flag.
+  ///
+  /// After a successful `sync()`, a crash on a clean file requires no
+  /// recovery — all records up to the last sync are consistent. If no
+  /// mutations have occurred since the last sync, this is a no-op.
   func sync() throws {
-    // OPTIMIZATION: If no mutation occurred, skip I/O.
     guard isDirty else { return }
 
     var patch = Data()
@@ -292,6 +373,7 @@ final class SlottedFile {
     isDirty = false
   }
 
+  /// Syncs and closes the file handle.
   func close() throws {
     try sync()
     try handle.close()
@@ -299,12 +381,20 @@ final class SlottedFile {
 
   // MARK: - Record operations
 
-  /// Appends a payload (or reuses a free slot) and returns its offset.
+  /// Appends a payload to the end of the file, or reuses a tombstoned slot
+  /// of sufficient capacity (best-fit).
+  ///
+  /// The slot capacity is rounded up to `slotGranularity` so future in-place
+  /// updates can grow without relocation.
+  ///
+  /// - Parameters:
+  ///   - payload: The payload data to store.
+  ///   - compression: The compression method used on the payload.
+  /// - Returns: The byte offset of the newly written record header.
   func append(payload: Data, compression: CompressionMethod) throws -> UInt64 {
     try markDirtyIfNeeded()
     let length = UInt32(payload.count)
 
-    // Best-fit reuse of a tombstoned slot.
     if let index = bestFitFreeSlot(for: length) {
       let slot = freeSlots.remove(at: index)
       try writeRecord(
@@ -315,7 +405,6 @@ final class SlottedFile {
       return slot.offset
     }
 
-    // Append at EOF with rounded-up capacity.
     let capacity = SlottedFile.roundUpCapacity(length)
     let offset = fileSize
     try writeRecord(
@@ -325,14 +414,22 @@ final class SlottedFile {
     return offset
   }
 
+  /// Rounds up a payload length to the next multiple of `slotGranularity`.
+  ///
+  /// - Parameter length: The payload length.
+  /// - Returns: The rounded-up slot capacity.
   static func roundUpCapacity(_ length: UInt32) -> UInt32 {
     let g = slotGranularity
     if length == 0 { return g }
     return ((length + g - 1) / g) * g
   }
 
+  /// Finds the index of the smallest free slot that fits the given length
+  /// (best-fit strategy). Returns `nil` if no slot is large enough.
+  ///
+  /// - Parameter length: The payload length to fit.
+  /// - Returns: The index in `freeSlots`, or `nil`.
   private func bestFitFreeSlot(for length: UInt32) -> Int? {
-    // freeSlots is sorted by capacity ascending; find the first fit.
     var low = 0
     var high = freeSlots.count
     while low < high {
@@ -342,6 +439,15 @@ final class SlottedFile {
     return low < freeSlots.count ? low : nil
   }
 
+  /// Writes a complete record (header + payload) at the given offset.
+  ///
+  /// - Parameters:
+  ///   - offset: Byte offset for the record header.
+  ///   - capacity: The immutable slot capacity.
+  ///   - payload: The payload data (must be <= capacity).
+  ///   - compression: The compression method used.
+  ///   - pad: Whether to zero-fill the remaining bytes of the slot.
+  /// - Precondition: `payload.count <= Int(capacity)`.
   private func writeRecord(
     at offset: UInt64,
     capacity: UInt32,
@@ -354,10 +460,7 @@ final class SlottedFile {
     Binary.append(capacity, to: &record)
     Binary.append(UInt32(payload.count), to: &record)
     record.append(compression.flagBit)
-
-    // OPTIMIZATION: Use a static Data instead of allocating [0,0,0] each write.
     record.append(Self.reservedBytes)
-
     Binary.append(Compressor.crc32Checksum(payload), to: &record)
     record.append(payload)
     if pad {
@@ -368,8 +471,14 @@ final class SlottedFile {
     try handle.write(contentsOf: record)
   }
 
-  /// Reads the record at `offset`. Returns nil for tombstones.
-  /// The returned payload is still compressed as stored.
+  /// Reads the record at the given offset and returns it as a `LiveRecord`.
+  ///
+  /// The returned payload is still compressed — decompression is the
+  /// caller's responsibility.
+  ///
+  /// - Parameter offset: Byte offset of the record header.
+  /// - Returns: A `LiveRecord`, or `nil` if the slot is tombstoned.
+  /// - Throws: `NyaruError.corruptedRecord` if the header or CRC is invalid.
   func read(at offset: UInt64) throws -> LiveRecord? {
     guard offset + SlottedFile.recordHeaderSize <= fileSize else {
       throw NyaruError.corruptedRecord(offset: offset, reason: "offset beyond EOF")
@@ -406,8 +515,17 @@ final class SlottedFile {
     )
   }
 
-  /// Overwrites the record in place if the new payload fits the immutable
-  /// slot capacity. Returns false (without writing) if it does not fit.
+  /// Overwrites the record in place if the new payload fits the existing slot
+  /// capacity. Returns `false` if the payload does not fit (no data is written).
+  ///
+  /// - Parameters:
+  ///   - offset: Byte offset of the record to overwrite.
+  ///   - payload: The new payload data.
+  ///   - compression: The compression method used.
+  /// - Returns: `true` if the record was overwritten in place, `false` if it
+  ///   does not fit and the caller should tombstone + re-append.
+  /// - Throws: `NyaruError.corruptedRecord` if the header is invalid or the
+  ///   slot is already tombstoned.
   func overwrite(at offset: UInt64, payload: Data, compression: CompressionMethod) throws -> Bool {
     try handle.seek(toOffset: offset)
     guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
@@ -416,9 +534,6 @@ final class SlottedFile {
     else {
       throw NyaruError.corruptedRecord(offset: offset, reason: "short header")
     }
-    // Never resurrect a deleted slot: it may already be on the free list,
-    // and handing the same offset to two live records corrupts every
-    // index pointing at it.
     let existingFlags = head[head.startIndex + 8]
     guard existingFlags & RecordFlags.tombstone == 0 else {
       throw NyaruError.corruptedRecord(
@@ -431,8 +546,13 @@ final class SlottedFile {
     return true
   }
 
-  /// Marks the record at `offset` as deleted. slotCapacity is untouched, so
-  /// file navigation remains valid; the slot becomes reusable.
+  /// Tombstones the record at the given offset. The slot capacity is
+  /// preserved so file navigation remains valid, and the slot becomes
+  /// available for future reuse.
+  ///
+  /// - Parameter offset: Byte offset of the record to tombstone.
+  /// - Returns: `true` if the record was live and is now tombstoned,
+  ///   `false` if it was already tombstoned.
   @discardableResult
   func tombstone(at offset: UInt64) throws -> Bool {
     try handle.seek(toOffset: offset)
@@ -443,11 +563,10 @@ final class SlottedFile {
       throw NyaruError.corruptedRecord(offset: offset, reason: "short header")
     }
     let flags = head[head.startIndex + 8]
-    if flags & RecordFlags.tombstone != 0 { return false }  // already deleted
+    if flags & RecordFlags.tombstone != 0 { return false }
     try markDirtyIfNeeded()
     try writeTombstoneFlag(at: offset, existingFlags: flags)
     if liveCount > 0 { liveCount -= 1 }
-    // Insert into the free list keeping capacity order.
     var low = 0
     var high = freeSlots.count
     while low < high {
@@ -458,30 +577,44 @@ final class SlottedFile {
     return true
   }
 
+  /// Writes the tombstone bit into an existing record header at the given
+  /// offset, preserving all other flag bits.
+  ///
+  /// - Parameters:
+  ///   - offset: Byte offset of the record header.
+  ///   - existingFlags: The current flags byte value.
   private func writeTombstoneFlag(at offset: UInt64, existingFlags: UInt8) throws {
     try handle.seek(toOffset: offset + 8)
     try handle.write(contentsOf: Data([existingFlags | RecordFlags.tombstone]))
   }
 
-  /// Approximate on-disk size in bytes.
+  /// Returns the current file size in bytes.
   func sizeInBytes() -> UInt64 { fileSize }
 
+  /// A raw record representation used for zero-copy compaction, containing
+  /// the payload without decryption or decompression.
   struct RawRecord {
     let offset: UInt64
     let payload: Data
     let compression: CompressionMethod
   }
 
-  /// Reads the raw payload without decompression/decryption (for zero-copy compaction).
+  /// Reads the raw payload without decompression or decryption.
+  ///
+  /// Used during compaction to copy records between files without
+  /// unnecessary crypto work.
+  ///
+  /// - Parameter offset: Byte offset of the record.
+  /// - Returns: A `RawRecord`, or `nil` if the header is invalid.
   func readRaw(at offset: UInt64) throws -> RawRecord? {
     try handle.seek(toOffset: offset)
     guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
       head.count == Int(SlottedFile.recordHeaderSize),
       let capacity = Binary.readUInt32(head, at: 0),
-      capacity > 0,  // Validação extra
+      capacity > 0,
       let payloadLength = Binary.readUInt32(head, at: 4),
       payloadLength <= capacity
-    else {  // Garante que o payload não é maior que o slot
+    else {
       return nil
     }
     let flags = head[head.startIndex + 8]
@@ -490,12 +623,20 @@ final class SlottedFile {
       offset: offset, payload: payload, compression: CompressionMethod(recordFlags: flags))
   }
 
-  /// Appends a raw payload directly to the new file, bypassing compression/encryption.
+  /// Appends a raw payload directly to the file, bypassing compression or
+  /// encryption.
+  ///
+  /// Used during compaction to copy records from the old file to the new
+  /// file without modifying the stored format.
+  ///
+  /// - Parameters:
+  ///   - payload: The raw payload (already compressed/encrypted as stored).
+  ///   - compression: The compression method recorded in the original header.
+  /// - Returns: The byte offset of the new record header.
   func appendRaw(payload: Data, compression: CompressionMethod) throws -> UInt64 {
     try markDirtyIfNeeded()
     let length = UInt32(payload.count)
 
-    // Reuse free slot if possible
     if let index = bestFitFreeSlot(for: length) {
       let slot = freeSlots.remove(at: index)
       try writeRecord(
@@ -504,7 +645,6 @@ final class SlottedFile {
       return slot.offset
     }
 
-    // Append at EOF
     let capacity = SlottedFile.roundUpCapacity(length)
     let offset = fileSize
     try writeRecord(
@@ -514,8 +654,12 @@ final class SlottedFile {
     return offset
   }
 
-  /// Reads the dirty flag from the header without opening a persistent FileHandle.
-  /// Used during lazy open to check if crash recovery is needed.
+  /// Reads the dirty flag from the file header without opening a persistent
+  /// `FileHandle`. Used during lazy open to check if crash recovery is needed
+  /// before fully loading the file.
+  ///
+  /// - Parameter url: The file URL.
+  /// - Returns: `true` if the dirty flag is set.
   static func peekDirty(url: URL) -> Bool {
     guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
     defer { try? handle.close() }
@@ -527,17 +671,26 @@ final class SlottedFile {
 
   // MARK: - Cursor-based batch reads (pull-driven streaming)
 
+  /// A batch of live records and a cursor for resuming.
   struct LiveBatch {
+    /// The records in this batch.
     let records: [LiveRecord]
-    // Position to resume from; nil when the scan reached EOF.
+    /// The file position to resume from, or `nil` if the scan reached EOF.
     let nextPos: UInt64?
   }
 
-  // Reads up to `maxCount` live records starting at `pos` (pass
-  // `SlottedFile.fileHeaderSize` for the first call). The returned cursor is
-  // a plain file position, so the caller holds no FileHandle state between
-  // batches — records appended after a batch was read may or may not be
-  // observed by later batches (no snapshot isolation; documented behavior).
+  /// Reads up to `maxCount` live records starting from the given position.
+  ///
+  /// The returned cursor is a plain file position — the caller holds no
+  /// `FileHandle` state between batches. Records appended after a batch was
+  /// read may or may not be observed by later batches (no snapshot isolation).
+  ///
+  /// - Parameters:
+  ///   - pos: The byte position to start from (pass `fileHeaderSize` for the
+  ///     first call).
+  ///   - maxCount: The maximum number of live records to return.
+  /// - Returns: A `LiveBatch` of records and the next position cursor.
+  /// - Throws: `NyaruError.corruptedRecord` if a payload is truncated.
   func readLiveBatch(from pos: UInt64, maxCount: Int) throws -> LiveBatch {
     var records: [LiveRecord] = []
     var cursor = max(pos, SlottedFile.fileHeaderSize)

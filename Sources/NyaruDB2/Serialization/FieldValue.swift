@@ -1,22 +1,46 @@
 import Foundation
 
-/// A scalar value extracted from a document field (JSON or MessagePack).
+/// Represents a scalar value extracted from a document field, providing a total
+/// ordering for use as an index key and in range queries.
 ///
-/// Provides a *total ordering* so it can be used as an index key and in
-/// range queries. Ordering is by type rank first (null < bool < number <
-/// string), then by value within the same type. `.int` and `.double` share
-/// the "number" rank and always compare *numerically* against each other,
-/// exactly (no round-trip through Double), so `int(5) == double(5.0)` and
-/// `int(2^60 + 1) != double(2^60)`.
+/// `FieldValue` bridges the gap between dynamically-typed document data (JSON
+/// or MessagePack) and the statically-typed index and query systems. Every
+/// value stored in an index is a `FieldValue`, and every predicate comparison
+/// operates on `FieldValue` instances.
+///
+/// **Total ordering.** `FieldValue` guarantees a total order across all
+/// variants, which is essential for binary-search-based indexes and correct
+/// range-scan semantics. The ordering is defined first by *type rank*:
+///
+/// ```
+/// null < bool < number < string
+/// ```
+///
+/// Within the same type, values are ordered naturally. The `int` and `double`
+/// cases share the "number" rank and compare *numerically* against each other
+/// without lossy conversion through `Double`:
+/// - `int(5) == double(5.0)` — exact integer equality
+/// - `int(2^60 + 1) != double(2^60)` — no silent rounding
+///
+/// **ExpressibleBy literals.** `FieldValue` conforms to `ExpressibleByIntegerLiteral`,
+/// `ExpressibleByStringLiteral`, `ExpressibleByBooleanLiteral`,
+/// `ExpressibleByFloatLiteral`, and `ExpressibleByNilLiteral`, allowing
+/// natural Swift syntax: `let v: FieldValue = "hello"`.
 public enum FieldValue: Codable, Sendable, CustomStringConvertible,
   ExpressibleByIntegerLiteral, ExpressibleByStringLiteral,
   ExpressibleByBooleanLiteral, ExpressibleByFloatLiteral,
   ExpressibleByNilLiteral
 {
+  /// Represents the absence of a value (`null` / `NSNull`).
   case null
+  /// A boolean value (`true` or `false`).
   case bool(Bool)
+  /// A 64-bit signed integer.
   case int(Int64)
+  /// A 64-bit floating-point number. Only used when the value cannot be
+  /// represented exactly as `Int64` — see `number(_:)`.
   case double(Double)
+  /// A Unicode string value.
   case string(String)
 
   // MARK: - ExpressibleBy Literals
@@ -27,7 +51,10 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
   public init(floatLiteral value: Double) { self = .number(value) }
   public init(nilLiteral: ()) { self = .null }
 
-  /// Returns the native Swift `Any` representation of this value.
+  /// Converts this field value back to a native Swift `Any` value suitable
+  /// for use in `[String: Any]` dictionaries during patch operations.
+  ///
+  /// `.null` is represented as `NSNull()` to match Foundation convention.
   public var anyValue: Any {
     switch self {
     case .null: return NSNull()
@@ -38,7 +65,9 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// Type rank for total ordering: null < bool < number < string.
+  /// Returns the type rank used for total ordering.
+  ///
+  /// Ranking: `null = 0`, `bool = 1`, `number = 2`, `string = 3`.
   @inlinable
   internal var typeRank: Int {
     switch self {
@@ -49,7 +78,14 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// Canonicalizes a Double: integral values that fit Int64 exactly become `.int`.
+  /// Canonicalises a double-precision value: if it can be represented exactly
+  /// as an `Int64`, stores it as `.int`; otherwise stores it as `.double`.
+  ///
+  /// This ensures that whole-number doubles (e.g. `42.0`) are indexed as
+  /// integers and compare equal to their integer counterparts.
+  ///
+  /// - Parameter d: The double value to canonicalise.
+  /// - Returns: `.int` if the value fits exactly in `Int64`, otherwise `.double`.
   public static func number(_ d: Double) -> FieldValue {
     if let i = Int64(exactly: d) { return .int(i) }
     return .double(d)
@@ -57,6 +93,17 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
 
   // MARK: - Exact Numeric Comparison
 
+  /// Compares an `Int64` with a `Double` without lossy conversion.
+  ///
+  /// The comparison avoids converting the `Int64` through `Double` (which
+  /// can lose precision for values above 2^53). Instead it rounds the double
+  /// down, compares the rounded integer part, and uses the fractional part
+  /// as a tiebreaker.
+  ///
+  /// - Parameters:
+  ///   - i: The integer value.
+  ///   - d: The double value.
+  /// - Returns: -1, 0, or 1 following the same semantics as `Comparable`.
   @inlinable
   internal static func compare(_ i: Int64, _ d: Double) -> Int {
     if d.isNaN { return -1 }
@@ -68,6 +115,15 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     return d > floor ? -1 : 0
   }
 
+  /// Compares two `Double` values, treating NaN as greater than any number.
+  ///
+  /// This ensures a consistent (if arbitrary) ordering for NaN values so the
+  /// total order invariant is maintained.
+  ///
+  /// - Parameters:
+  ///   - a: The first double.
+  ///   - b: The second double.
+  /// - Returns: -1, 0, or 1.
   @inlinable
   internal static func compareDoubles(_ a: Double, _ b: Double) -> Int {
     switch (a.isNaN, b.isNaN) {
@@ -81,7 +137,17 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// Total ordering across all FieldValue variants.
+  /// Compares two `FieldValue` instances, providing a total order conforming
+  /// to `Comparable` semantics.
+  ///
+  /// The comparison first orders by type rank, then by value within the same
+  /// type. Cross-type comparisons between `.int` and `.double` use the exact
+  /// numeric comparison to avoid precision loss.
+  ///
+  /// - Parameters:
+  ///   - lhs: The left-hand value.
+  ///   - rhs: The right-hand value.
+  /// - Returns: -1 if `lhs < rhs`, 0 if equal, 1 if `lhs > rhs`.
   @inlinable
   public static func compare(_ lhs: FieldValue, _ rhs: FieldValue) -> Int {
     if lhs.typeRank != rhs.typeRank {
@@ -103,6 +169,7 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
+  /// A human-readable description of the value.
   public var description: String {
     switch self {
     case .null: return "null"
@@ -113,7 +180,14 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     }
   }
 
-  /// Converts any value from a deserialized dictionary into a canonical FieldValue.
+  /// Converts an arbitrary value from a deserialized dictionary into a
+  /// canonical `FieldValue`.
+  ///
+  /// Supports `nil`/`NSNull`, `Bool`, `Int`, `Int64`, `Double`, and `String`.
+  /// Returns `nil` for unrecognized types (arrays, nested dictionaries).
+  ///
+  /// - Parameter value: The value to convert (may be `nil`).
+  /// - Returns: A `FieldValue`, or `nil` if the type is not supported.
   public static func fromAny(_ value: Any?) -> FieldValue? {
     switch value {
     case nil, is NSNull:
@@ -161,7 +235,15 @@ extension FieldValue: Hashable {
 
 // MARK: - FieldValueConvertible
 
+/// A protocol for types that can be converted to a `FieldValue` for use in
+/// queries and index operations.
+///
+/// Conforming types include `String`, `Int`, `Int64`, `Double`, `Bool`,
+/// `UUID`, `Date`, and `Optional` wrappers. This allows the public API to
+/// accept a wide range of value types without forcing callers to construct
+/// `FieldValue` directly.
 public protocol FieldValueConvertible: Sendable {
+  /// Converts this value to its canonical `FieldValue` representation.
   var fieldValue: FieldValue { get }
 }
 
@@ -187,7 +269,20 @@ extension Optional: FieldValueConvertible where Wrapped: FieldValueConvertible {
 
 // MARK: - FieldExtractor
 
+/// Internal utility for extracting field values from serialised document data
+/// and from parsed `[String: Any]` dictionaries.
+///
+/// `FieldExtractor` is used throughout the query engine, the patch system, and
+/// index maintenance. It supports dot-separated paths for nested field access
+/// (e.g. `"address.city"`) and array index access (e.g. `"items.0.name"`).
 enum FieldExtractor {
+  /// Parses serialised document data into a generic string-keyed dictionary.
+  ///
+  /// - Parameters:
+  ///   - data: The encoded document data.
+  ///   - format: The serialization format of the data.
+  /// - Returns: A `[String: Any]` dictionary representing the document.
+  /// - Throws: `NyaruError.decodingFailed` if the data is not a valid object.
   static func parse(_ data: Data, using format: SerializationFormat) throws -> [String: Any] {
     let obj = try Serializer.unpack(data, format: format)
     guard let dict = obj as? [String: Any] else {
@@ -196,12 +291,22 @@ enum FieldExtractor {
     return dict
   }
 
+  /// Walks a dot-separated path in a parsed dictionary and returns the
+  /// canonical `FieldValue` at that path.
+  ///
+  /// Supports nested dictionaries (`"address.city"`) and array index access
+  /// (`"items.0.name"`). Returns `nil` if any segment of the path does not
+  /// exist.
+  ///
+  /// - Parameters:
+  ///   - dict: The parsed document dictionary.
+  ///   - path: A dot-separated field path.
+  /// - Returns: The `FieldValue` at the path, or `nil` if not found.
   static func value(in dict: [String: Any], path: String) -> FieldValue? {
     var current: Any = dict
     var start = path.startIndex
 
     while start < path.endIndex {
-      // Pula separadores (caso haja pontos múltiplos acidentais)
       while start < path.endIndex && path[start] == "." {
         start = path.index(after: start)
       }
@@ -224,6 +329,17 @@ enum FieldExtractor {
     return FieldValue.fromAny(current)
   }
 
+  /// Parses encoded document data and extracts a `FieldValue` at the given
+  /// dot-separated path.
+  ///
+  /// Convenience wrapper that combines `parse(_:using:)` and `value(in:path:)`.
+  ///
+  /// - Parameters:
+  ///   - data: The encoded document data.
+  ///   - path: A dot-separated field path.
+  ///   - format: The serialization format of the data.
+  /// - Returns: The `FieldValue` at the path, or `nil` if not found.
+  /// - Throws: `NyaruError.decodingFailed` if the data is not a valid object.
   static func value(in data: Data, path: String, using format: SerializationFormat) throws
     -> FieldValue?
   {

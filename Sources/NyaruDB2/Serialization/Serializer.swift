@@ -1,15 +1,43 @@
 import Foundation
 import SwiftMsgpack
 
-/// Document serialization format.
+/// Specifies the wire format used to serialize and deserialize documents.
+///
+/// NyaruDB supports two formats:
+/// - `.json`: Standard JSON, produced and consumed by `JSONEncoder`/`JSONDecoder`.
+/// - `.msgpack`: MessagePack, a compact binary format, produced and consumed by
+///   `MsgPackEncoder`/`MsgPackDecoder` from the SwiftMsgpack package.
+///
+/// The format is stored in the collection manifest and is immutable after
+/// collection creation — changing it would make existing records unreadable.
 public enum SerializationFormat: String, CaseIterable, Codable, Sendable {
+  /// JavaScript Object Notation (JSON).
   case json
+  /// MessagePack binary format.
   case msgpack
 }
 
-/// Centralized serialization/deserialization for JSON and MessagePack.
+/// Provides centralized encoding, decoding, and unpacking of documents
+/// regardless of the serialization format in use.
+///
+/// Every document that flows through NyaruDB's public API is encoded or decoded
+/// here. The type dispatches to the appropriate backend (`JSONEncoder` or
+/// `MsgPackEncoder`) based on the `SerializationFormat` value stored in the
+/// collection manifest.
+///
+/// - Note: The `unpack(_:format:)` method is used internally by `FieldExtractor`
+///   for predicate evaluation, patch, and partial reads. It decodes into a
+///   generic `[String: Any]` dictionary via `AnyDecodable` to avoid the
+///   NSNumber bridging issues that plagued the previous engine.
 enum Serializer {
 
+  /// Encodes a Swift value to `Data` using the specified serialization format.
+  ///
+  /// - Parameters:
+  ///   - value: The value to encode (must conform to `Encodable`).
+  ///   - format: The target serialization format (`.json` or `.msgpack`).
+  /// - Returns: The encoded data.
+  /// - Throws: Encoding errors from the underlying encoder.
   @inlinable
   static func encode<T: Encodable>(_ value: T, format: SerializationFormat) throws -> Data {
     switch format {
@@ -20,6 +48,14 @@ enum Serializer {
     }
   }
 
+  /// Decodes a Swift value from `Data` using the specified serialization format.
+  ///
+  /// - Parameters:
+  ///   - type: The expected Swift type.
+  ///   - data: The encoded data.
+  ///   - format: The serialization format used to produce the data.
+  /// - Returns: The decoded value.
+  /// - Throws: `NyaruError.decodingFailed` if decoding fails.
   @inlinable
   static func decode<T: Decodable>(_ type: T.Type, from data: Data, format: SerializationFormat)
     throws -> T
@@ -32,8 +68,19 @@ enum Serializer {
     }
   }
 
-  /// Converts Data to a generic `[String: Any]` dictionary for FieldExtractor.
-  /// Uses `AnyDecodable` to avoid `NSNumber` bridging issues.
+  /// Converts encoded document data into a generic `[String: Any]` dictionary
+  /// for field extraction and predicate evaluation.
+  ///
+  /// This method uses `AnyDecodable` under the hood to ensure that numeric
+  /// values are decoded as Swift-native `Int64` and `Double` instead of
+  /// `NSNumber`. This preserves the type information needed for correct
+  /// comparisons in the query engine.
+  ///
+  /// - Parameters:
+  ///   - data: The encoded document data.
+  ///   - format: The serialization format of the data.
+  /// - Returns: The root decoded value (expected to be a dictionary).
+  /// - Throws: Decoding errors from the underlying decoder.
   static func unpack(_ data: Data, format: SerializationFormat) throws -> Any {
     switch format {
     case .json:
@@ -48,9 +95,16 @@ enum Serializer {
 
 // MARK: - AnyDecodable
 
-/// Decodes any JSON/MsgPack value into Swift native types (Int64, Bool, Double, String, etc.)
-/// avoiding `NSNumber` and preserving type information.
+/// Decodes any JSON or MessagePack value into Swift-native types, avoiding
+/// Foundation's automatic `NSNumber` bridging.
+///
+/// Standard `JSONDecoder` with `[String: Any]` produces `NSNumber` for all
+/// numeric values, which loses the distinction between integers and doubles.
+/// `AnyDecodable` preserves the exact type: `Bool`, `Int64`, `Double`,
+/// `String`, plus recursive arrays and dictionaries. This is essential for
+/// correct index key comparisons and predicate evaluation.
 struct AnyDecodable: Decodable {
+  /// The decoded native Swift value.
   let value: Any
 
   init(from decoder: Decoder) throws {
@@ -82,9 +136,17 @@ struct AnyDecodable: Decodable {
 
 // MARK: - AnyEncodable
 
-/// Encodes a dynamic `[String: Any]` dictionary using Swift's native Encoder.
-/// Supports: Bool, Int, Int64, Double, String, [Any], and [String: Any].
+/// Encodes a dynamic `[String: Any]` dictionary using Swift's native encoder,
+/// supporting `Bool`, `Int`, `Int64`, `Double`, `String`, `[Any]`, and
+/// `[String: Any]` values.
+///
+/// Used during patch (partial update) to re-encode the merged document
+/// dictionary without going through `Codable` conformance on the document type.
+///
+/// - Note: Unsupported value types cause a hard `EncodingError` rather than
+///   silent data loss by encoding them as `nil`.
 struct AnyEncodable: Encodable {
+  /// The value to encode.
   let value: Any
 
   init(value: Any) {
@@ -100,7 +162,6 @@ struct AnyEncodable: Encodable {
     case let dict as [String: Any]:
       var container = encoder.container(keyedBy: AnyCodingKey.self)
       for (key, val) in dict {
-        // AnyCodingKey init is non-failable, so no force unwrapping needed
         try encodeAny(val, to: container.superEncoder(forKey: AnyCodingKey(stringValue: key)))
       }
 
@@ -126,7 +187,6 @@ struct AnyEncodable: Encodable {
       case let v as String:
         try container.encode(v)
       default:
-        // Fail fast: do not silently encode unsupported types as nil
         let context = EncodingError.Context(
           codingPath: encoder.codingPath,
           debugDescription: "Unsupported type for AnyEncodable: \(type(of: value))"
@@ -139,10 +199,14 @@ struct AnyEncodable: Encodable {
 
 // MARK: - AnyCodingKey
 
-/// Simple CodingKey implementation supporting both string and integer keys.
-/// Non-failable to avoid force-unwrapping in `AnyEncodable`.
+/// A simple `CodingKey` implementation that supports both string and integer
+/// keys, used by `AnyEncodable` to encode dictionary keys.
+///
+/// Both initialisers are non-failable, so callers never need to force-unwrap.
 struct AnyCodingKey: CodingKey {
+  /// The string representation of the key.
   let stringValue: String
+  /// The optional integer representation of the key.
   let intValue: Int?
 
   init(stringValue: String) {

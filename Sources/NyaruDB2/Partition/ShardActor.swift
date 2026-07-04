@@ -1,7 +1,22 @@
 import Crypto
 import Foundation
 
+/// Manages a single shard file, providing CRUD operations, iteration,
+/// compaction, and transparent encryption/compression of payloads.
+///
+/// Each shard is backed by one `SlottedFile` instance and is owned by exactly
+/// one `CollectionCore`. All file I/O is serialised through the Swift actor
+/// concurrency model — multiple calls to the same `ShardActor` are executed
+/// sequentially, guaranteeing thread safety without locks.
+///
+/// **Payload lifecycle.** When data is written, `ShardActor` applies
+/// compression (if beneficial) and AES-256-GCM encryption (if a key is
+/// configured). The compression method byte is packed into the first byte of
+/// the encrypted payload so the method is available after decryption without
+/// external metadata. On read, the reverse happens: decrypt, decompress.
 actor ShardActor {
+  /// The unique shard identifier, also used as the filename stem
+  /// (e.g. `"default"` for `default.nyaru`).
   let id: String
   private let url: URL
   private var file: SlottedFile
@@ -23,11 +38,21 @@ actor ShardActor {
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }
 
+  /// The number of live (non-tombstoned) records in the shard.
   @inlinable var liveCount: Int { Int(file.liveCount) }
+  /// The number of tombstoned (deleted) records available for slot reuse.
   @inlinable var tombstoneCount: UInt32 { file.tombstoneCount }
+  /// The total number of bytes consumed by tombstoned slots.
   @inlinable var deadBytes: UInt64 { file.deadBytes }
+  /// Whether the shard contains zero live records.
   @inlinable var isEmpty: Bool { file.liveCount == 0 }
 
+  /// Whether the tombstone ratio exceeds `maxFragmentation`, indicating that
+  /// compaction is recommended.
+  ///
+  /// The ratio is computed as `tombstoneCount / (liveCount + tombstoneCount)`.
+  /// Shards with fewer than 100 total records are never considered fragmented
+  /// regardless of the ratio.
   var needsCompaction: Bool {
     let total = file.liveCount + file.tombstoneCount
     guard total > 100 else { return false }
@@ -37,17 +62,42 @@ actor ShardActor {
 
   // MARK: - CRUD primitives
 
+  /// Inserts a new record and returns a pointer pointing to it.
+  ///
+  /// The data is compressed (if beneficial) and encrypted (if a key is
+  /// configured) before being appended to the slotted file. A tombstoned
+  /// slot may be reused if one of sufficient capacity exists.
+  ///
+  /// - Parameter data: The raw (uncompressed, unencrypted) payload.
+  /// - Returns: A `RecordPointer` that permanently identifies the record.
+  /// - Throws: `NyaruError.compressionFailed` or `NyaruError.encryptionFailed`.
   func insert(data: Data) throws -> RecordPointer {
     let prepared = try preparePayload(data)
     let offset = try file.append(payload: prepared.payload, compression: prepared.method)
     return RecordPointer(shardID: id, offset: offset)
   }
 
+  /// Reads the record at the given offset, returning the decrypted and
+  /// decompressed payload.
+  ///
+  /// - Parameter offset: The byte offset of the record header.
+  /// - Returns: The restored payload, or `nil` if the slot is tombstoned.
+  /// - Throws: `NyaruError.decryptionFailed` or `NyaruError.decompressionFailed`.
   func read(at offset: UInt64) throws -> Data? {
     guard let record = try file.read(at: offset) else { return nil }
     return try restorePayload((payload: record.payload, compression: record.compression))
   }
 
+  /// Updates a record in place if the new payload fits the existing slot
+  /// capacity; otherwise tombstoning the old record and appending a new one.
+  ///
+  /// - Parameters:
+  ///   - offset: The byte offset of the record to update.
+  ///   - data: The new (uncompressed, unencrypted) payload.
+  /// - Returns: A `RecordPointer` — the same offset if updated in place,
+  ///   or a new offset if relocated.
+  /// - Throws: `NyaruError.compressionFailed`, `NyaruError.encryptionFailed`,
+  ///   or `NyaruError.corruptedRecord` if the slot is tombstoned.
   func update(at offset: UInt64, data: Data) throws -> RecordPointer {
     let prepared = try preparePayload(data)
     if try file.overwrite(at: offset, payload: prepared.payload, compression: prepared.method) {
@@ -58,15 +108,25 @@ actor ShardActor {
     return RecordPointer(shardID: id, offset: newOffset)
   }
 
+  /// Tombstones the record at the given offset, marking it as deleted and
+  /// adding its slot to the free list for future reuse.
+  ///
+  /// - Parameter offset: The byte offset of the record to delete.
+  /// - Returns: `true` if the record was live and is now tombstoned,
+  ///   `false` if it was already dead.
   @discardableResult
   func delete(at offset: UInt64) throws -> Bool {
-    // Returns true if it was successfully tombstoned, false if it was already dead
     return try file.tombstone(at: offset)
   }
 
   // MARK: - Iteration
 
-  /// Iterates over live records without materializing an array.
+  /// Iterates over every live record in the shard, materialising only one
+  /// decoded payload at a time.
+  ///
+  /// - Parameter block: A closure called with the offset and the restored
+  ///   (decompressed, decrypted) payload for each live record.
+  /// - Throws: Re-throws errors from the block or from payload restoration.
   internal func forEachLive(_ block: (UInt64, Data) throws -> Void) async throws {
     try file.forEachLive { liveRecord in
       let data = try restorePayload(
@@ -75,8 +135,14 @@ actor ShardActor {
     }
   }
 
-  /// Iterates over raw payloads (zero-copy, no decryption/decompression).
-  /// Used internally for fast compaction.
+  /// Iterates over raw payloads without decryption or decompression.
+  ///
+  /// Used internally during compaction to avoid unnecessary crypto work —
+  /// the output file re-uses the same compression method so only the raw
+  /// bytes need to be copied.
+  ///
+  /// - Parameter block: A closure called with the offset, raw payload, and
+  ///   compression method for each live record.
   internal func forEachLiveRaw(_ block: (UInt64, Data, CompressionMethod) throws -> Void)
     async throws
   {
@@ -85,11 +151,18 @@ actor ShardActor {
     }
   }
 
-  // Pull-based batch read: the consumer drives the pace, so at most one
-  // decoded batch lives in memory at a time (real backpressure, unlike the
-  // previous AsyncThrowingStream whose unbounded buffer let a fast producer
-  // materialize the whole shard behind a slow consumer).
-  // `from == nil` starts at the beginning; a nil `nextPos` means exhausted.
+  /// Reads a batch of live records starting at the given position.
+  ///
+  /// The consumer drives the pace — at most one decoded batch is kept in
+  /// memory at a time. Pass `nil` for `pos` to start from the beginning;
+  /// a `nil` `nextPos` in the return value signals that the shard is
+  /// exhausted.
+  ///
+  /// - Parameters:
+  ///   - pos: The position to resume from, or `nil` to start at the beginning.
+  ///   - maxCount: The maximum number of records to return.
+  /// - Returns: A tuple of decoded items and the next position cursor.
+  /// - Throws: `NyaruError.corruptedRecord` if a record header is invalid.
   func readLiveBatch(from pos: UInt64?, maxCount: Int) throws
     -> (items: [(offset: UInt64, data: Data)], nextPos: UInt64?)
   {
@@ -106,15 +179,25 @@ actor ShardActor {
 
   // MARK: - Maintenance
 
-  /// Compacts this shard file in place atomically.
-  /// Uses SlottedFile directly to avoid actor reentrancy issues during copy.
+  /// Compacts the shard file atomically by copying only live records to a
+  /// temporary file, then swapping them.
+  ///
+  /// The compaction process:
+  /// 1. Writes all live records (raw, without decryption/recompression) to a
+  ///    `.compact` temp file.
+  /// 2. Syncs and closes the temp file.
+  /// 3. Closes the current file and atomically replaces it with the temp file.
+  /// 4. Re-opens the new file.
+  ///
+  /// This is a blocking operation (synchronous I/O inside the actor) but is
+  /// designed to be fast because it avoids decrypting and re-encrypting every
+  /// record — the compressed payloads are copied as-is.
   func compact() throws {
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
 
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
-    // Zero-copy: copies raw payloads directly without decrypting/decompressing
     try file.forEachLive { liveRecord in
       _ = try tempFile.append(payload: liveRecord.payload, compression: liveRecord.compression)
     }
@@ -128,6 +211,18 @@ actor ShardActor {
 
   // MARK: - Payload Preparation
 
+  /// Prepares a payload for storage by optionally compressing and encrypting it.
+  ///
+  /// Compression is applied only if the compressed result is smaller than the
+  /// original. When encryption is enabled, the compression method byte is
+  /// prepended to the compressed payload and the whole block is encrypted with
+  /// AES-GCM, authenticated with the method byte.
+  ///
+  /// - Parameter data: The raw uncompressed, unencrypted payload.
+  /// - Returns: A tuple of the prepared payload and the compression method
+  ///   used (`.none` if compression was not beneficial or encryption was
+  ///   applied, since encryption outputs are incompressible).
+  /// - Throws: `NyaruError.compressionFailed` or `NyaruError.encryptionFailed`.
   private func preparePayload(_ data: Data) throws -> (payload: Data, method: CompressionMethod) {
     var payload = data
     var method: CompressionMethod = .none
@@ -150,6 +245,16 @@ actor ShardActor {
     return (payload, method)
   }
 
+  /// Restores a payload that was stored with `preparePayload`.
+  ///
+  /// If the shard is encrypted, the first byte contains the compression method.
+  /// The rest is AES-GCM authenticated data. After decryption, the compression
+  /// method byte is used to determine whether further decompression is needed.
+  ///
+  /// - Parameter record: A tuple of the stored payload and its on-disk
+  ///   compression method (which is `.none` for encrypted records).
+  /// - Returns: The original uncompressed, unencrypted data.
+  /// - Throws: `NyaruError.decryptionFailed` or `NyaruError.decompressionFailed`.
   private func restorePayload(_ record: (payload: Data, compression: CompressionMethod)) throws
     -> Data
   {
@@ -171,10 +276,12 @@ actor ShardActor {
 
   // MARK: - Lifecycle
 
+  /// Flushes the shard's dirty flag and live count to disk.
   func sync() throws {
     try file.sync()
   }
 
+  /// Syncs and closes the underlying file handle.
   func close() throws {
     try file.close()
   }

@@ -3,11 +3,25 @@ import Foundation
 
 // MARK: - Manifest I/O (single source of truth)
 
-// Every manifest read/write in the codebase MUST go through these two
-// functions. The previous bug class: openCore encrypted the manifest but
-// setIndexedFields rewrote it as plaintext JSON, so the next open tried to
-// AES-decrypt plain JSON and the collection became permanently unopenable.
+/// Provides safe, centralised read and write operations for collection
+/// manifests, ensuring encryption is always applied consistently.
+///
+/// **Why this exists.** A previous bug class occurred because `openCore`
+/// encrypted the manifest when writing it, but `setIndexedFields` rewrote
+/// it as plaintext JSON. On the next open, the engine tried to AES-decrypt
+/// plain JSON and the collection became permanently unopenable.
+///
+/// All manifest I/O in the codebase MUST go through `ManifestIO.read` and
+/// `ManifestIO.write` to guarantee that encryption (when configured) is
+/// applied in exactly one place.
 enum ManifestIO {
+  /// Reads and optionally decrypts a collection manifest from disk.
+  ///
+  /// - Parameters:
+  ///   - url: The file URL of the manifest (`manifest.json`).
+  ///   - encryptionKey: Optional AES-256-GCM key for decryption.
+  /// - Returns: The decoded `CollectionManifest`.
+  /// - Throws: `NyaruError.decryptionFailed` if decryption fails.
   static func read(at url: URL, encryptionKey: SymmetricKey?) throws -> CollectionManifest {
     let raw = try Data(contentsOf: url)
     let plaintext: Data
@@ -24,6 +38,13 @@ enum ManifestIO {
     return try JSONDecoder().decode(CollectionManifest.self, from: plaintext)
   }
 
+  /// Writes and optionally encrypts a collection manifest to disk.
+  ///
+  /// - Parameters:
+  ///   - manifest: The manifest to persist.
+  ///   - url: The destination file URL.
+  ///   - encryptionKey: Optional AES-256-GCM key for encryption.
+  /// - Throws: `NyaruError.encryptionFailed` if encryption fails.
   static func write(_ manifest: CollectionManifest, to url: URL, encryptionKey: SymmetricKey?)
     throws
   {
@@ -46,22 +67,41 @@ enum ManifestIO {
   }
 }
 
-/// Persisted per-collection configuration.
+/// Persisted per-collection configuration stored in `manifest.json` within
+/// the collection's directory.
+///
+/// The manifest is created once when the collection is first opened and is
+/// immutable thereafter — changing the base configuration would reinterpret
+/// the on-disk layout and corrupt data. Only `indexedFields` may evolve
+/// across opens.
 struct CollectionManifest: Codable, Equatable, Sendable {
+  /// File format version for forward-compatibility.
   var formatVersion: Int = 1
+  /// The human-readable collection name.
   var name: String
+  /// The document field used as the unique identifier.
   var idField: String
+  /// Optional field used to partition documents into shards.
   var partitionKey: String?
+  /// Additional fields with maintained indexes, sorted alphabetically.
   var indexedFields: [String]
+  /// The compression method applied to new records.
   var compression: CompressionMethod
+  /// File protection level for shard files.
   var fileProtection: FileProtection
+  /// Serialisation format (JSON or MsgPack).
   var format: SerializationFormat
+  /// Whether the collection uses encryption.
   var isEncrypted: Bool
+  /// Fragmentation threshold for compaction hints.
   var maxFragmentation: Double
 
-  /// True when everything except `indexedFields` matches. The base
-  /// configuration is frozen at creation (changing it would reinterpret
-  /// the on-disk layout); indexed fields may evolve between opens.
+  /// Checks whether the base (immutable) configuration matches another
+  /// manifest, ignoring differences in `indexedFields`.
+  ///
+  /// The base configuration — id field, partition key, compression,
+  /// protection, format, encryption — is frozen at collection creation.
+  /// Indexed fields may be added later.
   func sameBase(as other: CollectionManifest) -> Bool {
     formatVersion == other.formatVersion
       && name == other.name
@@ -74,17 +114,39 @@ struct CollectionManifest: Codable, Equatable, Sendable {
   }
 }
 
-/// Snapshot statistics for a collection.
+/// A snapshot of collection statistics returned by `NyaruCollection.stats()`.
 public struct CollectionStats: Sendable {
+  /// The collection name.
   public let name: String
+  /// The number of live (non-tombstoned) documents.
   public let documentCount: Int
+  /// The number of shard files on disk.
   public let shardCount: Int
+  /// The total on-disk size of all shard files, in bytes.
   public let sizeInBytes: UInt64
+  /// Index statistics mapping field name to entry count.
   public let indexes: [String: Int]
+  /// The ratio of dead (tombstoned) bytes to total file size.
   public let fragmentationRatio: Double
 }
 
-/// The type-erased engine behind one collection.
+/// The type-erased engine behind one collection. This actor owns the shard
+/// files, indexes, and manifest for a single collection.
+///
+/// `CollectionCore` is the workhorse of NyaruDB. It:
+/// - Routes documents to shards based on the partition key.
+/// - Maintains in-memory `OrderedIndex` instances for every indexed field.
+/// - Provides CRUD operations with index consistency.
+/// - Handles crash recovery by comparing dirty-flag state with index
+///   snapshot recency.
+/// - Supports partial updates (patch) with a validate-then-write protocol
+///   that prevents type-poisoned documents.
+/// - Provides parallel full-scan, partition-scoped scan, and index-based
+///   point/range lookups for the query engine.
+/// - Performs compaction to reclaim space from tombstoned records.
+///
+/// All file I/O is serialised through Swift actor concurrency, and index
+/// accesses are guarded by actor isolation.
 actor CollectionCore {
   private(set) var manifest: CollectionManifest
   private let directory: URL
@@ -95,6 +157,7 @@ actor CollectionCore {
   private var indexes: [String: OrderedIndex] = [:]
   private var isClosed = false
 
+  /// The configured document id field name.
   var idField: String { manifest.idField }
 
   private var manifestURL: URL { directory.appendingPathComponent("manifest.json") }
@@ -103,6 +166,8 @@ actor CollectionCore {
     directory.appendingPathComponent("indexes", isDirectory: true)
   }
 
+  /// Returns all fields that should have indexes: the explicit `indexedFields`
+  /// plus the always-indexed `idField`.
   private var allIndexedFields: [String] {
     var fields = manifest.indexedFields
     if !fields.contains(manifest.idField) { fields.append(manifest.idField) }
@@ -111,6 +176,20 @@ actor CollectionCore {
 
   // MARK: - Open
 
+  /// Opens or initialises a collection engine from its directory.
+  ///
+  /// On open, the engine:
+  /// 1. Discovers existing shard files.
+  /// 2. Checks the dirty flag on all shards.
+  /// 3. Attempts to load index snapshots from disk.
+  /// 4. If any shard was dirty OR index snapshots are missing/invalid,
+  ///    rebuilds all indexes by scanning every shard.
+  ///
+  /// - Parameters:
+  ///   - directory: The collection's directory URL.
+  ///   - manifest: The persisted manifest.
+  ///   - format: The serialisation format.
+  ///   - encryptionKey: Optional AES-256-GCM key.
   init(
     directory: URL, manifest: CollectionManifest, format: SerializationFormat,
     encryptionKey: SymmetricKey?
@@ -144,6 +223,10 @@ actor CollectionCore {
     }
   }
 
+  /// Loads index snapshots from disk for all indexed fields.
+  ///
+  /// - Returns: `true` if all snapshots were loaded successfully, `false` if
+  ///   any snapshot file is missing or corrupt.
   private func loadIndexSnapshots() throws -> Bool {
     var loaded: [String: OrderedIndex] = [:]
     let fm = FileManager.default
@@ -161,10 +244,17 @@ actor CollectionCore {
     return true
   }
 
+  /// Returns the file URL for the index snapshot of a given field.
   private func snapshotURL(for field: String) -> URL {
     indexesDirectory.appendingPathComponent("\(Self.sanitizeFileComponent(field)).idx")
   }
 
+  /// Rebuilds every index by scanning all live records in every shard.
+  ///
+  /// This is called when:
+  /// - A shard was dirty (crash recovery needed).
+  /// - Index snapshots are missing or failed to load.
+  /// - Indexed fields have been added since the last open.
   private func rebuildAllIndexes() async throws {
     var fresh: [String: OrderedIndex] = [:]
     for field in allIndexedFields { fresh[field] = OrderedIndex() }
@@ -184,6 +274,7 @@ actor CollectionCore {
     indexes = fresh
   }
 
+  /// Persists all index snapshots and flushes all shard headers to disk.
   func sync() async throws {
     try ensureOpen()
     for (field, index) in indexes {
@@ -194,6 +285,7 @@ actor CollectionCore {
     }
   }
 
+  /// Syncs and shuts down the core.
   func close() async throws {
     guard !isClosed else { return }
     try await sync()
@@ -209,6 +301,12 @@ actor CollectionCore {
 
   // MARK: - Shard routing
 
+  /// Sanitises a string for use as a filesystem component by percent-encoding
+  /// non-ASCII and special characters. Alphanumerics, underscores, and hyphens
+  /// are preserved as-is.
+  ///
+  /// - Parameter raw: The raw string (e.g. a collection or shard name).
+  /// - Returns: A filesystem-safe string.
   static func sanitizeFileComponent(_ raw: String) -> String {
     let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
     var out = ""
@@ -224,6 +322,17 @@ actor CollectionCore {
     return out.isEmpty ? "_" : out
   }
 
+  /// Determines the target shard ID for a document based on its partition key
+  /// value and the encryption configuration.
+  ///
+  /// When encryption is enabled, the shard ID is an HMAC-SHA256 of the
+  /// partition value to prevent leaking the partition distribution.
+  /// Otherwise, the partition value is sanitised for filesystem use.
+  ///
+  /// - Parameter dict: The parsed document dictionary.
+  /// - Returns: The shard ID string.
+  /// - Throws: `NyaruError.partitionKeyMissing` if the partition key is
+  ///   configured but absent from the document.
   private func shardID(forDocument dict: [String: Any]) throws -> String {
     guard let partitionKey = manifest.partitionKey else { return "default" }
     guard let value = FieldExtractor.value(in: dict, path: partitionKey) else {
@@ -239,6 +348,12 @@ actor CollectionCore {
     }
   }
 
+  /// Returns the `ShardActor` for a given shard ID, creating it lazily if
+  /// it has not been opened yet.
+  ///
+  /// - Parameter id: The shard ID.
+  /// - Returns: The shard actor.
+  /// - Throws: I/O errors from shard initialisation.
   private func shard(for id: String) throws -> ShardActor {
     if let existing = shards[id] { return existing }
 
@@ -255,6 +370,12 @@ actor CollectionCore {
     return shard
   }
 
+  /// Returns an existing shard actor for the given ID, throwing if the
+  /// shard is unknown (i.e. no shard file exists and no in-memory reference).
+  ///
+  /// - Parameter id: The shard ID.
+  /// - Returns: The shard actor.
+  /// - Throws: `NyaruError.corruptedRecord` if the shard is not found.
   private func existingShard(_ id: String) throws -> ShardActor {
     if let existing = shards[id] { return existing }
     if shardURLs[id] != nil {
@@ -265,6 +386,11 @@ actor CollectionCore {
 
   // MARK: - Field helpers
 
+  /// Extracts the document ID from a parsed dictionary.
+  ///
+  /// - Parameter dict: The parsed document.
+  /// - Returns: The document's id as a `FieldValue`.
+  /// - Throws: `NyaruError.idFieldMissing` if the id field is absent.
   private func extractID(from dict: [String: Any]) throws -> FieldValue {
     guard let id = FieldExtractor.value(in: dict, path: manifest.idField) else {
       throw NyaruError.idFieldMissing(field: manifest.idField)
@@ -272,20 +398,36 @@ actor CollectionCore {
     return id
   }
 
+  /// Returns all indexed field/key pairs extracted from a document.
+  ///
+  /// - Parameter dict: The parsed document dictionary.
+  /// - Returns: An array of `(field, key)` tuples for every indexed field
+  ///   present in the document.
   private func indexEntries(for dict: [String: Any]) -> [(field: String, key: FieldValue)] {
     allIndexedFields.compactMap { field in
       FieldExtractor.value(in: dict, path: field).map { (field, $0) }
     }
   }
 
-  // Reads a record through an index pointer and verifies that the document's
-  // id matches what the index claimed. A mismatch means the pointer is stale
-  // (e.g. the shard was compacted and offsets shifted): a stale offset can
-  // land on a DIFFERENT valid record whose CRC passes, so blindly returning
-  // it would be silent wrong-document corruption — and on the write paths,
-  // tombstoning through it would delete an innocent record. On mismatch the
-  // stale entry is evicted so the index self-heals, and the caller sees
-  // "not there". Costs one parse per pointer read; identity is worth it.
+  /// Reads a record through an index pointer and verifies that the document's
+  /// id matches what the index claimed.
+  ///
+  /// **Why verify?** A stale pointer (e.g. the shard was compacted and offsets
+  /// shifted) can land on a DIFFERENT valid record whose CRC passes. Blindly
+  /// returning it would be silent wrong-document corruption — and on write
+  /// paths, tombstoning through it would delete an innocent record. On
+  /// mismatch, the stale entry is evicted from the index (self-healing) so
+  /// the caller sees "not there".
+  ///
+  /// **Performance note:** This costs one `FieldExtractor.parse()` per pointer
+  /// read, which is cheap relative to the I/O of reading the shard data. The
+  /// correctness guarantee is worth the extra parse.
+  ///
+  /// - Parameters:
+  ///   - pointer: The index pointer to read through.
+  ///   - id: The expected document ID.
+  /// - Returns: The record data and parsed dictionary, or `nil` if the
+  ///   document was not found or the pointer was stale.
   private func verifiedRead(pointer: RecordPointer, expecting id: FieldValue) async throws
     -> (data: Data, dict: [String: Any])?
   {
@@ -294,7 +436,6 @@ actor CollectionCore {
     let dict = try FieldExtractor.parse(data, using: format)
     guard let actualID = FieldExtractor.value(in: dict, path: manifest.idField), actualID == id
     else {
-      // Zero COW e zero warnings.
       indexes[manifest.idField]?.remove(key: id, pointer: pointer)
       return nil
     }
@@ -303,6 +444,10 @@ actor CollectionCore {
 
   // MARK: - CRUD
 
+  /// Inserts a document after validating that its id is unique.
+  ///
+  /// - Parameter data: The encoded document data.
+  /// - Throws: `NyaruError.duplicateID` if the id already exists.
   func insert(data: Data) async throws {
     try ensureOpen()
     let dict = try FieldExtractor.parse(data, using: format)
@@ -313,9 +458,14 @@ actor CollectionCore {
     try await performInsert(data: data, dict: dict)
   }
 
-  /// Bulk insert: validates all ids first (against the index and against
-  /// duplicates inside the batch) before writing anything. Shard headers
-  /// are only synced once per `sync()`/`close()`, not per document.
+  /// Bulk-inserts documents with atomic validation.
+  ///
+  /// All ids are validated against the existing index AND against duplicates
+  /// within the batch before any data is written. If any conflict is found,
+  /// nothing is written.
+  ///
+  /// - Parameter datas: An array of encoded documents.
+  /// - Throws: `NyaruError.duplicateID` if any id conflicts.
   func insertMany(datas: [Data]) async throws {
     try ensureOpen()
     var parsed: [(data: Data, dict: [String: Any], id: FieldValue)] = []
@@ -334,6 +484,7 @@ actor CollectionCore {
     }
   }
 
+  /// Performs the actual insert: routes to a shard, writes, and updates indexes.
   private func performInsert(data: Data, dict: [String: Any]) async throws {
     let shardID = try shardID(forDocument: dict)
     let shard = try shard(for: shardID)
@@ -343,6 +494,10 @@ actor CollectionCore {
     }
   }
 
+  /// Point lookup by document id through the primary index.
+  ///
+  /// - Parameter id: The document id.
+  /// - Returns: The encoded document data, or `nil` if not found.
   func get(id: FieldValue) async throws -> Data? {
     try ensureOpen()
     guard let pointer = indexes[manifest.idField]?.search(id).first else { return nil }
@@ -358,10 +513,16 @@ actor CollectionCore {
     return data
   }
 
-  /// Point update by id. Handles all three layouts:
-  /// in-place (fits slot), same-shard relocation (doesn't fit), and
-  /// cross-shard relocation (partition value changed — the case that
-  /// corrupted data in the old engine).
+  /// Point update by id. Handles three layouts:
+  /// 1. **In-place** — new payload fits the existing slot capacity.
+  /// 2. **Same-shard relocation** — doesn't fit; tombstone + append in same shard.
+  /// 3. **Cross-shard relocation** — partition value changed; insert in new
+  ///    shard, delete from old.
+  ///
+  /// - Parameters:
+  ///   - data: The new encoded document.
+  ///   - upsert: If `true`, insert when the id is not found.
+  /// - Throws: `NyaruError.documentNotFound` if not found and `upsert` is false.
   func update(data: Data, upsert: Bool) async throws {
     try ensureOpen()
     let dict = try FieldExtractor.parse(data, using: format)
@@ -401,13 +562,24 @@ actor CollectionCore {
   }
 
   // MARK: - Partial Update (Patch)
-  // Two-phase by construction: the merged document is built and handed to
-  // `validate` BEFORE anything touches disk or indexes. The previous version
-  // validated in the facade after the write, so a type-poisoned document
-  // (e.g. patching "age" to a string) was already persisted when the error
-  // surfaced — every future read of that doc failed forever. The validator
-  // runs inside this single actor call, so validate-then-write is atomic
-  // with respect to every other collection operation.
+
+  /// Partially updates a document by applying top-level field changes.
+  ///
+  /// **Two-phase protocol.** The merged document is built and passed to the
+  /// `validate` closure BEFORE anything touches disk or indexes. The previous
+  /// version validated in the facade after the write, so a type-poisoned
+  /// document (e.g. patching "age" to a string) was already persisted when
+  /// the error surfaced — every future read of that doc failed forever.
+  /// Here, the validator runs inside this single actor call, so
+  /// validate-then-write is atomic with respect to every other operation.
+  ///
+  /// - Parameters:
+  ///   - id: The document id.
+  ///   - changes: A dictionary of top-level field changes.
+  ///   - validate: A closure that validates the merged data before writing.
+  /// - Returns: The new encoded document data.
+  /// - Throws: `NyaruError.documentNotFound` if not found,
+  ///   `NyaruError.unsupportedOperation` for id changes or nested paths.
   func patch(
     id: FieldValue,
     changes: [String: FieldValue],
@@ -465,6 +637,11 @@ actor CollectionCore {
     return newData
   }
 
+  /// Deletes a document by id, removing it from indexes and tombstoning
+  /// it in its shard.
+  ///
+  /// - Parameter id: The document id.
+  /// - Returns: `true` if a document was found and deleted.
   @discardableResult
   func delete(id: FieldValue) async throws -> Bool {
     try ensureOpen()
@@ -484,6 +661,8 @@ actor CollectionCore {
     return true
   }
 
+  /// Removes a pointer from every index. Used when a record disappears
+  /// (corrupt, stale pointer, or phantom).
   private func removeFromAllIndexes(pointer: RecordPointer) {
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
@@ -493,12 +672,18 @@ actor CollectionCore {
     }
   }
 
+  /// Returns the total number of live documents (from the primary index).
   func count() -> Int {
     indexes[manifest.idField]?.entryCount ?? 0
   }
 
   // MARK: - Index evolution
 
+  /// Adds or removes indexed fields, rebuilding indexes for new fields by
+  /// scanning all shards.
+  ///
+  /// - Parameter fields: The new set of indexed fields.
+  /// - Throws: I/O errors from manifest writes.
   func setIndexedFields(_ fields: [String]) async throws {
     try ensureOpen()
     let sorted = Array(Set(fields)).sorted()
@@ -538,7 +723,8 @@ actor CollectionCore {
 
   // MARK: - Reads for queries / scans
 
-  /// Full scan of all shards (parallel across shards).
+  /// Performs a full scan of all shards in parallel, returning every live
+  /// document's encoded data.
   func scanAll() async throws -> [Data] {
     try ensureOpen()
     for shardID in shardURLs.keys {
@@ -562,7 +748,10 @@ actor CollectionCore {
     }
   }
 
-  /// Restricts a full scan to a single partition when possible.
+  /// Scans a single partition shard identified by the partition key value.
+  ///
+  /// - Parameter value: The partition key value.
+  /// - Returns: All live document data from the matching shard.
   func scanPartition(value: FieldValue) async throws -> [Data] {
     try ensureOpen()
     let rawID = value.description
@@ -581,15 +770,22 @@ actor CollectionCore {
     }
     return out
   }
-  // Pull-driven streaming support. The consumer's iterator asks for one
-  // batch at a time, so at most one batch is in flight — real backpressure.
-  // The previous AsyncThrowingStream had an unbounded buffer: a fast producer
-  // behind a slow consumer materialized the whole collection in memory,
-  // defeating the point of streaming.
+
+  /// Returns all known shard IDs, sorted.
+  ///
+  /// Used by the pull-based streaming iterator to discover shards.
   func shardIDList() -> [String] {
     shardURLs.keys.sorted()
   }
 
+  /// Reads a batch of records from a shard, starting at the given position.
+  ///
+  /// - Parameters:
+  ///   - shardID: The shard to read from.
+  ///   - pos: The byte position to resume from, or `nil` to start at the
+  ///     beginning.
+  ///   - maxCount: Maximum number of records to return.
+  /// - Returns: A tuple of encoded data items and the next position cursor.
   func readBatch(shardID: String, from pos: UInt64?, maxCount: Int) async throws
     -> (items: [Data], nextPos: UInt64?)
   {
@@ -600,14 +796,17 @@ actor CollectionCore {
     return (batch.items.map(\.data), batch.nextPos)
   }
 
+  /// Returns whether the given field has an active in-memory index.
   func isIndexed(field: String) -> Bool {
     indexes[field] != nil
   }
 
+  /// Searches an index for all pointers matching the given key.
   func indexSearch(field: String, key: FieldValue) -> [RecordPointer] {
     indexes[field]?.search(key) ?? []
   }
 
+  /// Performs a range lookup on an indexed field.
   func indexRange(
     field: String,
     lower: FieldValue?, lowerInclusive: Bool,
@@ -619,6 +818,7 @@ actor CollectionCore {
     ) ?? []
   }
 
+  /// Fetches the encoded data for a list of pointers.
   func fetch(pointers: [RecordPointer]) async throws -> [Data] {
     try ensureOpen()
     var out: [Data] = []
@@ -642,10 +842,16 @@ actor CollectionCore {
   }
 
   // MARK: - Maintenance
-  /// Rewrites every shard without tombstones/padding waste, then rebuilds
-  /// indexes. This is the manual replacement for the old engine's
-  /// 60-second background auto-merge task (removed by design: background
-  /// timers in a mobile embedded DB burn battery and raced with writes).
+
+  /// Rewrites every shard without tombstones (or padding waste), then
+  /// rebuilds all indexes.
+  ///
+  /// This is the manual replacement for the old engine's 60-second background
+  /// auto-merge task, which was removed by design: background timers in a
+  /// mobile embedded database burn battery and raced with concurrent writes.
+  ///
+  /// Shards are compacted concurrently (up to 3 at a time) to minimise
+  /// latency on multi-shard collections.
   func compact() async throws {
     try ensureOpen()
     let allShardIDs = Array(shardURLs.keys)
@@ -677,6 +883,7 @@ actor CollectionCore {
     try await sync()
   }
 
+  /// Returns a snapshot of collection statistics.
   func stats() async -> CollectionStats {
     var size: UInt64 = 0
     var totalDeadBytes: UInt64 = 0
@@ -710,8 +917,9 @@ actor CollectionCore {
     )
   }
 
-  /// Deletes the whole collection directory. The core must not be used
-  /// afterwards.
+  /// Deletes the entire collection directory from disk.
+  ///
+  /// The core must not be used after this is called.
   func destroy() async throws {
     for shard in shards.values {
       try? await shard.close()
@@ -723,6 +931,7 @@ actor CollectionCore {
     try FileManager.default.removeItem(at: directory)
   }
 
+  /// Checks whether any shard exceeds the fragmentation threshold.
   func checkNeedsCompaction() async -> Bool {
     for shard in shards.values {
       if await shard.needsCompaction {
