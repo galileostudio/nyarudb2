@@ -243,33 +243,42 @@ final class SlottedFile {
   /// - Throws: `NyaruError.corruptedRecord` if a record header is invalid
   ///   or a payload is truncated. Re-throws errors from the block.
   func forEachLive(_ block: (LiveRecord) throws -> Void) throws {
-    var pos = SlottedFile.fileHeaderSize
-    while pos + SlottedFile.recordHeaderSize <= fileSize {
-      try handle.seek(toOffset: pos)
-      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
-        head.count == Int(SlottedFile.recordHeaderSize),
-        let capacity = Binary.readUInt32(head, at: 0),
-        let payloadLength = Binary.readUInt32(head, at: 4),
+    guard fileSize > SlottedFile.fileHeaderSize else { return }
+    let dataSize = Int(fileSize - SlottedFile.fileHeaderSize)
+
+    // Read the entire data region in one syscall, then parse records from the
+    // in-memory buffer. This replaces 2+ syscalls (seek + read) per record with
+    // a single seek + single bulk read for the whole shard.
+    try handle.seek(toOffset: SlottedFile.fileHeaderSize)
+    guard let fileData = try handle.read(upToCount: dataSize), !fileData.isEmpty else { return }
+
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    var relPos = 0
+
+    while relPos + headerSize <= fileData.count {
+      guard let capacity = Binary.readUInt32(fileData, at: relPos),
+        let payloadLength = Binary.readUInt32(fileData, at: relPos + 4),
+        capacity > 0,
+        capacity <= SlottedFile.maxRecordSize,
         payloadLength <= capacity,
-        pos + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
+        relPos + headerSize + Int(capacity) <= fileData.count
       else { break }
 
-      let flags = head[head.startIndex + 8]
+      let flags = fileData[fileData.startIndex + relPos + 8]
       if flags & RecordFlags.tombstone == 0 {
-        guard let payload = try handle.read(upToCount: Int(payloadLength)),
-          payload.count == Int(payloadLength)
-        else {
-          throw NyaruError.corruptedRecord(offset: pos, reason: "short payload")
-        }
+        let payloadStart = relPos + headerSize
+        let payloadEnd = payloadStart + Int(payloadLength)
+        guard payloadEnd <= fileData.count else { break }
+        let payload = fileData[fileData.startIndex + payloadStart..<fileData.startIndex + payloadEnd]
         try block(
           LiveRecord(
-            offset: pos,
-            payload: payload,
+            offset: SlottedFile.fileHeaderSize + UInt64(relPos),
+            payload: Data(payload),
             compression: CompressionMethod(recordFlags: flags)
           )
         )
       }
-      pos += SlottedFile.recordHeaderSize + UInt64(capacity)
+      relPos += headerSize + Int(capacity)
     }
   }
 

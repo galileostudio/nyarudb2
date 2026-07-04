@@ -31,15 +31,26 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   /// The posting lists parallel to `keys`: `postings[i]` contains all pointers
   /// whose document has the value `keys[i]` for the indexed field.
   @usableFromInline internal private(set) var postings: [[RecordPointer]] = []
+  /// Cached total entry count to avoid O(unique-key-count) reduction on every call.
+  private var _entryCount: Int = 0
 
   /// The total number of index entries (sum of all posting-list lengths).
-  public var entryCount: Int { postings.reduce(0) { $0 + $1.count } }
+  public var entryCount: Int { _entryCount }
   /// The number of unique keys in the index.
   public var uniqueKeyCount: Int { keys.count }
   /// Whether the index contains no keys.
   public var isEmpty: Bool { keys.isEmpty }
 
   public init() {}
+
+  private enum CodingKeys: String, CodingKey { case keys, postings }
+
+  public required init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    keys = try container.decode([FieldValue].self, forKey: .keys)
+    postings = try container.decode([[RecordPointer]].self, forKey: .postings)
+    _entryCount = postings.reduce(0) { $0 + $1.count }
+  }
 
   // MARK: - Search
 
@@ -123,6 +134,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
       keys.insert(key, at: pos)
       postings.insert([pointer], at: pos)
     }
+    _entryCount += 1
   }
 
   /// Efficiently loads a batch of index entries in O(n + m) time.
@@ -217,6 +229,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
     self.keys = newKeys
     self.postings = newPostings
+    self._entryCount = newPostings.reduce(0) { $0 + $1.count }
   }
 
   /// Removes a specific pointer from the posting list for the given key.
@@ -231,6 +244,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
     if let i = postings[pos].firstIndex(of: pointer) {
       postings[pos].remove(at: i)
+      _entryCount -= 1
       if postings[pos].isEmpty {
         keys.remove(at: pos)
         postings.remove(at: pos)
@@ -255,8 +269,12 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     guard pos < keys.count, keys[pos] == key else { return false }
     guard let i = postings[pos].firstIndex(of: old) else { return false }
 
+    if old == new { return true }
+
     if postings[pos].contains(new) {
+      // `new` is already present (phantom duplicate): remove `old`, no net count change.
       postings[pos].remove(at: i)
+      _entryCount -= 1
     } else {
       postings[pos][i] = new
     }

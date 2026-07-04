@@ -38,6 +38,9 @@ actor ShardActor {
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }
 
+  /// Whether the shard file was dirty on open and crash recovery was performed.
+  var recoveredFromDirty: Bool { file.recoveredFromDirty }
+
   /// The number of live (non-tombstoned) records in the shard.
   @inlinable var liveCount: Int { Int(file.liveCount) }
   /// The number of tombstoned (deleted) records available for slot reuse.

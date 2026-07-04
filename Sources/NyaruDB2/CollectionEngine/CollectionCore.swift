@@ -256,20 +256,47 @@ actor CollectionCore {
   /// - Index snapshots are missing or failed to load.
   /// - Indexed fields have been added since the last open.
   private func rebuildAllIndexes() async throws {
-    var fresh: [String: OrderedIndex] = [:]
-    for field in allIndexedFields { fresh[field] = OrderedIndex() }
+    // All shards are already open (opened in init or by prior ops); snapshot them
+    // into a plain array so the task closures can capture them without actor hops.
+    for shardID in shardURLs.keys { _ = try shard(for: shardID) }
+    let allShards = Array(shards)
+    let capturedFormat = format
+    let capturedFields = allIndexedFields
 
-    for shardID in shardURLs.keys {
-      let shard = try shard(for: shardID)
-      try await shard.forEachLive { offset, data in
-        let pointer = RecordPointer(shardID: shardID, offset: offset)
-        guard let dict = try? FieldExtractor.parse(data, using: format) else { return }
-        for field in allIndexedFields {
-          if let key = FieldExtractor.value(in: dict, path: field) {
-            fresh[field]?.insert(key: key, pointer: pointer)
+    // Scan all shards in parallel — each ShardActor is independent.
+    typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
+    let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
+      for (shardID, shard) in allShards {
+        group.addTask {
+          var entries: [Entry] = []
+          try await shard.forEachLive { offset, data in
+            let pointer = RecordPointer(shardID: shardID, offset: offset)
+            guard let dict = try? FieldExtractor.parse(data, using: capturedFormat) else { return }
+            for field in capturedFields {
+              if let key = FieldExtractor.value(in: dict, path: field) {
+                entries.append((field: field, key: key, pointer: pointer))
+              }
+            }
           }
+          return entries
         }
       }
+      var all: [Entry] = []
+      for try await chunk in group { all.append(contentsOf: chunk) }
+      return all
+    }
+
+    // Group entries by field and bulk-load into fresh indexes (O(N log N), no O(N²) shifting).
+    var byField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+    for field in capturedFields { byField[field] = [] }
+    for entry in allEntries {
+      byField[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
+    }
+    var fresh: [String: OrderedIndex] = [:]
+    for (field, entries) in byField {
+      let idx = OrderedIndex()
+      idx.bulkLoad(entries)
+      fresh[field] = idx
     }
     indexes = fresh
   }
@@ -889,6 +916,12 @@ actor CollectionCore {
   /// Returns whether the given field has an active in-memory index.
   func isIndexed(field: String) -> Bool {
     indexes[field] != nil
+  }
+
+  /// Returns the subset of `fields` that have active in-memory indexes.
+  /// Single actor hop for bulk index-existence checks in the query planner.
+  func indexedFieldSet(of fields: Set<String>) -> Set<String> {
+    Set(fields.filter { indexes[$0] != nil })
   }
 
   /// Searches an index for all pointers matching the given key.

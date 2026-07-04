@@ -434,44 +434,63 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///    a single shard file instead of all shards.
   /// 5. **Full scan** — reads every shard. Used when no index or partition
   ///    pruning applies. All predicates are evaluated in memory.
-  private func plan() async -> (QueryStrategy, pushedDown: Int) {
+  // planResult carries a cached partitionValue so candidates() doesn't re-scan predicates.
+  private struct PlanResult {
+    let strategy: QueryStrategy
+    let pushedDown: Int
+    let cachedPartitionValue: FieldValue?
+  }
+
+  private func plan() async -> PlanResult {
     var topLevelPredicates: [Predicate] = []
     if case .and(let arr) = rootPredicate {
       topLevelPredicates = arr
     } else {
       topLevelPredicates = [rootPredicate]
     }
+    guard !topLevelPredicates.isEmpty else {
+      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
+    }
+
+    // Single actor hop: gather all indexed fields at once instead of one hop per predicate.
+    let allFields = Set(topLevelPredicates.compactMap { $0.field })
+    let indexed = await core.indexedFieldSet(of: allFields)
+
+    // Single pass through predicates to find the best strategy at each priority level.
+    var bestEquality: String?
+    var bestInSet: String?
+    var bestRange: String?
+    var partitionValue: FieldValue?
 
     for predicate in topLevelPredicates {
-      if case .equal(let field, _) = predicate, await core.isIndexed(field: field) {
-        return (.indexLookup(field: field), 1)
-      }
-    }
-    for predicate in topLevelPredicates {
-      if case .inSet(let field, _) = predicate, await core.isIndexed(field: field) {
-        return (.indexLookup(field: field), 1)
-      }
-    }
-    for predicate in topLevelPredicates {
       switch predicate {
+      case .equal(let field, let value):
+        if bestEquality == nil && indexed.contains(field) { bestEquality = field }
+        if partitionValue == nil, field == partitionKey { partitionValue = value.fieldValue }
+      case .inSet(let field, _):
+        if bestInSet == nil && indexed.contains(field) { bestInSet = field }
       case .between(let field, _, _),
         .lessThan(let field, _), .lessThanOrEqual(let field, _),
         .greaterThan(let field, _), .greaterThanOrEqual(let field, _):
-        if await core.isIndexed(field: field) {
-          return (.indexLookup(field: field), 1)
-        }
+        if bestRange == nil && indexed.contains(field) { bestRange = field }
       default:
         break
       }
     }
-    if let partitionKey {
-      for predicate in topLevelPredicates {
-        if case .equal(let field, let value) = predicate, field == partitionKey {
-          return (.partitionScan(value: value.fieldValue.description), 0)
-        }
-      }
+
+    if let field = bestEquality {
+      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
     }
-    return (.fullScan, 0)
+    if let field = bestInSet {
+      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
+    }
+    if let field = bestRange {
+      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
+    }
+    if let pv = partitionValue {
+      return PlanResult(strategy: .partitionScan(value: pv.description), pushedDown: 0, cachedPartitionValue: pv)
+    }
+    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
   }
 
   /// Returns the query execution plan without running the query.
@@ -483,8 +502,10 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///
   /// - Returns: A `QueryPlan` describing the strategy and residual predicates.
   public func explain() async -> QueryPlan {
-    let (strategy, pushed) = await plan()
-    return QueryPlan(strategy: strategy, residualPredicates: topLevelPredicateCount() - pushed)
+    let result = await plan()
+    return QueryPlan(
+      strategy: result.strategy,
+      residualPredicates: topLevelPredicateCount() - result.pushedDown)
   }
 
   private func topLevelPredicateCount() -> Int {
@@ -496,8 +517,8 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   /// Fetches candidate documents from the most efficient access path.
   private func candidates() async throws -> ([Data], Bool) {
-    let (strategy, _) = await plan()
-    switch strategy {
+    let planResult = await plan()
+    switch planResult.strategy {
     case .indexLookup(let field):
       var pointers = await pointers(forIndexedField: field)
 
@@ -510,28 +531,18 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         pointers = Array(pointers[start..<end])
       }
 
-      // PHASE 0.2: Batch fetch per shard
       let data = try await core.fetch(pointers: pointers)
       return (data, canPushdown)
 
     case .partitionScan:
-      if let partitionKey {
-        var topLevelPredicates: [Predicate] = []
-        if case .and(let arr) = rootPredicate {
-          topLevelPredicates = arr
-        } else {
-          topLevelPredicates = [rootPredicate]
-        }
-
-        for predicate in topLevelPredicates {
-          if case .equal(let f, let v) = predicate, f == partitionKey {
-            let data = try await core.scanPartition(value: v.fieldValue)
-            return (data, false)
-          }
-        }
+      // Use the cached partition value from the plan instead of re-scanning predicates.
+      if let pv = planResult.cachedPartitionValue {
+        let data = try await core.scanPartition(value: pv)
+        return (data, false)
       }
       let data = try await core.scanAll()
       return (data, false)
+
     case .fullScan:
       let data = try await core.scanAll()
       return (data, false)
