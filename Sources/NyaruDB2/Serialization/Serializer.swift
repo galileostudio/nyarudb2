@@ -38,13 +38,18 @@ enum Serializer {
   ///   - format: The target serialization format (`.json` or `.msgpack`).
   /// - Returns: The encoded data.
   /// - Throws: Encoding errors from the underlying encoder.
+
+  private static let jsonEncoder = JSONEncoder()
+  private static let jsonDecoder = JSONDecoder()
+  private static let msgPackEncoder = MsgPackEncoder()
+  private static let msgPackDecoder = MsgPackDecoder()
   @inlinable
   static func encode<T: Encodable>(_ value: T, format: SerializationFormat) throws -> Data {
     switch format {
     case .json:
-      return try JSONEncoder().encode(value)
+      return try jsonEncoder.encode(value)
     case .msgpack:
-      return try MsgPackEncoder().encode(value)
+      return try msgPackEncoder.encode(value)
     }
   }
 
@@ -62,9 +67,9 @@ enum Serializer {
   {
     switch format {
     case .json:
-      return try JSONDecoder().decode(type, from: data)
+      return try jsonDecoder.decode(type, from: data)
     case .msgpack:
-      return try MsgPackDecoder().decode(type, from: data)
+      return try msgPackDecoder.decode(type, from: data)
     }
   }
 
@@ -84,12 +89,63 @@ enum Serializer {
   static func unpack(_ data: Data, format: SerializationFormat) throws -> Any {
     switch format {
     case .json:
-      let anyDecodable = try JSONDecoder().decode(AnyDecodable.self, from: data)
-      return anyDecodable.value
+      // OTIMIZAÇÃO MASSIVA: JSONSerialization (C-level) é infinitamente mais rápido
+      // que JSONDecoder + AnyDecodable para extrair dicionários crus.
+      return try JSONSerialization.jsonObject(with: data, options: [])
     case .msgpack:
-      let anyDecodable = try MsgPackDecoder().decode(AnyDecodable.self, from: data)
-      return anyDecodable.value
+      return try MsgPackExtractor.extractDictionary(from: data)
     }
+  }
+
+  /// Extracts a single field value without building the full document dictionary.
+  static func fieldValue(in data: Data, path: String, format: SerializationFormat) -> FieldValue? {
+    switch format {
+    case .json:
+
+      guard let dict = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+      else {
+        return nil
+      }
+      return FieldExtractor.value(in: dict, path: path)
+    case .msgpack:
+      return MsgPackExtractor.fieldValue(in: data, path: path)
+    }
+  }
+
+  public struct DocumentMetadata {
+    public let id: FieldValue
+    public let partitionValue: FieldValue?
+    public let indexEntries: [(field: String, key: FieldValue)]
+  }
+
+  /// ROADMAP BONUS: Extracts only the fields needed for indexing, avoiding full dictionary allocation.
+  static func extractMetadata(
+    from data: Data, idField: String, partitionKey: String?, indexedFields: [String],
+    format: SerializationFormat
+  ) throws -> DocumentMetadata {
+    let dict: [String: Any]
+    switch format {
+    case .json:
+      dict = (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]) ?? [:]
+    case .msgpack:
+      dict = try MsgPackExtractor.extractDictionary(from: data)
+    }
+
+    guard let id = FieldExtractor.value(in: dict, path: idField) else {
+      throw NyaruError.idFieldMissing(field: idField)
+    }
+
+    let partitionValue = partitionKey.flatMap { FieldExtractor.value(in: dict, path: $0) }
+
+    var entries: [(field: String, key: FieldValue)] = []
+    entries.reserveCapacity(indexedFields.count + 1)
+    for field in indexedFields {
+      if let key = FieldExtractor.value(in: dict, path: field) {
+        entries.append((field, key))
+      }
+    }
+
+    return DocumentMetadata(id: id, partitionValue: partitionValue, indexEntries: entries)
   }
 }
 

@@ -471,6 +471,77 @@ final class SlottedFile {
     try handle.write(contentsOf: record)
   }
 
+  /// Appends multiple records in a single I/O operation.
+  ///
+  /// This is an optimization for batch inserts that writes all records in one
+  /// contiguous block at the end of the file. Unlike `append(payload:compression:)`,
+  /// this method skips free-slot reuse and always writes sequentially to EOF,
+  /// which is faster for bulk operations.
+  ///
+  /// The total buffer size is pre-calculated and allocated once, minimizing
+  /// memory allocations and system calls. A single `seek` and `write` operation
+  /// writes all records to disk.
+  ///
+  /// - Parameter payloads: An array of tuples containing the payload `Data` and
+  ///   its associated `CompressionMethod` for each record.
+  /// - Returns: An array of `UInt64` offsets where each record was written.
+  /// - Throws: `NyaruError.ioError` if the write operation fails, or
+  ///   `NyaruError.compressionFailed` if compression fails during header writing.
+  ///
+  /// - Note: This method marks the file as dirty before writing, so crash
+  ///   recovery will handle any incomplete operations.
+  ///
+  /// - Warning: This method does NOT reuse tombstoned slots. For single
+  ///   record insertions or when space reuse is desired, use `append(payload:compression:)`
+  ///   instead.
+  func appendBatch(payloads: [(data: Data, compression: CompressionMethod)]) throws -> [UInt64] {
+    try markDirtyIfNeeded()
+    if payloads.isEmpty { return [] }
+
+    // Calculate total buffer size to allocate everything at once in memory
+    var totalBufferSize = 0
+    var capacities = [UInt32]()
+    for (payload, _) in payloads {
+      let capacity = SlottedFile.roundUpCapacity(UInt32(payload.count))
+      capacities.append(capacity)
+      totalBufferSize += Int(SlottedFile.recordHeaderSize) + Int(capacity)
+    }
+
+    var buffer = Data(capacity: totalBufferSize)
+    var offsets = [UInt64]()
+    var currentOffset = fileSize
+
+    for (i, payloadInfo) in payloads.enumerated() {
+      let payload = payloadInfo.data
+      let capacity = capacities[i]
+
+      offsets.append(currentOffset)
+
+      // Build the header
+      Binary.append(capacity, to: &buffer)
+      Binary.append(UInt32(payload.count), to: &buffer)
+      buffer.append(payloadInfo.compression.flagBit)
+      buffer.append(Self.reservedBytes)
+      Binary.append(Compressor.crc32Checksum(payload), to: &buffer)
+
+      // Add payload and padding
+      buffer.append(payload)
+      let padding = Int(capacity) - payload.count
+      if padding > 0 { buffer.append(Data(count: padding)) }
+
+      currentOffset += SlottedFile.recordHeaderSize + UInt64(capacity)
+    }
+
+    // ONE seek and ONE write for all records
+    try handle.seek(toOffset: fileSize)
+    try handle.write(contentsOf: buffer)
+
+    fileSize = currentOffset
+    liveCount += UInt32(payloads.count)
+
+    return offsets
+  }
+
   /// Reads the record at the given offset and returns it as a `LiveRecord`.
   ///
   /// The returned payload is still compressed — decompression is the
@@ -590,69 +661,6 @@ final class SlottedFile {
 
   /// Returns the current file size in bytes.
   func sizeInBytes() -> UInt64 { fileSize }
-
-  /// A raw record representation used for zero-copy compaction, containing
-  /// the payload without decryption or decompression.
-  struct RawRecord {
-    let offset: UInt64
-    let payload: Data
-    let compression: CompressionMethod
-  }
-
-  /// Reads the raw payload without decompression or decryption.
-  ///
-  /// Used during compaction to copy records between files without
-  /// unnecessary crypto work.
-  ///
-  /// - Parameter offset: Byte offset of the record.
-  /// - Returns: A `RawRecord`, or `nil` if the header is invalid.
-  func readRaw(at offset: UInt64) throws -> RawRecord? {
-    try handle.seek(toOffset: offset)
-    guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
-      head.count == Int(SlottedFile.recordHeaderSize),
-      let capacity = Binary.readUInt32(head, at: 0),
-      capacity > 0,
-      let payloadLength = Binary.readUInt32(head, at: 4),
-      payloadLength <= capacity
-    else {
-      return nil
-    }
-    let flags = head[head.startIndex + 8]
-    let payload = try handle.read(upToCount: Int(payloadLength)) ?? Data()
-    return RawRecord(
-      offset: offset, payload: payload, compression: CompressionMethod(recordFlags: flags))
-  }
-
-  /// Appends a raw payload directly to the file, bypassing compression or
-  /// encryption.
-  ///
-  /// Used during compaction to copy records from the old file to the new
-  /// file without modifying the stored format.
-  ///
-  /// - Parameters:
-  ///   - payload: The raw payload (already compressed/encrypted as stored).
-  ///   - compression: The compression method recorded in the original header.
-  /// - Returns: The byte offset of the new record header.
-  func appendRaw(payload: Data, compression: CompressionMethod) throws -> UInt64 {
-    try markDirtyIfNeeded()
-    let length = UInt32(payload.count)
-
-    if let index = bestFitFreeSlot(for: length) {
-      let slot = freeSlots.remove(at: index)
-      try writeRecord(
-        at: slot.offset, capacity: slot.capacity, payload: payload, compression: compression)
-      liveCount += 1
-      return slot.offset
-    }
-
-    let capacity = SlottedFile.roundUpCapacity(length)
-    let offset = fileSize
-    try writeRecord(
-      at: offset, capacity: capacity, payload: payload, compression: compression, pad: true)
-    fileSize = offset + SlottedFile.recordHeaderSize + UInt64(capacity)
-    liveCount += 1
-    return offset
-  }
 
   /// Reads the dirty flag from the file header without opening a persistent
   /// `FileHandle`. Used during lazy open to check if crash recovery is needed

@@ -125,6 +125,100 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     }
   }
 
+  /// Efficiently loads a batch of index entries in O(n + m) time.
+  ///
+  /// This method performs a bulk insertion of multiple index entries without
+  /// causing O(n²) array-shifting overhead. It uses a single-pass merge algorithm
+  /// that combines existing keys with new entries in one operation.
+  ///
+  /// The algorithm works as follows:
+  ///   1. Sorts incoming entries by key (O(m log m))
+  ///   2. Allocates new arrays with pre-calculated capacity (O(1) amortized)
+  ///   3. Merges existing and new entries in a single pass (O(n + m))
+  ///   4. Groups multiple pointers for duplicate keys
+  ///
+  /// - Parameter entries: An array of `(key: FieldValue, pointer: RecordPointer)`
+  ///   tuples representing the new entries to load.
+  ///
+  /// - Complexity: O(n + m log m) where n is the existing entry count and
+  ///   m is the number of new entries.
+  ///
+  /// - Note: This method replaces the entire internal storage with newly
+  ///   allocated arrays, which is acceptable for batch operations where the
+  ///   index is being rebuilt. For incremental inserts, prefer `insert(key:pointer:)`.
+  ///
+  /// - SeeAlso: `insert(key:pointer:)` for single-entry insertion,
+  ///   `rebuildAllIndexes()` for rebuilding indexes from scratch.
+
+  public func bulkLoad(_ entries: [(key: FieldValue, pointer: RecordPointer)]) {
+    if entries.isEmpty { return }
+    // Sort incoming entries
+    let sortedEntries = entries.sorted { $0.key < $1.key }
+
+    var newKeys: [FieldValue] = []
+    var newPostings: [[RecordPointer]] = []
+    // Pre-allocate to avoid array growth overhead
+    newKeys.reserveCapacity(keys.count + sortedEntries.count)
+    newPostings.reserveCapacity(postings.count + sortedEntries.count)
+
+    var i = 0  // existing index
+    var j = 0  // new entries
+
+    // Single-pass merge
+    while i < keys.count && j < sortedEntries.count {
+      let existingKey = keys[i]
+      let newKey = sortedEntries[j].key
+
+      if newKey < existingKey {
+        // Insert all pointers for this new key
+        var group: [RecordPointer] = []
+        while j < sortedEntries.count && sortedEntries[j].key == newKey {
+          group.append(sortedEntries[j].pointer)
+          j += 1
+        }
+        newKeys.append(newKey)
+        newPostings.append(group)
+      } else if existingKey < newKey {
+        // Keep existing
+        newKeys.append(keys[i])
+        newPostings.append(postings[i])
+        i += 1
+      } else {
+        // Merge: add new pointers to existing key
+        var group = postings[i]
+        while j < sortedEntries.count && sortedEntries[j].key == newKey {
+          group.append(sortedEntries[j].pointer)
+          j += 1
+        }
+        newKeys.append(keys[i])
+        newPostings.append(group)
+        i += 1
+      }
+    }
+
+    // Append remaining existing
+    while i < keys.count {
+      newKeys.append(keys[i])
+      newPostings.append(postings[i])
+      i += 1
+    }
+
+    // Append remaining new
+    while j < sortedEntries.count {
+      let newKey = sortedEntries[j].key
+      var group: [RecordPointer] = []
+      while j < sortedEntries.count && sortedEntries[j].key == newKey {
+        group.append(sortedEntries[j].pointer)
+        j += 1
+      }
+      newKeys.append(newKey)
+      newPostings.append(group)
+    }
+
+    self.keys = newKeys
+    self.postings = newPostings
+  }
+
   /// Removes a specific pointer from the posting list for the given key.
   /// If the posting list becomes empty, the key entry is removed entirely.
   ///

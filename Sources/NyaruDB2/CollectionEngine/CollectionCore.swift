@@ -458,29 +458,86 @@ actor CollectionCore {
     try await performInsert(data: data, dict: dict)
   }
 
-  /// Bulk-inserts documents with atomic validation.
+  /// Performs a bulk insert of multiple documents with optimized index loading.
   ///
-  /// All ids are validated against the existing index AND against duplicates
-  /// within the batch before any data is written. If any conflict is found,
-  /// nothing is written.
+  /// This method optimizes batch inserts by:
+  ///   1. Validating all documents before touching disk (all-or-nothing)
+  ///   2. Grouping documents by shard for minimal I/O
+  ///   3. Writing each shard's batch in a single disk operation
+  ///   4. Collecting index entries during the write phase
+  ///   5. Loading all indexes in bulk using an O(N log N) merge algorithm
   ///
-  /// - Parameter datas: An array of encoded documents.
-  /// - Throws: `NyaruError.duplicateID` if any id conflicts.
+  /// The index loading is the key optimization: instead of inserting entries
+  /// one by one (O(N²) due to array shifting), entries are collected and
+  /// loaded in bulk using `OrderedIndex.bulkLoad(_:)`.
+  ///
+  /// - Parameter datas: An array of serialized document `Data` payloads.
+  /// - Throws: `NyaruError.duplicateID` if any document ID conflicts with an
+  ///   existing document or appears multiple times in the batch.
+  ///   `NyaruError.partitionKeyMissing` if the partition key is missing in a
+  ///   document when partitioning is configured.
+  ///
+  /// - Complexity: O(N log N) for sorting entries during bulk load, where N
+  ///   is the total number of documents being inserted.
+  ///
+  /// - Note: The entire batch is treated as an atomic operation: if any
+  ///   validation fails, no documents are written to disk.
+  ///
+  /// - SeeAlso: `insert(data:)` for single-document insertion,
+  ///   `OrderedIndex.bulkLoad(_:)` for the index loading implementation.
   func insertMany(datas: [Data]) async throws {
     try ensureOpen()
-    var parsed: [(data: Data, dict: [String: Any], id: FieldValue)] = []
-    parsed.reserveCapacity(datas.count)
     var seen = Set<FieldValue>()
+    var groupedByShard: [String: [(data: Data, metadata: Serializer.DocumentMetadata)]] = [:]
+
     for data in datas {
-      let dict = try FieldExtractor.parse(data, using: format)
-      let id = try extractID(from: dict)
-      if indexes[manifest.idField]?.contains(id) == true || !seen.insert(id).inserted {
-        throw NyaruError.duplicateID(id.description)
+      // ROADMAP 2: Usa extractMetadata (evita construir o dict completo separadamente)
+      let metadata = try Serializer.extractMetadata(
+        from: data, idField: manifest.idField, partitionKey: manifest.partitionKey,
+        indexedFields: allIndexedFields, format: format)
+
+      if indexes[manifest.idField]?.contains(metadata.id) == true
+        || !seen.insert(metadata.id).inserted
+      {
+        throw NyaruError.duplicateID(metadata.id.description)
       }
-      parsed.append((data, dict, id))
+
+      let shardID = try shardID(forPartitionValue: metadata.partitionValue)
+      groupedByShard[shardID, default: []].append((data, metadata))
     }
-    for item in parsed {
-      try await performInsert(data: item.data, dict: item.dict)
+
+    var indexUpdates: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+    for field in allIndexedFields { indexUpdates[field] = [] }
+
+    for (shardID, items) in groupedByShard {
+      let shard = try shard(for: shardID)
+      let datas = items.map { $0.data }
+      let pointers = try await shard.insertMany(datas: datas)
+
+      for (i, item) in items.enumerated() {
+        let pointer = pointers[i]
+        for entry in item.metadata.indexEntries {
+          indexUpdates[entry.field, default: []].append((key: entry.key, pointer: pointer))
+        }
+      }
+    }
+
+    for (field, entries) in indexUpdates {
+      indexes[field]?.bulkLoad(entries)
+    }
+  }
+
+  private func shardID(forPartitionValue value: FieldValue?) throws -> String {
+    guard let partitionKey = manifest.partitionKey else { return "default" }
+    guard let value = value else {
+      throw NyaruError.partitionKeyMissing(field: partitionKey)
+    }
+    let rawID = value.description
+    if let key = encryptionKey {
+      let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
+      return Data(hmac).map { String(format: "%02x", $0) }.joined()
+    } else {
+      return Self.sanitizeFileComponent(rawID)
     }
   }
 
@@ -504,10 +561,10 @@ actor CollectionCore {
     let shard = try existingShard(pointer.shardID)
     guard let data = try await shard.read(at: pointer.offset) else { return nil }
 
-    if let dict = try? FieldExtractor.parse(data, using: format),
-      let actualID = FieldExtractor.value(in: dict, path: manifest.idField),
+    if let actualID = Serializer.fieldValue(in: data, path: manifest.idField, format: format),
       actualID != id
     {
+      indexes[manifest.idField]?.remove(key: id, pointer: pointer)
       return nil
     }
     return data
@@ -525,11 +582,21 @@ actor CollectionCore {
   /// - Throws: `NyaruError.documentNotFound` if not found and `upsert` is false.
   func update(data: Data, upsert: Bool) async throws {
     try ensureOpen()
-    let dict = try FieldExtractor.parse(data, using: format)
-    let id = try extractID(from: dict)
+    // ROADMAP 2: Usa extractMetadata
+    let metadata = try Serializer.extractMetadata(
+      from: data, idField: manifest.idField, partitionKey: manifest.partitionKey,
+      indexedFields: allIndexedFields, format: format)
+    let id = metadata.id
+
     guard let oldPointer = indexes[manifest.idField]?.search(id).first else {
       if upsert {
-        try await performInsert(data: data, dict: dict)
+        // Inserção isolada se não existir
+        let shardID = try shardID(forPartitionValue: metadata.partitionValue)
+        let shard = try shard(for: shardID)
+        let pointer = try await shard.insert(data: data)
+        for entry in metadata.indexEntries {
+          indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
+        }
         return
       }
       throw NyaruError.documentNotFound(id: id.description)
@@ -538,12 +605,20 @@ actor CollectionCore {
     let oldShard = try existingShard(oldPointer.shardID)
     guard let oldData = try await oldShard.read(at: oldPointer.offset) else {
       removeFromAllIndexes(pointer: oldPointer)
-      try await performInsert(data: data, dict: dict)
+      let shardID = try shardID(forPartitionValue: metadata.partitionValue)
+      let shard = try shard(for: shardID)
+      let pointer = try await shard.insert(data: data)
+      for entry in metadata.indexEntries {
+        indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
+      }
       return
     }
-    let oldDict = try FieldExtractor.parse(oldData, using: format)
 
-    let newShardID = try shardID(forDocument: dict)
+    let oldMetadata = try Serializer.extractMetadata(
+      from: oldData, idField: manifest.idField, partitionKey: manifest.partitionKey,
+      indexedFields: allIndexedFields, format: format)
+    let newShardID = try shardID(forPartitionValue: metadata.partitionValue)
+
     let newPointer: RecordPointer
     if newShardID == oldPointer.shardID {
       newPointer = try await oldShard.update(at: oldPointer.offset, data: data)
@@ -554,10 +629,17 @@ actor CollectionCore {
     }
 
     for field in allIndexedFields {
-      let oldKey = FieldExtractor.value(in: oldDict, path: field)
-      let newKey = FieldExtractor.value(in: dict, path: field)
-      if let oldKey { indexes[field]?.remove(key: oldKey, pointer: oldPointer) }
-      if let newKey { indexes[field]?.insert(key: newKey, pointer: newPointer) }
+      guard let index = indexes[field] else { continue }
+      let oldKey = oldMetadata.indexEntries.first(where: { $0.field == field })?.key
+      let newKey = metadata.indexEntries.first(where: { $0.field == field })?.key
+
+      if oldKey == newKey, let key = oldKey {
+
+        index.replace(key: key, old: oldPointer, new: newPointer)
+      } else {
+        if let oldKey { index.remove(key: oldKey, pointer: oldPointer) }
+        if let newKey { index.insert(key: newKey, pointer: newPointer) }
+      }
     }
   }
 
@@ -581,26 +663,20 @@ actor CollectionCore {
   /// - Throws: `NyaruError.documentNotFound` if not found,
   ///   `NyaruError.unsupportedOperation` for id changes or nested paths.
   func patch(
-    id: FieldValue,
-    changes: [String: FieldValue],
-    validate: @Sendable (Data) throws -> Void
+    id: FieldValue, changes: [String: FieldValue], validate: @Sendable (Data) throws -> Void
   ) async throws -> Data {
     try ensureOpen()
     guard !changes.isEmpty else {
       guard let pointer = indexes[manifest.idField]?.search(id).first,
         let current = try await verifiedRead(pointer: pointer, expecting: id)
-      else {
-        throw NyaruError.documentNotFound(id: id.description)
-      }
+      else { throw NyaruError.documentNotFound(id: id.description) }
       return current.data
     }
     if changes.keys.contains(manifest.idField) {
       throw NyaruError.unsupportedOperation("Changing the document ID is not allowed via patch.")
     }
     for key in changes.keys where key.contains(".") {
-      throw NyaruError.unsupportedOperation(
-        "Nested paths (e.g., 'address.city') are not supported in patch. Update the full document instead."
-      )
+      throw NyaruError.unsupportedOperation("Nested paths are not supported in patch.")
     }
     guard let pointer = indexes[manifest.idField]?.search(id).first else {
       throw NyaruError.documentNotFound(id: id.description)
@@ -610,15 +686,18 @@ actor CollectionCore {
       throw NyaruError.documentNotFound(id: id.description)
     }
     let oldShard = try existingShard(pointer.shardID)
+
     let oldDict = old.dict
     var newDict = oldDict
-    for (key, value) in changes {
-      newDict[key] = value.anyValue
-    }
+    for (key, value) in changes { newDict[key] = value.anyValue }
     let newData = try Serializer.encode(AnyEncodable(value: newDict), format: format)
     try validate(newData)
 
-    let newShardID = try shardID(forDocument: newDict)
+    let newMetadata = try Serializer.extractMetadata(
+      from: newData, idField: manifest.idField, partitionKey: manifest.partitionKey,
+      indexedFields: allIndexedFields, format: format)
+
+    let newShardID = try shardID(forPartitionValue: newMetadata.partitionValue)
     let newPointer: RecordPointer
     if newShardID == oldShard.id {
       newPointer = try await oldShard.update(at: pointer.offset, data: newData)
@@ -628,11 +707,22 @@ actor CollectionCore {
       try await oldShard.delete(at: pointer.offset)
     }
 
+    let oldMetadata = try Serializer.extractMetadata(
+      from: old.data, idField: manifest.idField, partitionKey: manifest.partitionKey,
+      indexedFields: allIndexedFields, format: format)
+
     for field in allIndexedFields {
-      let oldKey = FieldExtractor.value(in: oldDict, path: field)
-      let newKey = FieldExtractor.value(in: newDict, path: field)
-      if let oldKey { indexes[field]?.remove(key: oldKey, pointer: pointer) }
-      if let newKey { indexes[field]?.insert(key: newKey, pointer: newPointer) }
+      guard let index = indexes[field] else { continue }
+      let oldKey = oldMetadata.indexEntries.first(where: { $0.field == field })?.key
+      let newKey = newMetadata.indexEntries.first(where: { $0.field == field })?.key
+
+      if oldKey == newKey, let key = oldKey {
+
+        index.replace(key: key, old: pointer, new: newPointer)
+      } else {
+        if let oldKey { index.remove(key: oldKey, pointer: pointer) }
+        if let newKey { index.insert(key: newKey, pointer: newPointer) }
+      }
     }
     return newData
   }
@@ -652,9 +742,9 @@ actor CollectionCore {
       return false
     }
     try await shard.delete(at: pointer.offset)
-    let oldDict = try FieldExtractor.parse(oldData, using: format)
+
     for field in allIndexedFields {
-      if let key = FieldExtractor.value(in: oldDict, path: field) {
+      if let key = Serializer.fieldValue(in: oldData, path: field, format: format) {
         indexes[field]?.remove(key: key, pointer: pointer)
       }
     }
@@ -841,15 +931,6 @@ actor CollectionCore {
     }
 
     return out
-  }
-
-  private func getShardsForStreaming() async throws -> [ShardActor] {
-    try ensureOpen()
-    var actors: [ShardActor] = []
-    for shardID in shardURLs.keys {
-      actors.append(try shard(for: shardID))
-    }
-    return actors
   }
 
   // MARK: - Maintenance

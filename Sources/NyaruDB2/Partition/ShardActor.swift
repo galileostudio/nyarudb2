@@ -77,6 +77,49 @@ actor ShardActor {
     return RecordPointer(shardID: id, offset: offset)
   }
 
+  /// Processes and inserts multiple documents in a single actor hop and disk write.
+  ///
+  /// This method is optimized for bulk inserts by preparing all payloads in memory
+  /// first (compression + encryption), then writing all records to disk in a single
+  /// I/O operation. This minimizes both actor hops and system calls, providing
+  /// a significant performance boost for batch operations.
+  ///
+  /// The workflow consists of two phases:
+  ///   1. **CPU-bound phase**: Each document payload is prepared (compressed and
+  ///      encrypted if configured) entirely in memory.
+  ///   2. **I/O phase**: All prepared records are written to disk in a single
+  ///      contiguous block using `appendBatch(payloads:)`.
+  ///
+  /// - Parameter datas: An array of raw document `Data` payloads to insert.
+  /// - Returns: An array of `RecordPointer` values, one for each inserted document,
+  ///   containing the shard ID and the offset where each record was written.
+  /// - Throws: `NyaruError.encryptionFailed` or `NyaruError.compressionFailed`
+  ///   if payload preparation fails, or `NyaruError.ioError` if the write fails.
+  ///
+  /// - Note: This method is actor-isolated and performs the entire operation
+  ///   synchronously on the calling actor. For large batches, the CPU-bound
+  ///   preparation phase may be significant.
+  ///
+  /// - SeeAlso: `preparePayload(_:)` for the compression/encryption details,
+  ///   and `appendBatch(payloads:)` for the batch write implementation.
+  func insertMany(datas: [Data]) throws -> [RecordPointer] {
+    if datas.isEmpty { return [] }
+
+    // Prepares all payloads in memory (CPU bound, but no I/O)
+    var preparedPayloads: [(data: Data, compression: CompressionMethod)] = []
+    preparedPayloads.reserveCapacity(datas.count)
+
+    for data in datas {
+      let prepared = try preparePayload(data)
+      preparedPayloads.append((data: prepared.payload, compression: prepared.method))
+    }
+
+    // Single I/O call for all records
+    let offsets = try file.appendBatch(payloads: preparedPayloads)
+
+    return offsets.map { RecordPointer(shardID: id, offset: $0) }
+  }
+
   /// Reads the record at the given offset, returning the decrypted and
   /// decompressed payload.
   ///
@@ -148,22 +191,6 @@ actor ShardActor {
     return out
   }
 
-  /// Iterates over raw payloads without decryption or decompression.
-  ///
-  /// Used internally during compaction to avoid unnecessary crypto work —
-  /// the output file re-uses the same compression method so only the raw
-  /// bytes need to be copied.
-  ///
-  /// - Parameter block: A closure called with the offset, raw payload, and
-  ///   compression method for each live record.
-  internal func forEachLiveRaw(_ block: (UInt64, Data, CompressionMethod) throws -> Void)
-    async throws
-  {
-    try file.forEachLive { liveRecord in
-      try block(liveRecord.offset, liveRecord.payload, liveRecord.compression)
-    }
-  }
-
   /// Reads a batch of live records starting at the given position.
   ///
   /// The consumer drives the pace — at most one decoded batch is kept in
@@ -214,10 +241,11 @@ actor ShardActor {
     try file.forEachLive { liveRecord in
       _ = try tempFile.append(payload: liveRecord.payload, compression: liveRecord.compression)
     }
+
     try tempFile.sync()
     try tempFile.close()
-
     try file.close()
+
     _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }
