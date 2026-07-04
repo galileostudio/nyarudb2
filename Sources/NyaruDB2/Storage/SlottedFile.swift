@@ -292,24 +292,40 @@ final class SlottedFile {
   private func scan(verifyCRC: Bool, repair: Bool) throws {
     liveCount = 0
     freeSlots = []
-    var pos = SlottedFile.fileHeaderSize
 
-    while pos + SlottedFile.recordHeaderSize <= fileSize {
-      try handle.seek(toOffset: pos)
-      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
-        head.count == Int(SlottedFile.recordHeaderSize),
-        let capacity = Binary.readUInt32(head, at: 0),
-        let payloadLength = Binary.readUInt32(head, at: 4)
+    guard fileSize > SlottedFile.fileHeaderSize else {
+      _deadBytes = 0
+      return
+    }
+
+    // Read the entire data region in one syscall, then parse headers and
+    // CRC-verify payloads from the in-memory buffer. A short read is tolerated:
+    // scanning exactly the bytes the OS provides correctly handles torn appends.
+    let dataSize = Int(fileSize - SlottedFile.fileHeaderSize)
+    try handle.seek(toOffset: SlottedFile.fileHeaderSize)
+    guard let fileData = try handle.read(upToCount: dataSize), !fileData.isEmpty else {
+      _deadBytes = 0
+      return
+    }
+
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    var relPos = 0
+
+    while relPos + headerSize <= fileData.count {
+      let pos = SlottedFile.fileHeaderSize + UInt64(relPos)
+
+      guard let capacity = Binary.readUInt32(fileData, at: relPos),
+        let payloadLength = Binary.readUInt32(fileData, at: relPos + 4)
       else { break }
 
-      let recordFlags = head[head.startIndex + 8]
-      let storedCRC = Binary.readUInt32(head, at: 12) ?? 0
+      let recordFlags = fileData[fileData.startIndex + relPos + 8]
+      let storedCRC = Binary.readUInt32(fileData, at: relPos + 12) ?? 0
 
       let headerLooksValid =
         capacity > 0
         && capacity <= SlottedFile.maxRecordSize
         && payloadLength <= capacity
-        && pos + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
+        && relPos + headerSize + Int(capacity) <= fileData.count
 
       if !headerLooksValid {
         if repair {
@@ -323,11 +339,11 @@ final class SlottedFile {
       if isTombstone {
         freeSlots.append((offset: pos, capacity: capacity))
       } else if verifyCRC {
-        try handle.seek(toOffset: pos + SlottedFile.recordHeaderSize)
-        let payload = try handle.read(upToCount: Int(payloadLength)) ?? Data()
-        if payload.count != Int(payloadLength)
-          || Compressor.crc32Checksum(payload) != storedCRC
-        {
+        let payloadStart = relPos + headerSize
+        let payloadEnd = payloadStart + Int(payloadLength)
+        let payload = Data(
+          fileData[fileData.startIndex + payloadStart..<fileData.startIndex + payloadEnd])
+        if Compressor.crc32Checksum(payload) != storedCRC {
           try writeTombstoneFlag(at: pos, existingFlags: recordFlags)
           freeSlots.append((offset: pos, capacity: capacity))
         } else {
@@ -336,7 +352,7 @@ final class SlottedFile {
       } else {
         liveCount += 1
       }
-      pos += SlottedFile.recordHeaderSize + UInt64(capacity)
+      relPos += headerSize + Int(capacity)
     }
     freeSlots.sort { $0.capacity < $1.capacity }
     _deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
@@ -712,33 +728,66 @@ final class SlottedFile {
   /// - Throws: `NyaruError.corruptedRecord` if a payload is truncated.
   func readLiveBatch(from pos: UInt64, maxCount: Int) throws -> LiveBatch {
     var records: [LiveRecord] = []
-    var cursor = max(pos, SlottedFile.fileHeaderSize)
+    let startPos = max(pos, SlottedFile.fileHeaderSize)
+    guard startPos + SlottedFile.recordHeaderSize <= fileSize else {
+      return LiveBatch(records: records, nextPos: nil)
+    }
+
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    // Read a chunk large enough to hold most of the requested records in one
+    // syscall. Records whose payload straddles the chunk boundary fall back to
+    // a single seek+read rather than forcing an oversized allocation.
+    let chunkEnd = min(fileSize, startPos + UInt64(maxCount) * 1024)
+    let chunkSize = Int(chunkEnd - startPos)
+
+    try handle.seek(toOffset: startPos)
+    guard let chunkData = try handle.read(upToCount: chunkSize), !chunkData.isEmpty else {
+      return LiveBatch(records: records, nextPos: nil)
+    }
+
+    var relPos = 0
+    var cursor = startPos
+
     while records.count < maxCount, cursor + SlottedFile.recordHeaderSize <= fileSize {
-      try handle.seek(toOffset: cursor)
-      guard let head = try handle.read(upToCount: Int(SlottedFile.recordHeaderSize)),
-        head.count == Int(SlottedFile.recordHeaderSize),
-        let capacity = Binary.readUInt32(head, at: 0),
-        let payloadLength = Binary.readUInt32(head, at: 4),
+      if relPos + headerSize > chunkData.count { break }
+
+      guard let capacity = Binary.readUInt32(chunkData, at: relPos),
+        let payloadLength = Binary.readUInt32(chunkData, at: relPos + 4),
+        capacity > 0,
+        capacity <= SlottedFile.maxRecordSize,
         payloadLength <= capacity,
         cursor + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
       else { return LiveBatch(records: records, nextPos: nil) }
-      let flags = head[head.startIndex + 8]
+
+      let flags = chunkData[chunkData.startIndex + relPos + 8]
       if flags & RecordFlags.tombstone == 0 {
-        guard let payload = try handle.read(upToCount: Int(payloadLength)),
-          payload.count == Int(payloadLength)
-        else {
-          throw NyaruError.corruptedRecord(offset: cursor, reason: "short payload")
+        let payloadStart = relPos + headerSize
+        let payloadEnd = payloadStart + Int(payloadLength)
+        if payloadEnd <= chunkData.count {
+          let slice =
+            chunkData[chunkData.startIndex + payloadStart..<chunkData.startIndex + payloadEnd]
+          records.append(
+            LiveRecord(
+              offset: cursor, payload: Data(slice),
+              compression: CompressionMethod(recordFlags: flags)))
+        } else {
+          // Payload straddles the chunk boundary — fall back to a direct read.
+          try handle.seek(toOffset: cursor + SlottedFile.recordHeaderSize)
+          guard let payload = try handle.read(upToCount: Int(payloadLength)),
+            payload.count == Int(payloadLength)
+          else {
+            throw NyaruError.corruptedRecord(offset: cursor, reason: "short payload")
+          }
+          records.append(
+            LiveRecord(
+              offset: cursor, payload: payload,
+              compression: CompressionMethod(recordFlags: flags)))
         }
-        records.append(
-          LiveRecord(
-            offset: cursor,
-            payload: payload,
-            compression: CompressionMethod(recordFlags: flags)
-          )
-        )
       }
+      relPos += headerSize + Int(capacity)
       cursor += SlottedFile.recordHeaderSize + UInt64(capacity)
     }
+
     let atEOF = cursor + SlottedFile.recordHeaderSize > fileSize
     return LiveBatch(records: records, nextPos: atEOF ? nil : cursor)
   }
