@@ -821,14 +821,25 @@ actor CollectionCore {
   /// Fetches the encoded data for a list of pointers.
   func fetch(pointers: [RecordPointer]) async throws -> [Data] {
     try ensureOpen()
+    if pointers.isEmpty { return [] }
+
+    var grouped: [String: [UInt64]] = [:]
+    for pointer in pointers {
+      grouped[pointer.shardID, default: []].append(pointer.offset)
+    }
+
     var out: [Data] = []
     out.reserveCapacity(pointers.count)
-    for pointer in pointers {
-      let shard = try existingShard(pointer.shardID)
-      if let data = try await shard.read(at: pointer.offset) {
-        out.append(data)
-      }
+
+    for (shardID, offsets) in grouped {
+      let shard = try existingShard(shardID)
+      // Sort offsets to turn random disk seeks into sequential reads
+      let sortedOffsets = offsets.sorted()
+      // Single actor hop per shard to read multiple records
+      let batch = try await shard.readBatch(offsets: sortedOffsets)
+      out.append(contentsOf: batch)
     }
+
     return out
   }
 

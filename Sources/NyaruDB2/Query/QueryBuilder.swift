@@ -261,7 +261,8 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   /// Adds a greater-than-or-equal predicate: `field >= value`.
-  public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self {
+  public func `where`(_ field: String, isGreaterThanOrEqualTo value: FieldValueConvertible) -> Self
+  {
     adding(.greaterThanOrEqual(field, value))
   }
 
@@ -494,12 +495,25 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   // MARK: - Execution
 
   /// Fetches candidate documents from the most efficient access path.
-  private func candidates() async throws -> [Data] {
+  private func candidates() async throws -> ([Data], Bool) {
     let (strategy, _) = await plan()
     switch strategy {
     case .indexLookup(let field):
-      let pointers = await pointers(forIndexedField: field)
-      return try await core.fetch(pointers: pointers)
+      var pointers = await pointers(forIndexedField: field)
+
+      // We can only do this if there are no residual predicates that might filter out
+      // documents AFTER the fetch, and if the sort is aligned with the index (or absent).
+      let canPushdown = topLevelPredicateCount() == 1 && (sortField == nil || sortField == field)
+      if canPushdown {
+        let start = min(offsetCount, pointers.count)
+        let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
+        pointers = Array(pointers[start..<end])
+      }
+
+      // PHASE 0.2: Batch fetch per shard
+      let data = try await core.fetch(pointers: pointers)
+      return (data, canPushdown)
+
     case .partitionScan:
       if let partitionKey {
         var topLevelPredicates: [Predicate] = []
@@ -511,13 +525,16 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
         for predicate in topLevelPredicates {
           if case .equal(let f, let v) = predicate, f == partitionKey {
-            return try await core.scanPartition(value: v.fieldValue)
+            let data = try await core.scanPartition(value: v.fieldValue)
+            return (data, false)
           }
         }
       }
-      return try await core.scanAll()
+      let data = try await core.scanAll()
+      return (data, false)
     case .fullScan:
-      return try await core.scanAll()
+      let data = try await core.scanAll()
+      return (data, false)
     }
   }
 
@@ -607,7 +624,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Parameter field: The field to collect distinct values from.
   /// - Returns: An array of distinct `FieldValue` instances.
   public func distinctValues(on field: String) async throws -> [FieldValue] {
-    let raw = try await candidates()
+    let (raw, _) = try await candidates()
     var seen = Set<FieldValue>()
     var result: [FieldValue] = []
 
@@ -646,12 +663,14 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   /// Returns matching documents as parsed dictionaries with their raw data.
   private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
-    if offsetCount > 0 && sortField == nil {
+    let (raw, alreadyPaginated) = try await candidates()
+
+    if !alreadyPaginated && offsetCount > 0 && sortField == nil {
       throw NyaruError.unsupportedOperation(
-        "Pagination (offset) requires a sort field to guarantee deterministic order.")
+        "Pagination (offset) requires a sort field to guarantee deterministic order."
+      )
     }
 
-    let raw = try await candidates()
     let requiresFullEvaluation = sortField != nil
 
     var matched: [(dict: [String: Any], json: Data)] = []
@@ -664,14 +683,18 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         if requiresFullEvaluation {
           matched.append((dict, json))
         } else {
-          if skipped < offsetCount {
-            skipped += 1
-            continue
-          }
-          matched.append((dict, json))
-
-          if let limitCount, matched.count >= limitCount {
-            break
+          if alreadyPaginated {
+            // Limit/offset já foi aplicado no array de ponteiros, só adiciona.
+            matched.append((dict, json))
+          } else {
+            if skipped < offsetCount {
+              skipped += 1
+              continue
+            }
+            matched.append((dict, json))
+            if let limitCount, matched.count >= limitCount {
+              break
+            }
           }
         }
       }
@@ -684,11 +707,14 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         return sortAscending ? a < b : b < a
       }
 
-      if offsetCount > 0 {
-        matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
-      }
-      if let limitCount, matched.count > limitCount {
-        matched = Array(matched.prefix(limitCount))
+      // Aplica offset/limit apenas se não foi feito pushdown
+      if !alreadyPaginated {
+        if offsetCount > 0 {
+          matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
+        }
+        if let limitCount, matched.count > limitCount {
+          matched = Array(matched.prefix(limitCount))
+        }
       }
     }
 

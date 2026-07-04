@@ -135,6 +135,19 @@ actor ShardActor {
     }
   }
 
+  func readBatch(offsets: [UInt64]) throws -> [Data] {
+    var out: [Data] = []
+    out.reserveCapacity(offsets.count)
+
+    for offset in offsets {
+      if let record = try file.read(at: offset) {
+        let data = try restorePayload((payload: record.payload, compression: record.compression))
+        out.append(data)
+      }
+    }
+    return out
+  }
+
   /// Iterates over raw payloads without decryption or decompression.
   ///
   /// Used internally during compaction to avoid unnecessary crypto work —
