@@ -120,7 +120,7 @@ final class OrderedIndexTests: XCTestCase {
   }
 
   func testInsertSearchRemove() {
-    var index = OrderedIndex()
+    let index = OrderedIndex()
     index.insert(key: .number(2), pointer: ptr(20))
     index.insert(key: .number(1), pointer: ptr(10))
     index.insert(key: .number(3), pointer: ptr(30))
@@ -139,7 +139,7 @@ final class OrderedIndexTests: XCTestCase {
   }
 
   func testRangeBounds() {
-    var index = OrderedIndex()
+    let index = OrderedIndex()
     for i in 1...9 {
       index.insert(key: .number(Double(i)), pointer: ptr(UInt64(i)))
     }
@@ -165,7 +165,7 @@ final class OrderedIndexTests: XCTestCase {
   func testCrossShardPointersDoNotCollide() {
     // The exact scenario that corrupted the old engine: same offset in
     // two different shards.
-    var index = OrderedIndex()
+    let index = OrderedIndex()
     index.insert(key: .string("x"), pointer: ptr(64, shard: "a"))
     index.insert(key: .string("x"), pointer: ptr(64, shard: "b"))
     XCTAssertEqual(index.search(.string("x")).count, 2)
@@ -174,7 +174,7 @@ final class OrderedIndexTests: XCTestCase {
   }
 
   func testSnapshotRoundTrip() throws {
-    var index = OrderedIndex()
+    let index = OrderedIndex()
     index.insert(key: .string("k"), pointer: ptr(1))
     index.insert(key: .number(7), pointer: ptr(2))
     let encoded = try JSONEncoder().encode(index)
@@ -355,6 +355,7 @@ final class SlottedFileTests: XCTestCase {
     try file.forEachLive { results.append($0) }
     return results
   }
+
   func testFragmentationRatioCalculation() throws {
     let file = try SlottedFile(url: fileURL())
 
