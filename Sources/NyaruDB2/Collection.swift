@@ -60,6 +60,24 @@ public struct CollectionOptions: Sendable {
   }
 }
 
+/// A write buffer that accumulates document insertions for a batch commit.
+///
+/// Obtain one via `NyaruCollection.withTransaction(_:)`. All insertions are
+/// synchronous — no `await` needed. Documents are not written to disk until
+/// the `withTransaction` body completes without throwing.
+public final class NyaruTransaction<T: Codable & Sendable>: @unchecked Sendable {
+  fileprivate var buffer: [T] = []
+  fileprivate init() {}
+
+  /// Adds a single document to the transaction buffer.
+  public func insert(_ document: T) { buffer.append(document) }
+
+  /// Adds a collection of documents to the transaction buffer.
+  public func insert(contentsOf documents: some Collection<T>) {
+    buffer.append(contentsOf: documents)
+  }
+}
+
 /// A typed, Sendable handle to one collection within a NyaruDB database.
 ///
 /// `NyaruCollection` is a thin facade that encodes and decodes the generic
@@ -144,6 +162,31 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Throws: `NyaruError.duplicateID` if any id conflicts.
   public func insert(contentsOf documents: [T]) async throws {
     try await core.insertMany(datas: documents.map(encode))
+  }
+
+  /// Accumulates insert operations in memory and flushes them as a single
+  /// batch when the body completes, producing one index merge pass instead of
+  /// one per call.
+  ///
+  /// Insertions inside the body are synchronous — no `await` required:
+  /// ```swift
+  /// try await collection.withTransaction { tx in
+  ///   for chunk in incomingChunks { tx.insert(contentsOf: chunk) }
+  /// }
+  /// ```
+  /// If the body throws, nothing is written to disk. Other write operations
+  /// (update, delete, patch) are not buffered — call them after committing.
+  ///
+  /// - Parameter body: Closure receiving a `NyaruTransaction` that accumulates
+  ///   documents via its synchronous `insert` methods.
+  /// - Throws: Rethrows from `body` or from the final batch write.
+  public func withTransaction(
+    _ body: (NyaruTransaction<T>) async throws -> Void
+  ) async throws {
+    let tx = NyaruTransaction<T>()
+    try await body(tx)
+    guard !tx.buffer.isEmpty else { return }
+    try await insert(contentsOf: tx.buffer)
   }
 
   /// Replaces the document with the same id.

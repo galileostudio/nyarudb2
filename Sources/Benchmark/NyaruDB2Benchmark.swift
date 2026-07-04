@@ -102,6 +102,7 @@ public struct BenchmarkResult: Codable {
   public let partitioned: Bool
   public let insertManyTime: Double
   public let insertBatchTime: Double
+  public let insertTransactionTime: Double
   public let queryTime: Double
   public let updateTime: Double
   public let patchTime: Double
@@ -241,6 +242,10 @@ public final class NyaruDBBenchmark {
     let insertBatchTime = await measureInsertBatchPerformance(
       db: db, options: collOpts, partitioned: partitioned)
 
+    // 3. InsertTransaction (chunked inserts inside a single withTransaction)
+    let insertTransactionTime = await measureInsertTransactionPerformance(
+      db: db, options: collOpts, partitioned: partitioned)
+
     let collection: NyaruCollection<TestDocument>
     do {
       collection = try await db.collection("test", of: TestDocument.self, options: collOpts)
@@ -283,6 +288,7 @@ public final class NyaruDBBenchmark {
       partitioned: partitioned,
       insertManyTime: insertManyTime,
       insertBatchTime: insertBatchTime,
+      insertTransactionTime: insertTransactionTime,
       queryTime: queryTime,
       updateTime: updateTime,
       patchTime: patchTime,
@@ -330,6 +336,27 @@ public final class NyaruDBBenchmark {
       return CFAbsoluteTimeGetCurrent() - start
     } catch {
       print("\n\(ANSI.FG.red)InsertBatch error: \(error)\(ANSI.reset)")
+      return 0
+    }
+  }
+
+  private func measureInsertTransactionPerformance(
+    db: NyaruDB, options: CollectionOptions, partitioned: Bool
+  ) async -> Double {
+    do {
+      try? await db.drop("test")
+      let collection = try await db.collection("test", of: TestDocument.self, options: options)
+      let documents = generateDocuments(
+        count: documentCount, partitioned: partitioned, startingID: 1)
+      let start = CFAbsoluteTimeGetCurrent()
+      try await collection.withTransaction { tx in
+        for chunk in documents.chunked(into: batchSize) {
+          tx.insert(contentsOf: chunk)
+        }
+      }
+      return CFAbsoluteTimeGetCurrent() - start
+    } catch {
+      print("\n\(ANSI.FG.red)InsertTransaction error: \(error)\(ANSI.reset)")
       return 0
     }
   }
@@ -560,8 +587,9 @@ public final class SQLiteBenchmark {
 
     return BenchmarkResult(
       method: "sqlite", format: "sqlite3", encrypted: false, partitioned: false,
-      insertManyTime: insertManyTime, insertBatchTime: insertBatchTime, queryTime: queryTime,
-      updateTime: updateTime, patchTime: patchTime, deleteTime: deleteTime,
+      insertManyTime: insertManyTime, insertBatchTime: insertBatchTime,
+      insertTransactionTime: 0,
+      queryTime: queryTime, updateTime: updateTime, patchTime: patchTime, deleteTime: deleteTime,
       compactTime: compactTime,
       fileSize: size, shardCount: 1, fragmentationRatio: 0.0, memoryUsage: memory
     )
@@ -722,9 +750,9 @@ func printReport(results: [BenchmarkResult], documentCount: Int, batchSize: Int,
 {
   let headers = [
     ("Method", 8), ("Format", 8), ("Enc", 4), ("Part", 5),
-    ("InsertMany (50k)", 17), ("InsertBatch (50k)", 17), ("Query (100)", 13),
-    ("Update (1)", 11), ("Patch (1)", 11), ("Delete (1k)", 13), ("Compact (20k)", 13),
-    ("Size (MB)", 10), ("Shards", 6), ("Frag (%)", 8), ("Memory (MB)", 12),
+    ("InsertMany (50k)", 17), ("InsertBatch (50k)", 17), ("InsertTx (50k)", 15),
+    ("Query (100)", 13), ("Update (1)", 11), ("Patch (1)", 11), ("Delete (1k)", 13),
+    ("Compact (20k)", 13), ("Size (MB)", 10), ("Shards", 6), ("Frag (%)", 8), ("Memory (MB)", 12),
   ]
 
   let headerLine = headers.map { $0.0.padding(toLength: $0.1, withPad: " ", startingAt: 0) }
@@ -743,6 +771,9 @@ func printReport(results: [BenchmarkResult], documentCount: Int, batchSize: Int,
   let sortedResults = results.sorted { ($0.method, $0.format) < ($1.method, $1.format) }
 
   for result in sortedResults {
+    let insertTxDisplay =
+      result.insertTransactionTime > 0
+      ? String(format: "%15.2f", result.insertTransactionTime * 1000) : "            N/A"
     let row = [
       result.method.padding(toLength: 8, withPad: " ", startingAt: 0),
       result.format.padding(toLength: 8, withPad: " ", startingAt: 0),
@@ -750,6 +781,7 @@ func printReport(results: [BenchmarkResult], documentCount: Int, batchSize: Int,
       result.partitioned ? "✅" : "❌",
       String(format: "%17.2f", result.insertManyTime * 1000),
       String(format: "%17.2f", result.insertBatchTime * 1000),
+      insertTxDisplay,
       String(format: "%13.2f", result.queryTime * 1000),
       String(format: "%11.2f", result.updateTime * 1000),
       String(format: "%11.2f", result.patchTime * 1000),
