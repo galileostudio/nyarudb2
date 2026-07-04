@@ -192,6 +192,18 @@ public enum FieldValue: Codable, Sendable, CustomStringConvertible,
     switch value {
     case nil, is NSNull:
       return .null
+    case let n as NSNumber:
+      // JSONSerialization returns NSNumber for all JSON numbers and booleans.
+      // Swift's `as? Bool` incorrectly matches any non-zero NSNumber as `true`,
+      // so we must check the CoreFoundation type ID first to distinguish
+      // __NSCFBoolean (JSON true/false) from __NSCFNumber (JSON integers/floats).
+      if CFGetTypeID(n) == CFBooleanGetTypeID() {
+        return .bool(n.boolValue)
+      } else if CFNumberIsFloatType(n) {
+        return .number(n.doubleValue)
+      } else {
+        return .int(n.int64Value)
+      }
     case let v as Bool:
       return .bool(v)
     case let v as Int64:

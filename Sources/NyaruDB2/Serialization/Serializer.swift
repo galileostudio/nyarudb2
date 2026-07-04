@@ -232,6 +232,15 @@ struct AnyEncodable: Encodable {
       switch value {
       case is NSNull:
         try container.encodeNil()
+      case let n as NSNumber:
+        // Must check CFTypeID before `as? Bool` — NSNumber(1) incorrectly matches Bool in Swift.
+        if CFGetTypeID(n) == CFBooleanGetTypeID() {
+          try container.encode(n.boolValue)
+        } else if CFNumberIsFloatType(n) {
+          try container.encode(n.doubleValue)
+        } else {
+          try container.encode(n.int64Value)
+        }
       case let v as Bool:
         try container.encode(v)
       case let v as Int:
