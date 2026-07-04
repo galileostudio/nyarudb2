@@ -305,9 +305,8 @@ actor ShardActor {
     if let key = encryptionKey {
       guard record.payload.count > 1 else { throw NyaruError.decryptionFailed }
       let methodByte = record.payload[0]
-      let encryptedData = record.payload.subdata(in: 1..<record.payload.count)
-
-      let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
+      // slice without copy — SealedBox(combined:) accepts DataProtocol
+      let sealedBox = try AES.GCM.SealedBox(combined: record.payload.dropFirst())
       let decrypted = try AES.GCM.open(sealedBox, using: key, authenticating: Data([methodByte]))
 
       if let method = CompressionMethod(byte: methodByte), method != .none {

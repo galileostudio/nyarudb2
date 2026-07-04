@@ -824,14 +824,22 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
       return s.hasSuffix(suffix)
 
-    case .like(let field, _, let safeRegex):
+    case .like(let field, let pattern, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
+      // Fast-path: pattern sem wildcards usa string equality (evita regex engine)
+      if !pattern.contains("%") && !pattern.contains("_") {
+        return s == pattern
+      }
       guard let regex = safeRegex.regex else { return false }
       let range = NSRange(s.startIndex..., in: s)
       return regex.firstMatch(in: s, options: [], range: range) != nil
 
-    case .glob(let field, _, let safeRegex):
+    case .glob(let field, let pattern, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
+      // Fast-path: pattern sem wildcards usa string equality
+      if !pattern.contains("*") && !pattern.contains("?") && !pattern.contains("[") {
+        return s == pattern
+      }
       guard let regex = safeRegex.regex else { return false }
       let range = NSRange(s.startIndex..., in: s)
       return regex.firstMatch(in: s, options: [], range: range) != nil

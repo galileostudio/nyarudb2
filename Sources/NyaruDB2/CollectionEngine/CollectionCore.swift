@@ -347,15 +347,34 @@ actor CollectionCore {
     }
   }
 
+  private static let _allowedASCII: [Bool] = {
+    var table = [Bool](repeating: false, count: 128)
+    for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" {
+      table[Int(c.asciiValue!)] = true
+    }
+    return table
+  }()
+
+  /// Pre-computed hex percent-encoding strings for bytes 0x00–0xFF.
+  /// Avoids `String(format: "%%%02X", byte)` allocation per byte.
+  private static let _percentHex: [String] = {
+    let hex = Array("0123456789ABCDEF".utf8)
+    return (0...255).map { i in
+      let hi = hex[Int(i >> 4)]
+      let lo = hex[Int(i & 0x0F)]
+      return "%\(Unicode.Scalar(hi))\(Unicode.Scalar(lo))"
+    }
+  }()
+
   static func sanitizeFileComponent(_ raw: String) -> String {
-    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
     var out = ""
     for scalar in raw.unicodeScalars {
-      if allowed.contains(scalar) && scalar.isASCII {
+      let val = Int(scalar.value)
+      if val < 128 && Self._allowedASCII[val] {
         out.unicodeScalars.append(scalar)
       } else {
         for byte in String(scalar).utf8 {
-          out += String(format: "%%%02X", byte)
+          out += Self._percentHex[Int(byte)]
         }
       }
     }

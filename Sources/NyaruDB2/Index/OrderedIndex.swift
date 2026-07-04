@@ -287,33 +287,40 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
   /// Returns the index of the first key that is not less than the given key
   /// (i.e. the insertion point that maintains sort order).
+  ///
+  /// Uses `withUnsafeBufferPointer` to access the `keys` array without
+  /// bounds-checking overhead on every `keys[mid]` access in the search loop.
   @usableFromInline internal func lowerBound(_ key: FieldValue) -> Int {
-    var low = 0
-    var high = keys.count
-    while low < high {
-      let mid = (low + high) / 2
-      if keys[mid] < key {
-        low = mid + 1
-      } else {
-        high = mid
+    keys.withUnsafeBufferPointer { keys in
+      var low = 0
+      var high = keys.count
+      while low < high {
+        let mid = (low + high) / 2
+        if keys[mid] < key {
+          low = mid + 1
+        } else {
+          high = mid
+        }
       }
+      return low
     }
-    return low
   }
 
   /// Returns the index of the first key that is greater than the given key.
   @usableFromInline internal func upperBound(_ key: FieldValue) -> Int {
-    var low = 0
-    var high = keys.count
-    while low < high {
-      let mid = (low + high) / 2
-      if keys[mid] <= key {
-        low = mid + 1
-      } else {
-        high = mid
+    keys.withUnsafeBufferPointer { keys in
+      var low = 0
+      var high = keys.count
+      while low < high {
+        let mid = (low + high) / 2
+        if keys[mid] <= key {
+          low = mid + 1
+        } else {
+          high = mid
+        }
       }
+      return low
     }
-    return low
   }
 
   // MARK: - Persistence
