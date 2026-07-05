@@ -24,6 +24,7 @@ struct ANSI {
     static let cyan = "\u{001B}[36m"
     static let white = "\u{001B}[37m"
     static let gray = "\u{001B}[90m"
+    static let dim = "\u{001B}[2m"
   }
 }
 
@@ -234,6 +235,19 @@ public final class NyaruDBBenchmark {
       indexedFields: ["category", "name", "id"]
     )
 
+    // Warmup: populates OS page cache and warms up the engine
+    await gracefulDrop(db: db)
+    do {
+      let warmupCol = try await db.collection("test", of: TestDocument.self, options: collOpts)
+      let warmupDocs = generateDocuments(
+        count: warmupCount, partitioned: partitioned, startingID: 0, fixedContent: true)
+      try await warmupCol.insert(contentsOf: warmupDocs)
+      _ = try await warmupCol.find().where("id", isGreaterThan: 0).limit(10).execute()
+      await gracefulDrop(db: db)
+    } catch {
+      print("\(ANSI.FG.dim)Warmup skipped: \(error)\(ANSI.reset)")
+    }
+
     // 1. InsertMany
     let insertManyTime = await measureInsertManyPerformance(
       db: db, options: collOpts, partitioned: partitioned)
@@ -307,7 +321,7 @@ public final class NyaruDBBenchmark {
     db: NyaruDB, options: CollectionOptions, partitioned: Bool
   ) async -> Double {
     do {
-      try? await db.drop("test")
+      await gracefulDrop(db: db)
       let collection = try await db.collection("test", of: TestDocument.self, options: options)
       let documents = generateDocuments(
         count: documentCount, partitioned: partitioned, startingID: 1)
@@ -324,7 +338,7 @@ public final class NyaruDBBenchmark {
     db: NyaruDB, options: CollectionOptions, partitioned: Bool
   ) async -> Double {
     do {
-      try? await db.drop("test")
+      await gracefulDrop(db: db)
       let collection = try await db.collection("test", of: TestDocument.self, options: options)
       let documents = generateDocuments(
         count: documentCount, partitioned: partitioned, startingID: 1)
@@ -344,7 +358,7 @@ public final class NyaruDBBenchmark {
     db: NyaruDB, options: CollectionOptions, partitioned: Bool
   ) async -> Double {
     do {
-      try? await db.drop("test")
+      await gracefulDrop(db: db)
       let collection = try await db.collection("test", of: TestDocument.self, options: options)
       let documents = generateDocuments(
         count: documentCount, partitioned: partitioned, startingID: 1)
@@ -367,22 +381,27 @@ public final class NyaruDBBenchmark {
   ) async -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     do {
-      if partitioned {
-        _ =
-          try await collection
-          .find()
-          .where("category", isEqualTo: "Test")
-          .where("id", isGreaterThan: 100)
-          .sort(by: "name", ascending: true)
-          .limit(100)
-          .execute()
-      } else {
-        _ =
-          try await collection
-          .find()
-          .where("id", isGreaterThan: 100)
-          .limit(100)
-          .execute()
+      for _ in 0..<5 {
+        if partitioned {
+          _ = try await collection.find()
+            .where("category", isEqualTo: "Test")
+            .where("id", isGreaterThan: 100)
+            .sort(by: "name", ascending: true)
+            .limit(100)
+            .execute()
+        } else {
+          _ = try await collection.find()
+            .where("id", isGreaterThan: 100)
+            .limit(100)
+            .execute()
+          _ = try await collection.find()
+            .where("name", isEqualTo: "Document 42")
+            .execute()
+          _ = try await collection.find()
+            .where("id", isBetween: 1000, and: 2000)
+            .sort(by: "name")
+            .execute()
+        }
       }
     } catch {
       print("\n\(ANSI.FG.red)Query error: \(error)\(ANSI.reset)")
@@ -395,16 +414,16 @@ public final class NyaruDBBenchmark {
   ) async -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     do {
-      guard let doc = try await collection.get(id: 1) else {
-        return CFAbsoluteTimeGetCurrent() - start
+      for id in 1...100 {
+        guard let doc = try await collection.get(id: id) else { continue }
+        let updated = TestDocument(
+          id: doc.id,
+          name: doc.name + " - Updated",
+          category: doc.category,
+          content: doc.content + " (modified)"
+        )
+        try await collection.update(updated)
       }
-      let updated = TestDocument(
-        id: doc.id,
-        name: doc.name + " - Updated",
-        category: doc.category,
-        content: doc.content + " (modified)"
-      )
-      try await collection.update(updated)
     } catch {
       print("\n\(ANSI.FG.red)Update error: \(error)\(ANSI.reset)")
     }
@@ -416,14 +435,14 @@ public final class NyaruDBBenchmark {
   ) async -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     do {
-      guard (try await collection.get(id: 2)) != nil else {
-        return CFAbsoluteTimeGetCurrent() - start
+      for id in 1...100 {
+        guard (try await collection.get(id: id)) != nil else { continue }
+        let changes: [String: FieldValue] = [
+          "name": .string("Patched Document \(id)"),
+          "category": .string("Patched"),
+        ]
+        try await collection.patch(id: id, changes: changes)
       }
-      let changes: [String: FieldValue] = [
-        "name": "Patched Document",
-        "category": "Patched",
-      ]
-      try await collection.patch(id: 2, changes: changes)
     } catch {
       print("\n\(ANSI.FG.red)Patch error: \(error)\(ANSI.reset)")
     }
@@ -435,9 +454,7 @@ public final class NyaruDBBenchmark {
   ) async -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     do {
-      _ =
-        try await collection
-        .find()
+      _ = try await collection.find()
         .where("id", isGreaterThan: documentCount - 1000)
         .delete()
     } catch {
@@ -451,7 +468,7 @@ public final class NyaruDBBenchmark {
   ) async -> Double {
     do {
       let extraDocs = generateDocuments(
-        count: 20_000, partitioned: false, startingID: documentCount + 1)
+        count: 20_000, partitioned: partitioning, startingID: documentCount + 1)
       try await collection.insert(contentsOf: extraDocs)
       _ = try await collection.find().where("id", isGreaterThan: documentCount).delete()
     } catch {
@@ -470,16 +487,18 @@ public final class NyaruDBBenchmark {
 
   // MARK: - Helpers
 
-  private func generateDocuments(count: Int, partitioned: Bool, startingID: Int = 1)
-    -> [TestDocument]
-  {
-    (startingID..<(startingID + count)).map { id in
-      let category: String = partitioned ? shardValues.randomElement()! : "Test"
+  private func generateDocuments(
+    count: Int, partitioned: Bool, startingID: Int = 1, fixedContent: Bool = false
+  ) -> [TestDocument] {
+    let contentCount = fixedContent ? 3 : 3  // deterministic: always 3 repetitions
+    return (startingID..<(startingID + count)).map { id in
+      let category: String = partitioned
+        ? shardValues[Int(id - startingID) % shardValues.count] : "Test"
       return TestDocument(
         id: id,
         name: "Document \(id)",
         category: category,
-        content: String(repeating: testString, count: Int.random(in: 1...5))
+        content: String(repeating: testString, count: contentCount)
       )
     }
   }
@@ -517,6 +536,18 @@ public final class NyaruDBBenchmark {
     return Int(info.resident_size) / 1_000_000
   }
 
+  /// Drops a collection if it exists; silently continues if it doesn't.
+  private func gracefulDrop(db: NyaruDB) async {
+    do {
+      try await db.drop("test")
+    } catch let e as NyaruError {
+      if case .collectionNotFound = e { return }
+      print("\(ANSI.FG.yellow)Warning: drop failed: \(e)\(ANSI.reset)")
+    } catch {
+      print("\(ANSI.FG.yellow)Warning: drop failed: \(error)\(ANSI.reset)")
+    }
+  }
+
   private func cleanup() async {
     try? FileManager.default.removeItem(at: tempDir)
   }
@@ -548,9 +579,9 @@ public final class SQLiteBenchmark {
       fatalError("Failed to open SQLite DB")
     }
 
-    // Configure SQLite for maximum write performance (WAL mode)
+    // Configure SQLite with FULL sync = same durability guarantee as NyaruDB
     execute("PRAGMA journal_mode=WAL;")
-    execute("PRAGMA synchronous=NORMAL;")
+    execute("PRAGMA synchronous=FULL;")
 
     // Setup table and indexes (mimicking NyaruDB2 indexedFields)
     execute("DROP TABLE IF EXISTS test;")
@@ -751,7 +782,7 @@ func printReport(results: [BenchmarkResult], documentCount: Int, batchSize: Int,
   let headers = [
     ("Method", 8), ("Format", 8), ("Enc", 4), ("Part", 5),
     ("InsertMany (50k)", 17), ("InsertBatch (50k)", 17), ("InsertTx (50k)", 15),
-    ("Query (100)", 13), ("Update (1)", 11), ("Patch (1)", 11), ("Delete (1k)", 13),
+    ("Query (5x)", 13), ("Update (100)", 13), ("Patch (100)", 13), ("Delete (1k)", 13),
     ("Compact (20k)", 13), ("Size (MB)", 10), ("Shards", 6), ("Frag (%)", 8), ("Memory (MB)", 12),
   ]
 
@@ -783,8 +814,8 @@ func printReport(results: [BenchmarkResult], documentCount: Int, batchSize: Int,
       String(format: "%17.2f", result.insertBatchTime * 1000),
       insertTxDisplay,
       String(format: "%13.2f", result.queryTime * 1000),
-      String(format: "%11.2f", result.updateTime * 1000),
-      String(format: "%11.2f", result.patchTime * 1000),
+      String(format: "%13.2f", result.updateTime * 1000),
+      String(format: "%13.2f", result.patchTime * 1000),
       String(format: "%13.2f", result.deleteTime * 1000),
       String(format: "%13.2f", result.compactTime * 1000),
       String(format: "%10.2f", Double(result.fileSize) / 1_000_000),
@@ -903,6 +934,12 @@ struct BenchmarkRunner {
 
     // Print Combined Report
     print("\n\n\(ANSI.bold)📊 Combined Results Summary (NyaruDB2 vs SQLite)\(ANSI.reset)\n")
+    print(
+      "\(ANSI.FG.gray)Note: SQLite VACUUM rewrites the entire file (heavier than NyaruDB compact).\(ANSI.reset)"
+    )
+    print(
+      "\(ANSI.FG.gray)Both use FULL sync durability. Query/Update/Patch times are totals for N operations.\(ANSI.reset)\n"
+    )
     printReport(
       results: allResults, documentCount: documentCount, batchSize: batchSize,
       partitioned: partitioning)
