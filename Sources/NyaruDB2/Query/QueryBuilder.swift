@@ -515,24 +515,45 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   // MARK: - Execution
 
+  /// Returns the sliced pointer list when the **entire** query — predicates,
+  /// sort, and pagination — is answered by the index alone, or `nil` when
+  /// in-memory work (residual predicates, unaligned sort) remains.
+  ///
+  /// Requirements:
+  /// - The plan chose an index lookup and there is exactly one top-level
+  ///   predicate (so nothing is filtered after the fetch).
+  /// - The sort is absent or ascending on the same field: index range results
+  ///   are produced in ascending key order, so offset/limit can be applied
+  ///   directly to the pointer list. A **descending** sort cannot reuse that
+  ///   order — slicing ascending pointers would page from the wrong end.
+  private func coveredPointers(for planResult: PlanResult) async -> [RecordPointer]? {
+    guard case .indexLookup(let field) = planResult.strategy,
+      topLevelPredicateCount() == 1,
+      sortField == nil || (sortField == field && sortAscending)
+    else { return nil }
+
+    let pointers = await pointers(forIndexedField: field)
+    let start = min(offsetCount, pointers.count)
+    let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
+    return Array(pointers[start..<end])
+  }
+
   /// Fetches candidate documents from the most efficient access path.
+  ///
+  /// The returned flag is `true` when the query was fully covered by the
+  /// index: pagination is already applied and no residual predicates remain.
   private func candidates() async throws -> ([Data], Bool) {
     let planResult = await plan()
+
+    if let covered = await coveredPointers(for: planResult) {
+      let data = try await core.fetch(pointers: covered)
+      return (data, true)
+    }
+
     switch planResult.strategy {
     case .indexLookup(let field):
-      var pointers = await pointers(forIndexedField: field)
-
-      // We can only do this if there are no residual predicates that might filter out
-      // documents AFTER the fetch, and if the sort is aligned with the index (or absent).
-      let canPushdown = topLevelPredicateCount() == 1 && (sortField == nil || sortField == field)
-      if canPushdown {
-        let start = min(offsetCount, pointers.count)
-        let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
-        pointers = Array(pointers[start..<end])
-      }
-
-      let data = try await core.fetch(pointers: pointers)
-      return (data, canPushdown)
+      let data = try await core.fetch(pointers: await pointers(forIndexedField: field))
+      return (data, false)
 
     case .partitionScan:
       // Use the cached partition value from the plan instead of re-scanning predicates.
@@ -602,6 +623,24 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Returns: An array of decoded documents matching all predicates.
   /// - Throws: `NyaruError.decodingFailed` if a document fails to decode.
   public func execute() async throws -> [T] {
+    // Fast path: the index answers the whole query and no ordering was
+    // requested — fetch and decode without parsing or re-evaluating anything.
+    // (With a sort field, results must flow through the in-memory sort in
+    // matchedParsed, because fetch returns documents in disk order.)
+    if sortField == nil {
+      let planResult = await plan()
+      if let covered = await coveredPointers(for: planResult) {
+        let raw = try await core.fetch(pointers: covered)
+        return try raw.map { json in
+          do {
+            return try Serializer.decode(T.self, from: json, format: format)
+          } catch {
+            throw NyaruError.decodingFailed(String(describing: error))
+          }
+        }
+      }
+    }
+
     let matching = try await matchingDocuments()
     return try matching.map { json in
       do {
@@ -621,9 +660,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   /// Returns the count of matching documents without decoding them.
   ///
-  /// More efficient than `execute().count` because it skips decoding.
+  /// More efficient than `execute().count` because it skips decoding. When
+  /// the query is fully covered by an index, the count is answered from the
+  /// pointer list alone — no disk I/O at all.
   public func count() async throws -> Int {
-    try await matchingDocuments().count
+    let planResult = await plan()
+    if let covered = await coveredPointers(for: planResult) {
+      return covered.count
+    }
+    return try await matchingDocuments().count
   }
 
   /// Returns all distinct values of a field among the matching documents.
@@ -686,22 +731,21 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     for json in raw {
       guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
 
-      if Self.evaluate(rootPredicate, in: dict) {
-        if requiresFullEvaluation {
+      // A fully covered query has no residual predicates — the index already
+      // guaranteed the match, so re-evaluating the tree is redundant.
+      if alreadyPaginated || Self.evaluate(rootPredicate, in: dict) {
+        if requiresFullEvaluation || alreadyPaginated {
+          // Pagination was either pushed down to the pointer list or is
+          // applied after the in-memory sort below.
           matched.append((dict, json))
         } else {
-          if alreadyPaginated {
-            // Limit/offset já foi aplicado no array de ponteiros, só adiciona.
-            matched.append((dict, json))
-          } else {
-            if skipped < offsetCount {
-              skipped += 1
-              continue
-            }
-            matched.append((dict, json))
-            if let limitCount, matched.count >= limitCount {
-              break
-            }
+          if skipped < offsetCount {
+            skipped += 1
+            continue
+          }
+          matched.append((dict, json))
+          if let limitCount, matched.count >= limitCount {
+            break
           }
         }
       }
@@ -714,7 +758,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         return sortAscending ? a < b : b < a
       }
 
-      // Aplica offset/limit apenas se não foi feito pushdown
+      // Offset/limit only apply here when they were not pushed down.
       if !alreadyPaginated {
         if offsetCount > 0 {
           matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
@@ -826,7 +870,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
     case .like(let field, let pattern, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
-      // Fast-path: pattern sem wildcards usa string equality (evita regex engine)
+      // Fast path: a pattern without wildcards is plain string equality.
       if !pattern.contains("%") && !pattern.contains("_") {
         return s == pattern
       }
@@ -836,7 +880,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
     case .glob(let field, let pattern, let safeRegex):
       guard case .string(let s)? = FieldExtractor.value(in: dict, path: field) else { return false }
-      // Fast-path: pattern sem wildcards usa string equality
+      // Fast path: a pattern without wildcards is plain string equality.
       if !pattern.contains("*") && !pattern.contains("?") && !pattern.contains("[") {
         return s == pattern
       }

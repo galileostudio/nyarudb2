@@ -39,7 +39,7 @@ final class SerializationTests: XCTestCase {
   }
 
   private func setupDB(format: SerializationFormat) async throws {
-    db = try await NyaruDB(path: baseURL, options: .init(format: format))
+    db = try NyaruDB(path: baseURL, options: .init(format: format))
     users = try await db.collection("users", of: User.self, options: userOptions)
   }
 

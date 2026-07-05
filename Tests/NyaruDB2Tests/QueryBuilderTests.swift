@@ -34,7 +34,7 @@ final class QueryAdvancedTests: XCTestCase {
     baseURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("nyaru-adv-tests-\(UUID().uuidString)", isDirectory: true)
 
-    db = try await NyaruDB(path: baseURL, options: .init(compression: .none))
+    db = try NyaruDB(path: baseURL, options: .init(compression: .none))
     users = try await db.collection("users", of: User.self, options: userOptions)
 
     // Populating base data for tests

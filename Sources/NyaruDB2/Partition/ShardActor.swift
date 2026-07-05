@@ -25,6 +25,10 @@ actor ShardActor {
   private let encryptionKey: SymmetricKey?
   private let maxFragmentation: Double
 
+  /// Pre-computed single-byte Data values (0–3) for AES-GCM authentication,
+  /// avoiding `Data([UInt8])` allocation on every read/write.
+  private static let _authData: [Data] = (0...3).map { Data([UInt8($0)]) }
+
   init(
     id: String, url: URL, compression: CompressionMethod, fileProtection: FileProtection,
     encryptionKey: SymmetricKey?, maxFragmentation: Double = 0.2
@@ -38,17 +42,8 @@ actor ShardActor {
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
   }
 
-  /// Whether the shard file was dirty on open and crash recovery was performed.
-  var recoveredFromDirty: Bool { file.recoveredFromDirty }
-
-  /// The number of live (non-tombstoned) records in the shard.
-  @inlinable var liveCount: Int { Int(file.liveCount) }
-  /// The number of tombstoned (deleted) records available for slot reuse.
-  @inlinable var tombstoneCount: UInt32 { file.tombstoneCount }
   /// The total number of bytes consumed by tombstoned slots.
   @inlinable var deadBytes: UInt64 { file.deadBytes }
-  /// Whether the shard contains zero live records.
-  @inlinable var isEmpty: Bool { file.liveCount == 0 }
 
   /// Whether the tombstone ratio exceeds `maxFragmentation`, indicating that
   /// compaction is recommended.
@@ -235,14 +230,21 @@ actor ShardActor {
   /// This is a blocking operation (synchronous I/O inside the actor) but is
   /// designed to be fast because it avoids decrypting and re-encrypting every
   /// record — the compressed payloads are copied as-is.
-  func compact() throws {
+  ///
+  /// - Returns: A map of old record offset → new record offset for every live
+  ///   record, so callers can remap index pointers without re-reading or
+  ///   re-parsing any document.
+  func compact() throws -> [UInt64: UInt64] {
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
 
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
+    var mapping: [UInt64: UInt64] = [:]
     try file.forEachLive { liveRecord in
-      _ = try tempFile.append(payload: liveRecord.payload, compression: liveRecord.compression)
+      let newOffset = try tempFile.append(
+        payload: liveRecord.payload, compression: liveRecord.compression)
+      mapping[liveRecord.offset] = newOffset
     }
 
     try tempFile.sync()
@@ -251,6 +253,7 @@ actor ShardActor {
 
     _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
     self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+    return mapping
   }
 
   // MARK: - Payload Preparation
@@ -281,7 +284,7 @@ actor ShardActor {
 
     if let key = encryptionKey {
       var wrapped = Data([method.byte])
-      let sealedBox = try AES.GCM.seal(payload, using: key, authenticating: Data([method.byte]))
+      let sealedBox = try AES.GCM.seal(payload, using: key, authenticating: Self._authData[Int(method.byte)])
       guard let combined = sealedBox.combined else { throw NyaruError.encryptionFailed }
       wrapped.append(combined)
       return (wrapped, .none)
@@ -307,7 +310,7 @@ actor ShardActor {
       let methodByte = record.payload[0]
       // slice without copy — SealedBox(combined:) accepts DataProtocol
       let sealedBox = try AES.GCM.SealedBox(combined: record.payload.dropFirst())
-      let decrypted = try AES.GCM.open(sealedBox, using: key, authenticating: Data([methodByte]))
+      let decrypted = try AES.GCM.open(sealedBox, using: key, authenticating: Self._authData[Int(methodByte)])
 
       if let method = CompressionMethod(byte: methodByte), method != .none {
         return try Compressor.decompress(decrypted, method: method)

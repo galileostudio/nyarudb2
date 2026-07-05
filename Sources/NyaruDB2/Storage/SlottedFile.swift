@@ -141,8 +141,6 @@ final class SlottedFile {
   /// in every record header. Avoids allocating a new array on every write.
   private static let reservedBytes = Data(count: 3)
 
-  var path: String { url.path }
-
   // MARK: - Open / create
 
   /// Opens an existing shard file or creates a new one with a valid header.

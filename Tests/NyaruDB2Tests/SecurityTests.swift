@@ -41,7 +41,7 @@ final class SecurityTests: XCTestCase {
 
   func testEncryptionAndPartitionHashing() async throws {
     let key = SymmetricKey(size: .bits256)
-    db = try await NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key))
+    db = try NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key))
     users = try await db.collection("users", of: User.self, options: userOptions)
 
     try await users.insert(User(id: 1, name: "Alice", country: "BR"))
@@ -82,14 +82,14 @@ final class SecurityTests: XCTestCase {
     let key2 = SymmetricKey(size: .bits256)
 
     // 1. Creates the database with key1 and inserts data
-    db = try await NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key1))
+    db = try NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key1))
     users = try await db.collection("users", of: User.self, options: userOptions)
     try await users.insert(User(id: 1, name: "Alice", country: "BR"))
     try await db.close()  // Closes and saves everything
 
     // 2. Tries to reopen the same database with key2 (wrong)
     do {
-      db = try await NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key2))
+      db = try NyaruDB(path: baseURL, options: .init(format: .msgpack, encryptionKey: key2))
       _ = try await db.collection("users", of: User.self, options: userOptions)
 
       // Tries to read the data (GCM should fail when opening the manifest or shard)

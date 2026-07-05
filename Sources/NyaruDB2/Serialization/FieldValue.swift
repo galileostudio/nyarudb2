@@ -344,22 +344,4 @@ enum FieldExtractor {
     }
     return FieldValue.fromAny(current)
   }
-
-  /// Parses encoded document data and extracts a `FieldValue` at the given
-  /// dot-separated path.
-  ///
-  /// Convenience wrapper that combines `parse(_:using:)` and `value(in:path:)`.
-  ///
-  /// - Parameters:
-  ///   - data: The encoded document data.
-  ///   - path: A dot-separated field path.
-  ///   - format: The serialization format of the data.
-  /// - Returns: The `FieldValue` at the path, or `nil` if not found.
-  /// - Throws: `NyaruError.decodingFailed` if the data is not a valid object.
-  static func value(in data: Data, path: String, using format: SerializationFormat) throws
-    -> FieldValue?
-  {
-    let dict = try parse(data, using: format)
-    return value(in: dict, path: path)
-  }
 }

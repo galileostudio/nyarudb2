@@ -27,9 +27,13 @@ public enum SerializationFormat: String, CaseIterable, Codable, Sendable {
 ///
 /// - Note: The `unpack(_:format:)` method is used internally by `FieldExtractor`
 ///   for predicate evaluation, patch, and partial reads. It decodes into a
-///   generic `[String: Any]` dictionary via `AnyDecodable` to avoid the
-///   NSNumber bridging issues that plagued the previous engine.
+///   generic `[String: Any]` dictionary.
 enum Serializer {
+
+  private static let jsonEncoder = JSONEncoder()
+  private static let jsonDecoder = JSONDecoder()
+  private static let msgPackEncoder = MsgPackEncoder()
+  private static let msgPackDecoder = MsgPackDecoder()
 
   /// Encodes a Swift value to `Data` using the specified serialization format.
   ///
@@ -38,11 +42,6 @@ enum Serializer {
   ///   - format: The target serialization format (`.json` or `.msgpack`).
   /// - Returns: The encoded data.
   /// - Throws: Encoding errors from the underlying encoder.
-
-  private static let jsonEncoder = JSONEncoder()
-  private static let jsonDecoder = JSONDecoder()
-  private static let msgPackEncoder = MsgPackEncoder()
-  private static let msgPackDecoder = MsgPackDecoder()
   @inlinable
   static func encode<T: Encodable>(_ value: T, format: SerializationFormat) throws -> Data {
     switch format {
@@ -76,10 +75,10 @@ enum Serializer {
   /// Converts encoded document data into a generic `[String: Any]` dictionary
   /// for field extraction and predicate evaluation.
   ///
-  /// This method uses `AnyDecodable` under the hood to ensure that numeric
-  /// values are decoded as Swift-native `Int64` and `Double` instead of
-  /// `NSNumber`. This preserves the type information needed for correct
-  /// comparisons in the query engine.
+  /// JSON uses `JSONSerialization` (C-level, far faster than `JSONDecoder`
+  /// for raw dictionaries); MsgPack uses the native `MsgPackExtractor`.
+  /// `FieldValue.fromAny` handles the NSNumber bool/number disambiguation
+  /// downstream, so type information survives for query comparisons.
   ///
   /// - Parameters:
   ///   - data: The encoded document data.
@@ -89,8 +88,6 @@ enum Serializer {
   static func unpack(_ data: Data, format: SerializationFormat) throws -> Any {
     switch format {
     case .json:
-      // OTIMIZAÇÃO MASSIVA: JSONSerialization (C-level) é infinitamente mais rápido
-      // que JSONDecoder + AnyDecodable para extrair dicionários crus.
       return try JSONSerialization.jsonObject(with: data, options: [])
     case .msgpack:
       return try MsgPackExtractor.extractDictionary(from: data)
@@ -118,7 +115,8 @@ enum Serializer {
     public let indexEntries: [(field: String, key: FieldValue)]
   }
 
-  /// ROADMAP BONUS: Extracts only the fields needed for indexing, avoiding full dictionary allocation.
+  /// Extracts the id, partition value, and index keys from an encoded
+  /// document in a single parse, avoiding repeated per-field parses.
   static func extractMetadata(
     from data: Data, idField: String, partitionKey: String?, indexedFields: [String],
     format: SerializationFormat
@@ -146,47 +144,6 @@ enum Serializer {
     }
 
     return DocumentMetadata(id: id, partitionValue: partitionValue, indexEntries: entries)
-  }
-}
-
-// MARK: - AnyDecodable
-
-/// Decodes any JSON or MessagePack value into Swift-native types, avoiding
-/// Foundation's automatic `NSNumber` bridging.
-///
-/// Standard `JSONDecoder` with `[String: Any]` produces `NSNumber` for all
-/// numeric values, which loses the distinction between integers and doubles.
-/// `AnyDecodable` preserves the exact type: `Bool`, `Int64`, `Double`,
-/// `String`, plus recursive arrays and dictionaries. This is essential for
-/// correct index key comparisons and predicate evaluation.
-struct AnyDecodable: Decodable {
-  /// The decoded native Swift value.
-  let value: Any
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-
-    if container.decodeNil() {
-      self.value = NSNull()
-      return
-    }
-
-    // Ordered to prevent Int64 from swallowing Bools or vice-versa
-    if let v = try? container.decode(Bool.self) {
-      self.value = v
-    } else if let v = try? container.decode(Int64.self) {
-      self.value = v
-    } else if let v = try? container.decode(Double.self) {
-      self.value = v
-    } else if let v = try? container.decode(String.self) {
-      self.value = v
-    } else if let v = try? container.decode([AnyDecodable].self) {
-      self.value = v.map { $0.value }
-    } else if let v = try? container.decode([String: AnyDecodable].self) {
-      self.value = v.mapValues { $0.value }
-    } else {
-      self.value = NSNull()
-    }
   }
 }
 

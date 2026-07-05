@@ -45,7 +45,7 @@ final class EngineTests: XCTestCase {
   }
 
   private func openDB(compression: CompressionMethod = .none) async throws -> NyaruDB {
-    try await NyaruDB(path: baseURL, options: .init(compression: compression))
+    try NyaruDB(path: baseURL, options: .init(compression: compression))
   }
 
   // MARK: - CRUD
@@ -57,7 +57,7 @@ final class EngineTests: XCTestCase {
     try await users.insert(alice)
     let fetched = try await users.get(id: 1)
     XCTAssertEqual(fetched, alice)
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 1)
     try await db.close()
   }
@@ -74,7 +74,7 @@ final class EngineTests: XCTestCase {
         return XCTFail("wrong error: \(error)")
       }
     }
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 1)
     try await db.close()
   }
@@ -106,7 +106,7 @@ final class EngineTests: XCTestCase {
     XCTAssertFalse(again)
     let fetched = try await users.get(id: 1)
     XCTAssertNil(fetched)
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 0)
     try await db.close()
   }
@@ -123,7 +123,7 @@ final class EngineTests: XCTestCase {
       }
     }
     // Validation happens before any write: nothing was persisted.
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 0)
     try await db.close()
   }
@@ -187,7 +187,7 @@ final class EngineTests: XCTestCase {
     try await users.insert(user(1, country: "BR"))
     try await users.update(user(1, country: "PT"))
 
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 1)
     let inBR = try await users.find().where("country", isEqualTo: "BR").count()
     let inPT = try await users.find().where("country", isEqualTo: "PT").count()
@@ -195,7 +195,7 @@ final class EngineTests: XCTestCase {
     XCTAssertEqual(inPT, 1)
     let fetched = try await users.get(id: 1)
     XCTAssertEqual(fetched?.country, "PT")
-    let stats = await users.stats()
+    let stats = try await users.stats()
     XCTAssertEqual(stats.shardCount, 2)
     try await db.close()
   }
@@ -211,7 +211,7 @@ final class EngineTests: XCTestCase {
     }
     let db2 = try await openDB()
     let users2 = try await db2.collection("users", of: User.self, options: userOptions)
-    let count = await users2.count()
+    let count = try await users2.count()
     XCTAssertEqual(count, 20)
 
     let fetched13 = try await users2.get(id: 13)
@@ -234,7 +234,7 @@ final class EngineTests: XCTestCase {
 
     let db2 = try await openDB()
     let users2 = try await db2.collection("users", of: User.self, options: userOptions)
-    let count = await users2.count()
+    let count = try await users2.count()
     XCTAssertEqual(count, 9)
 
     let fetched4 = try await users2.get(id: 4)
@@ -387,7 +387,7 @@ final class EngineTests: XCTestCase {
       .where("age", isLessThanOrEqualTo: 4)
       .delete()
     XCTAssertEqual(removed, 4)
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 6)
 
     let fetched3 = try await users.get(id: 3)
@@ -425,7 +425,7 @@ final class EngineTests: XCTestCase {
     }
     let db2 = try await openDB(compression: .gzip)
     let users2 = try await db2.collection("users", of: User.self, options: userOptions)
-    let count = await users2.count()
+    let count = try await users2.count()
     XCTAssertEqual(count, 15)
 
     let fetched8 = try await users2.get(id: 8)
@@ -443,13 +443,13 @@ final class EngineTests: XCTestCase {
         self.user($0, name: String(repeating: "x", count: 500))
       })
     _ = try await users.find().where("id", isLessThanOrEqualTo: 40).delete()
-    let before = await users.stats().sizeInBytes
+    let before = try await users.stats().sizeInBytes
 
     try await users.compact()
 
-    let after = await users.stats().sizeInBytes
+    let after = try await users.stats().sizeInBytes
     XCTAssertLessThan(after, before)
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 10)
 
     let fetched45 = try await users.get(id: 45)
@@ -478,7 +478,7 @@ final class EngineTests: XCTestCase {
   }
 
   func testInt64PrimaryKeysAboveDoublePrecision() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let events = try await db.collection(
       "events", of: Event.self,
       options: CollectionOptions(idField: "id")
@@ -508,7 +508,7 @@ final class EngineTests: XCTestCase {
 
     // Survives close/reopen (index persistence keeps exact Int64).
     try await db.close()
-    let db2 = try await NyaruDB(path: baseURL)
+    let db2 = try NyaruDB(path: baseURL)
     let events2 = try await db2.collection(
       "events", of: Event.self,
       options: CollectionOptions(idField: "id")
@@ -519,7 +519,7 @@ final class EngineTests: XCTestCase {
   }
 
   func testMixedIntAndDoubleQueryValues() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection("users", of: User.self, options: userOptions)
     try await users.insert(contentsOf: (1...9).map { user($0, age: 20 + $0) })
 

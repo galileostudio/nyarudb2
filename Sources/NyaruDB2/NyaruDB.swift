@@ -113,7 +113,7 @@ public actor NyaruDB {
   ///   - path: The directory URL for the database.
   ///   - options: Database-wide configuration applied to all collections.
   /// - Throws: `NyaruError.ioError` if the directory cannot be created.
-  public init(path: URL, options: DatabaseOptions = DatabaseOptions()) async throws {
+  public init(path: URL, options: DatabaseOptions = DatabaseOptions()) throws {
     self.baseURL = path
     self.options = options
     try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
@@ -128,8 +128,8 @@ public actor NyaruDB {
   ///   - path: The filesystem path to the database directory.
   ///   - options: Database-wide configuration.
   /// - Throws: `NyaruError.ioError` if the directory cannot be created.
-  public init(path: String, options: DatabaseOptions = DatabaseOptions()) async throws {
-    try await self.init(
+  public init(path: String, options: DatabaseOptions = DatabaseOptions()) throws {
+    try self.init(
       path: URL(fileURLWithPath: path, isDirectory: true),
       options: options
     )
@@ -178,7 +178,9 @@ public actor NyaruDB {
       name: name,
       core: core,
       partitionKey: await core.manifest.partitionKey,
-      format: options.format
+      format: options.format,
+      idField: collectionOptions.idField,
+      indexedFields: collectionOptions.indexedFields
     )
   }
 

@@ -215,7 +215,7 @@ public final class NyaruDBBenchmark {
 
     let db: NyaruDB
     do {
-      db = try await NyaruDB(
+      db = try NyaruDB(
         path: path,
         options: DatabaseOptions(
           compression: method,
@@ -269,9 +269,9 @@ public final class NyaruDBBenchmark {
     }
 
     let size = calculateDatabaseSize(path: path)
-    let stats = await collection.stats()
-    let shardCount = stats.shardCount
-    let fragmentationRatio = stats.fragmentationRatio
+    let stats = try? await collection.stats()
+    let shardCount = stats?.shardCount ?? 0
+    let fragmentationRatio = stats?.fragmentationRatio ?? 0
 
     try? await db.sync()
 
@@ -363,9 +363,9 @@ public final class NyaruDBBenchmark {
       let documents = generateDocuments(
         count: documentCount, partitioned: partitioned, startingID: 1)
       let start = CFAbsoluteTimeGetCurrent()
-      try await collection.withTransaction { tx in
+      try await collection.insertBatch { batch in
         for chunk in documents.chunked(into: batchSize) {
-          tx.insert(contentsOf: chunk)
+          batch.insert(contentsOf: chunk)
         }
       }
       return CFAbsoluteTimeGetCurrent() - start

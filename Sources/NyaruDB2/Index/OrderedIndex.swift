@@ -38,8 +38,6 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   public var entryCount: Int { _entryCount }
   /// The number of unique keys in the index.
   public var uniqueKeyCount: Int { keys.count }
-  /// Whether the index contains no keys.
-  public var isEmpty: Bool { keys.isEmpty }
 
   public init() {}
 
@@ -252,6 +250,72 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
         postings.remove(at: pos)
       }
     }
+  }
+
+  /// Removes every occurrence of the given pointer across all keys in a
+  /// single pass. Keys whose posting lists become empty are removed.
+  ///
+  /// Used when a record disappears (stale pointer, corruption) and its index
+  /// keys are unknown.
+  ///
+  /// - Parameter pointer: The record pointer to purge from the index.
+  public func removeAll(pointer: RecordPointer) {
+    var i = 0
+    while i < postings.count {
+      if let j = postings[i].firstIndex(of: pointer) {
+        postings[i].remove(at: j)
+        _entryCount -= 1
+        if postings[i].isEmpty {
+          keys.remove(at: i)
+          postings.remove(at: i)
+          continue
+        }
+      }
+      i += 1
+    }
+  }
+
+  /// Rewrites pointer offsets after shard compaction using per-shard offset
+  /// maps, without re-reading or re-parsing any document.
+  ///
+  /// For every pointer whose shard appears in `mapping`:
+  /// - If the old offset has a new offset, the pointer is rewritten.
+  /// - If the old offset is absent (the record no longer exists), the stale
+  ///   entry is dropped.
+  ///
+  /// Pointers into shards not present in `mapping` are kept unchanged.
+  ///
+  /// - Parameter mapping: Shard ID → (old offset → new offset).
+  public func compactRemap(_ mapping: [String: [UInt64: UInt64]]) {
+    var newKeys: [FieldValue] = []
+    var newPostings: [[RecordPointer]] = []
+    newKeys.reserveCapacity(keys.count)
+    newPostings.reserveCapacity(postings.count)
+    var count = 0
+
+    for i in keys.indices {
+      var list: [RecordPointer] = []
+      list.reserveCapacity(postings[i].count)
+      for pointer in postings[i] {
+        guard let shardMap = mapping[pointer.shardID] else {
+          list.append(pointer)
+          continue
+        }
+        if let newOffset = shardMap[pointer.offset] {
+          list.append(RecordPointer(shardID: pointer.shardID, offset: newOffset))
+        }
+        // Absent from the map: the record did not survive compaction — drop it.
+      }
+      if !list.isEmpty {
+        newKeys.append(keys[i])
+        newPostings.append(list)
+        count += list.count
+      }
+    }
+
+    keys = newKeys
+    postings = newPostings
+    _entryCount = count
   }
 
   /// Replaces `old` pointer with `new` pointer for a given key.

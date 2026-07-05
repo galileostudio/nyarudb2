@@ -157,6 +157,40 @@ actor CollectionCore {
   private var indexes: [String: OrderedIndex] = [:]
   private var isClosed = false
 
+  // MARK: - Compaction exclusion
+  //
+  // Compaction rewrites shard files (invalidating every stored offset) and
+  // then remaps index pointers. The actor suspends at each `await` inside
+  // `compact()`, so without a gate a concurrent pointer-based operation can
+  // interleave in that window: a `get` would read a stale offset against the
+  // rewritten file and evict a healthy index entry, and an `insert` would add
+  // entries with new-file offsets that the remap would then drop as stale.
+  // Pointer-based operations therefore wait while compaction is in flight,
+  // and compaction drains in-flight operations before touching any file.
+  private var isCompacting = false
+  private var activePointerOps = 0
+  private var compactionWaiters: [CheckedContinuation<Void, Never>] = []
+  private var drainWaiter: CheckedContinuation<Void, Never>?
+
+  /// Blocks new pointer-based operations while compaction runs, then marks
+  /// one operation as in flight. Must be paired with `endPointerOp()`.
+  private func beginPointerOp() async {
+    while isCompacting {
+      await withCheckedContinuation { compactionWaiters.append($0) }
+    }
+    activePointerOps += 1
+  }
+
+  /// Marks a pointer-based operation as finished, waking a draining
+  /// compaction when the last one completes.
+  private func endPointerOp() {
+    activePointerOps -= 1
+    if activePointerOps == 0, let waiter = drainWaiter {
+      drainWaiter = nil
+      waiter.resume()
+    }
+  }
+
   /// The configured document id field name.
   var idField: String { manifest.idField }
 
@@ -366,6 +400,28 @@ actor CollectionCore {
     }
   }()
 
+  /// Appends the UTF-8 percent-encoding of a single Unicode scalar without
+  /// allocating an intermediate String.
+  @inline(__always)
+  private static func _appendPercentEncoded(_ scalar: Unicode.Scalar, to out: inout String) {
+    let val = scalar.value
+    if val < 0x80 {
+      out += Self._percentHex[Int(val)]
+    } else if val < 0x800 {
+      out += Self._percentHex[Int(0xC0 | (val >> 6))]
+      out += Self._percentHex[Int(0x80 | (val & 0x3F))]
+    } else if val < 0x10000 {
+      out += Self._percentHex[Int(0xE0 | (val >> 12))]
+      out += Self._percentHex[Int(0x80 | ((val >> 6) & 0x3F))]
+      out += Self._percentHex[Int(0x80 | (val & 0x3F))]
+    } else {
+      out += Self._percentHex[Int(0xF0 | (val >> 18))]
+      out += Self._percentHex[Int(0x80 | ((val >> 12) & 0x3F))]
+      out += Self._percentHex[Int(0x80 | ((val >> 6) & 0x3F))]
+      out += Self._percentHex[Int(0x80 | (val & 0x3F))]
+    }
+  }
+
   static func sanitizeFileComponent(_ raw: String) -> String {
     var out = ""
     for scalar in raw.unicodeScalars {
@@ -373,38 +429,10 @@ actor CollectionCore {
       if val < 128 && Self._allowedASCII[val] {
         out.unicodeScalars.append(scalar)
       } else {
-        for byte in String(scalar).utf8 {
-          out += Self._percentHex[Int(byte)]
-        }
+        Self._appendPercentEncoded(scalar, to: &out)
       }
     }
     return out.isEmpty ? "_" : out
-  }
-
-  /// Determines the target shard ID for a document based on its partition key
-  /// value and the encryption configuration.
-  ///
-  /// When encryption is enabled, the shard ID is an HMAC-SHA256 of the
-  /// partition value to prevent leaking the partition distribution.
-  /// Otherwise, the partition value is sanitised for filesystem use.
-  ///
-  /// - Parameter dict: The parsed document dictionary.
-  /// - Returns: The shard ID string.
-  /// - Throws: `NyaruError.partitionKeyMissing` if the partition key is
-  ///   configured but absent from the document.
-  private func shardID(forDocument dict: [String: Any]) throws -> String {
-    guard let partitionKey = manifest.partitionKey else { return "default" }
-    guard let value = FieldExtractor.value(in: dict, path: partitionKey) else {
-      throw NyaruError.partitionKeyMissing(field: partitionKey)
-    }
-    let rawID = value.description
-
-    if let key = encryptionKey {
-      let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
-      return Self.hmacHex(hmac)
-    } else {
-      return Self.sanitizeFileComponent(rawID)
-    }
   }
 
   /// Returns the `ShardActor` for a given shard ID, creating it lazily if
@@ -445,29 +473,6 @@ actor CollectionCore {
 
   // MARK: - Field helpers
 
-  /// Extracts the document ID from a parsed dictionary.
-  ///
-  /// - Parameter dict: The parsed document.
-  /// - Returns: The document's id as a `FieldValue`.
-  /// - Throws: `NyaruError.idFieldMissing` if the id field is absent.
-  private func extractID(from dict: [String: Any]) throws -> FieldValue {
-    guard let id = FieldExtractor.value(in: dict, path: manifest.idField) else {
-      throw NyaruError.idFieldMissing(field: manifest.idField)
-    }
-    return id
-  }
-
-  /// Returns all indexed field/key pairs extracted from a document.
-  ///
-  /// - Parameter dict: The parsed document dictionary.
-  /// - Returns: An array of `(field, key)` tuples for every indexed field
-  ///   present in the document.
-  private func indexEntries(for dict: [String: Any]) -> [(field: String, key: FieldValue)] {
-    allIndexedFields.compactMap { field in
-      FieldExtractor.value(in: dict, path: field).map { (field, $0) }
-    }
-  }
-
   /// Reads a record through an index pointer and verifies that the document's
   /// id matches what the index claimed.
   ///
@@ -503,15 +508,11 @@ actor CollectionCore {
 
   // MARK: - CRUD
 
-  /// Inserts a document after validating that its id is unique.
-  ///
-  /// - Parameter data: The encoded document data.
-  /// - Throws: `NyaruError.duplicateID` if the id already exists.
-  func insert(data: Data) async throws {
+  /// Inserts a document using pre-extracted metadata, skipping the parse.
+  func insert(data: Data, metadata: Serializer.DocumentMetadata) async throws {
     try ensureOpen()
-    let metadata = try Serializer.extractMetadata(
-      from: data, idField: manifest.idField, partitionKey: manifest.partitionKey,
-      indexedFields: allIndexedFields, format: format)
+    await beginPointerOp()
+    defer { endPointerOp() }
     if indexes[manifest.idField]?.contains(metadata.id) == true {
       throw NyaruError.duplicateID(metadata.id.description)
     }
@@ -520,48 +521,21 @@ actor CollectionCore {
 
   /// Performs a bulk insert of multiple documents with optimized index loading.
   ///
-  /// This method optimizes batch inserts by:
-  ///   1. Validating all documents before touching disk (all-or-nothing)
-  ///   2. Grouping documents by shard for minimal I/O
-  ///   3. Writing each shard's batch in a single disk operation
-  ///   4. Collecting index entries during the write phase
-  ///   5. Loading all indexes in bulk using an O(N log N) merge algorithm
-  ///
-  /// The index loading is the key optimization: instead of inserting entries
-  /// one by one (O(N²) due to array shifting), entries are collected and
-  /// loaded in bulk using `OrderedIndex.bulkLoad(_:)`.
-  ///
-  /// - Parameter datas: An array of serialized document `Data` payloads.
-  /// - Throws: `NyaruError.duplicateID` if any document ID conflicts with an
-  ///   existing document or appears multiple times in the batch.
-  ///   `NyaruError.partitionKeyMissing` if the partition key is missing in a
-  ///   document when partitioning is configured.
-  ///
-  /// - Complexity: O(N log N) for sorting entries during bulk load, where N
-  ///   is the total number of documents being inserted.
-  ///
-  /// - Note: The entire batch is treated as an atomic operation: if any
-  ///   validation fails, no documents are written to disk.
-  ///
-  /// - SeeAlso: `insert(data:)` for single-document insertion,
-  ///   `OrderedIndex.bulkLoad(_:)` for the index loading implementation.
-  func insertMany(datas: [Data]) async throws {
+  /// Bulk insert with pre-extracted metadata, skipping per-document parse.
+  func insertMany(batch: [(Data, Serializer.DocumentMetadata)]) async throws {
+    if batch.isEmpty { return }
     try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
     var seen = Set<FieldValue>()
     var groupedByShard: [String: [(data: Data, metadata: Serializer.DocumentMetadata)]] = [:]
 
-    for data in datas {
-      // ROADMAP 2: Usa extractMetadata (evita construir o dict completo separadamente)
-      let metadata = try Serializer.extractMetadata(
-        from: data, idField: manifest.idField, partitionKey: manifest.partitionKey,
-        indexedFields: allIndexedFields, format: format)
-
+    for (data, metadata) in batch {
       if indexes[manifest.idField]?.contains(metadata.id) == true
         || !seen.insert(metadata.id).inserted
       {
         throw NyaruError.duplicateID(metadata.id.description)
       }
-
       let shardID = try shardID(forPartitionValue: metadata.partitionValue)
       groupedByShard[shardID, default: []].append((data, metadata))
     }
@@ -573,7 +547,6 @@ actor CollectionCore {
       let shard = try shard(for: shardID)
       let datas = items.map { $0.data }
       let pointers = try await shard.insertMany(datas: datas)
-
       for (i, item) in items.enumerated() {
         let pointer = pointers[i]
         for entry in item.metadata.indexEntries {
@@ -592,13 +565,19 @@ actor CollectionCore {
     guard let value = value else {
       throw NyaruError.partitionKeyMissing(field: partitionKey)
     }
+    return physicalShardID(for: value)
+  }
+
+  /// Maps a partition value to its physical shard identifier. When encryption
+  /// is enabled the value is HMAC-hashed so partition values never leak into
+  /// filenames; otherwise it is sanitised for filesystem use.
+  private func physicalShardID(for value: FieldValue) -> String {
     let rawID = value.description
     if let key = encryptionKey {
       let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
       return Self.hmacHex(hmac)
-    } else {
-      return Self.sanitizeFileComponent(rawID)
     }
+    return Self.sanitizeFileComponent(rawID)
   }
 
   /// Performs the actual insert: routes to a shard, writes, and updates indexes.
@@ -617,6 +596,8 @@ actor CollectionCore {
   /// - Returns: The encoded document data, or `nil` if not found.
   func get(id: FieldValue) async throws -> Data? {
     try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
     guard let pointer = indexes[manifest.idField]?.search(id).first else { return nil }
     let shard = try existingShard(pointer.shardID)
     guard let data = try await shard.read(at: pointer.offset) else { return nil }
@@ -630,27 +611,15 @@ actor CollectionCore {
     return data
   }
 
-  /// Point update by id. Handles three layouts:
-  /// 1. **In-place** — new payload fits the existing slot capacity.
-  /// 2. **Same-shard relocation** — doesn't fit; tombstone + append in same shard.
-  /// 3. **Cross-shard relocation** — partition value changed; insert in new
-  ///    shard, delete from old.
-  ///
-  /// - Parameters:
-  ///   - data: The new encoded document.
-  ///   - upsert: If `true`, insert when the id is not found.
-  /// - Throws: `NyaruError.documentNotFound` if not found and `upsert` is false.
-  func update(data: Data, upsert: Bool) async throws {
+  /// Point update with pre-extracted new-document metadata, skipping one parse.
+  func update(data: Data, metadata: Serializer.DocumentMetadata, upsert: Bool) async throws {
     try ensureOpen()
-    // ROADMAP 2: Usa extractMetadata
-    let metadata = try Serializer.extractMetadata(
-      from: data, idField: manifest.idField, partitionKey: manifest.partitionKey,
-      indexedFields: allIndexedFields, format: format)
+    await beginPointerOp()
+    defer { endPointerOp() }
     let id = metadata.id
 
     guard let oldPointer = indexes[manifest.idField]?.search(id).first else {
       if upsert {
-        // Inserção isolada se não existir
         let shardID = try shardID(forPartitionValue: metadata.partitionValue)
         let shard = try shard(for: shardID)
         let pointer = try await shard.insert(data: data)
@@ -688,8 +657,10 @@ actor CollectionCore {
       try await oldShard.delete(at: oldPointer.offset)
     }
 
-    let oldKeyByField = Dictionary(uniqueKeysWithValues: oldMetadata.indexEntries.map { ($0.field, $0.key) })
-    let newKeyByField = Dictionary(uniqueKeysWithValues: metadata.indexEntries.map { ($0.field, $0.key) })
+    let oldKeyByField = Dictionary(
+      uniqueKeysWithValues: oldMetadata.indexEntries.map { ($0.field, $0.key) })
+    let newKeyByField = Dictionary(
+      uniqueKeysWithValues: metadata.indexEntries.map { ($0.field, $0.key) })
 
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
@@ -728,6 +699,8 @@ actor CollectionCore {
     id: FieldValue, changes: [String: FieldValue], validate: @Sendable (Data) throws -> Void
   ) async throws -> Data {
     try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
     guard !changes.isEmpty else {
       guard let pointer = indexes[manifest.idField]?.search(id).first,
         let current = try await verifiedRead(pointer: pointer, expecting: id)
@@ -798,6 +771,8 @@ actor CollectionCore {
   @discardableResult
   func delete(id: FieldValue) async throws -> Bool {
     try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
     guard let pointer = indexes[manifest.idField]?.search(id).first else { return false }
     let shard = try existingShard(pointer.shardID)
     guard let oldData = try await shard.read(at: pointer.offset) else {
@@ -819,17 +794,15 @@ actor CollectionCore {
   /// Removes a pointer from every index. Used when a record disappears
   /// (corrupt, stale pointer, or phantom).
   private func removeFromAllIndexes(pointer: RecordPointer) {
-    for field in allIndexedFields {
-      guard let index = indexes[field] else { continue }
-      for key in index.keys {
-        index.remove(key: key, pointer: pointer)
-      }
+    for index in indexes.values {
+      index.removeAll(pointer: pointer)
     }
   }
 
   /// Returns the total number of live documents (from the primary index).
-  func count() -> Int {
-    indexes[manifest.idField]?.entryCount ?? 0
+  func count() throws -> Int {
+    try ensureOpen()
+    return indexes[manifest.idField]?.entryCount ?? 0
   }
 
   // MARK: - Index evolution
@@ -928,16 +901,7 @@ actor CollectionCore {
   /// - Returns: All live document data from the matching shard.
   func scanPartition(value: FieldValue) async throws -> [Data] {
     try ensureOpen()
-    let rawID = value.description
-    let id: String
-    if let key = encryptionKey {
-      let hmac = HMAC<SHA256>.authenticationCode(for: Data(rawID.utf8), using: key)
-      id = Self.hmacHex(hmac)
-    } else {
-      id = Self.sanitizeFileComponent(rawID)
-    }
-
-    guard let shard = try? shard(for: id) else { return [] }
+    guard let shard = try? shard(for: physicalShardID(for: value)) else { return [] }
     var out: [Data] = []
     try await shard.forEachLive { _, data in
       out.append(data)
@@ -970,12 +934,6 @@ actor CollectionCore {
     return (batch.items.map(\.data), batch.nextPos)
   }
 
-  /// Returns whether the given field has an active in-memory index.
-  func isIndexed(field: String) -> Bool {
-    indexes[field] != nil
-  }
-
-  /// Returns the subset of `fields` that have active in-memory indexes.
   /// Single actor hop for bulk index-existence checks in the query planner.
   func indexedFieldSet(of fields: Set<String>) -> Set<String> {
     Set(fields.filter { indexes[$0] != nil })
@@ -1010,6 +968,8 @@ actor CollectionCore {
   func fetch(pointers: [RecordPointer]) async throws -> [Data] {
     try ensureOpen()
     if pointers.isEmpty { return [] }
+    await beginPointerOp()
+    defer { endPointerOp() }
 
     var grouped: [String: [UInt64]] = [:]
     for pointer in pointers {
@@ -1033,48 +993,85 @@ actor CollectionCore {
 
   // MARK: - Maintenance
 
-  /// Rewrites every shard without tombstones (or padding waste), then
-  /// rebuilds all indexes.
+  /// Rewrites every shard without tombstones (or padding waste), then remaps
+  /// index pointers using the offset maps returned by each shard.
   ///
   /// This is the manual replacement for the old engine's 60-second background
   /// auto-merge task, which was removed by design: background timers in a
   /// mobile embedded database burn battery and raced with concurrent writes.
   ///
   /// Shards are compacted concurrently (up to 3 at a time) to minimise
-  /// latency on multi-shard collections.
+  /// latency on multi-shard collections. Because each shard reports its
+  /// old-offset → new-offset map, indexes are updated by rewriting pointers
+  /// in place — no document is re-read or re-parsed.
   func compact() async throws {
     try ensureOpen()
+
+    // Close the gate: new pointer-based operations suspend until compaction
+    // finishes, and compaction waits for in-flight ones to drain so no stale
+    // offset is ever read against a rewritten file.
+    while isCompacting {
+      await withCheckedContinuation { compactionWaiters.append($0) }
+    }
+    isCompacting = true
+    defer {
+      isCompacting = false
+      let waiters = compactionWaiters
+      compactionWaiters = []
+      for waiter in waiters { waiter.resume() }
+    }
+    while activePointerOps > 0 {
+      await withCheckedContinuation { drainWaiter = $0 }
+    }
+
     let allShardIDs = Array(shardURLs.keys)
 
     let maxConcurrent = 3
     var iterator = allShardIDs.makeIterator()
 
-    try await withThrowingTaskGroup(of: Void.self) { group in
+    var mappings: [String: [UInt64: UInt64]] = [:]
+    try await withThrowingTaskGroup(of: (String, [UInt64: UInt64]).self) { group in
       for _ in 0..<min(maxConcurrent, allShardIDs.count) {
         if let shardID = iterator.next() {
           group.addTask {
             let shard = try await self.shard(for: shardID)
-            try await shard.compact()
+            return (shardID, try await shard.compact())
           }
         }
       }
 
-      while try await group.next() != nil {
-        if let shardID = iterator.next() {
+      while let (shardID, mapping) = try await group.next() {
+        mappings[shardID] = mapping
+        if let nextID = iterator.next() {
           group.addTask {
-            let shard = try await self.shard(for: shardID)
-            try await shard.compact()
+            let shard = try await self.shard(for: nextID)
+            return (nextID, try await shard.compact())
           }
         }
       }
     }
 
-    try await rebuildAllIndexes()
+    for index in indexes.values {
+      index.compactRemap(mappings)
+    }
     try await sync()
   }
 
+  /// Whether any shard's tombstone ratio exceeds the configured
+  /// `maxFragmentation` threshold, indicating that `compact()` would
+  /// reclaim meaningful space.
+  func needsCompaction() async throws -> Bool {
+    try ensureOpen()
+    for shardID in shardURLs.keys {
+      guard let shard = try? shard(for: shardID) else { continue }
+      if await shard.needsCompaction { return true }
+    }
+    return false
+  }
+
   /// Returns a snapshot of collection statistics.
-  func stats() async -> CollectionStats {
+  func stats() async throws -> CollectionStats {
+    try ensureOpen()
     var size: UInt64 = 0
     var totalDeadBytes: UInt64 = 0
 
@@ -1099,7 +1096,7 @@ actor CollectionCore {
 
     return CollectionStats(
       name: manifest.name,
-      documentCount: count(),
+      documentCount: indexes[manifest.idField]?.entryCount ?? 0,
       shardCount: shardURLs.count,
       sizeInBytes: size,
       indexes: indexCounts,
@@ -1119,15 +1116,5 @@ actor CollectionCore {
     indexes = [:]
     isClosed = true
     try FileManager.default.removeItem(at: directory)
-  }
-
-  /// Checks whether any shard exceeds the fragmentation threshold.
-  func checkNeedsCompaction() async -> Bool {
-    for shard in shards.values {
-      if await shard.needsCompaction {
-        return true
-      }
-    }
-    return false
   }
 }

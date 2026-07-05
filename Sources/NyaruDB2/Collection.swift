@@ -60,21 +60,48 @@ public struct CollectionOptions: Sendable {
   }
 }
 
-/// A write buffer that accumulates document insertions for a batch commit.
+/// A write buffer that accumulates document insertions for a single batch
+/// flush.
 ///
-/// Obtain one via `NyaruCollection.withTransaction(_:)`. All insertions are
+/// Obtain one via `NyaruCollection.insertBatch(_:)`. All insertions are
 /// synchronous — no `await` needed. Documents are not written to disk until
-/// the `withTransaction` body completes without throwing.
-public final class NyaruTransaction<T: Codable & Sendable>: @unchecked Sendable {
+/// the `insertBatch` body completes without throwing.
+///
+/// - Note: Deliberately **not** `Sendable` — the buffer is unsynchronised and
+///   must only be used from the `insertBatch` body that received it.
+public final class NyaruInsertBatch<T: Codable & Sendable> {
   fileprivate var buffer: [T] = []
   fileprivate init() {}
 
-  /// Adds a single document to the transaction buffer.
+  /// Adds a single document to the batch buffer.
   public func insert(_ document: T) { buffer.append(document) }
 
-  /// Adds a collection of documents to the transaction buffer.
+  /// Adds a collection of documents to the batch buffer.
   public func insert(contentsOf documents: some Collection<T>) {
     buffer.append(contentsOf: documents)
+  }
+}
+
+/// Remembers whether Mirror-based metadata extraction has been validated
+/// against the encoded payload for one collection handle's document type.
+///
+/// `nil` means "not yet validated"; `true` means Mirror and payload agree and
+/// the fast path can be trusted; `false` means they diverge (custom
+/// `CodingKeys`, property wrappers, …) and the parse path must always be used.
+private final class MirrorPathCache: @unchecked Sendable {
+  private let lock = NSLock()
+  private var _trusted: Bool?
+  var trusted: Bool? {
+    get {
+      lock.lock()
+      defer { lock.unlock() }
+      return _trusted
+    }
+    set {
+      lock.lock()
+      defer { lock.unlock() }
+      _trusted = newValue
+    }
   }
 }
 
@@ -104,12 +131,20 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   let core: CollectionCore
   private let partitionKey: String?
   private let format: SerializationFormat
+  private let idField: String
+  private let indexedFields: [String]
+  private let mirrorCache = MirrorPathCache()
 
-  init(name: String, core: CollectionCore, partitionKey: String?, format: SerializationFormat) {
+  init(
+    name: String, core: CollectionCore, partitionKey: String?, format: SerializationFormat,
+    idField: String, indexedFields: [String]
+  ) {
     self.name = name
     self.core = core
     self.partitionKey = partitionKey
     self.format = format
+    self.idField = idField
+    self.indexedFields = indexedFields
   }
 
   /// Encodes a document to the storage format.
@@ -123,6 +158,128 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     } catch {
       throw NyaruError.encodingFailed(String(describing: error))
     }
+  }
+
+  /// Encodes a document AND extracts its metadata directly from the struct
+  /// via Mirror when possible, falling back to a post-encode parse for
+  /// dot-path fields or documents Mirror cannot represent faithfully.
+  ///
+  /// **Why the Mirror path must be validated.** Mirror sees Swift property
+  /// labels and values; the index must reflect the *encoded payload*. The two
+  /// diverge for custom `CodingKeys`, property wrappers, and any value type
+  /// `FieldValue.fromAny` cannot convert (enums, `Date`, `UUID`, …). Trusting
+  /// Mirror blindly silently drops index entries that a payload-driven rebuild
+  /// would create, making query results depend on which path indexed the
+  /// document. Two guards close that hole:
+  ///
+  /// 1. **Per-document:** `mirrorMetadata` returns `nil` whenever a relevant
+  ///    field holds a present-but-unconvertible value, forcing the parse path
+  ///    for that document.
+  /// 2. **Once per handle:** the first document that succeeds through Mirror
+  ///    is *also* extracted via parse and both results compared. On mismatch
+  ///    (e.g. renamed coding keys) the handle permanently switches to parse.
+  ///
+  /// The id field is always included in the `indexEntries` alongside the
+  /// user's `indexedFields` because `CollectionCore` manages all indexed
+  /// fields (including id) uniformly through `allIndexedFields`.
+  private func encodeWithMetadata(_ document: T) throws
+    -> (Data, Serializer.DocumentMetadata)
+  {
+    let data = try encode(document)
+
+    let allFields = indexedFields.contains(idField)
+      ? indexedFields : [idField] + indexedFields
+
+    // Mirror can only extract top-level fields; dot-path fields ("a.b") always
+    // require parsing the encoded payload.
+    let hasDotPath =
+      idField.contains(".") || (partitionKey?.contains(".") ?? false)
+      || allFields.contains { $0.contains(".") }
+
+    if !hasDotPath, mirrorCache.trusted != false,
+      let mirrored = mirrorMetadata(for: document, allFields: allFields)
+    {
+      if mirrorCache.trusted == true {
+        return (data, mirrored)
+      }
+      // First successful Mirror extraction for this handle: cross-check
+      // against the payload before trusting it for the lifetime of the handle.
+      let parsed = try Serializer.extractMetadata(
+        from: data, idField: idField, partitionKey: partitionKey,
+        indexedFields: allFields, format: format)
+      if metadataMatches(mirrored, parsed) {
+        mirrorCache.trusted = true
+        return (data, mirrored)
+      }
+      mirrorCache.trusted = false
+      return (data, parsed)
+    }
+
+    let metadata = try Serializer.extractMetadata(
+      from: data, idField: idField, partitionKey: partitionKey,
+      indexedFields: allFields, format: format)
+    return (data, metadata)
+  }
+
+  /// Extracts document metadata via Mirror, or returns `nil` when any relevant
+  /// field carries a value that Mirror cannot faithfully convert — a present
+  /// (non-nil) value that `FieldValue.fromAny` rejects, such as an enum,
+  /// `Date`, or `UUID`. Nil optionals are skipped, matching the encoder's
+  /// behaviour of omitting them from the payload.
+  private func mirrorMetadata(for document: T, allFields: [String])
+    -> Serializer.DocumentMetadata?
+  {
+    let mirror = Mirror(reflecting: document)
+    var dict: [String: Any] = [:]
+    for child in mirror.children {
+      guard let label = child.label else { continue }
+      dict[label] = child.value
+    }
+
+    guard let rawID = dict[idField], let id = FieldValue.fromAny(rawID) else { return nil }
+
+    var partitionValue: FieldValue?
+    if let pk = partitionKey, let raw = dict[pk] {
+      if let value = FieldValue.fromAny(raw) {
+        partitionValue = value
+      } else if !Self.isNilOptional(raw) {
+        return nil
+      }
+    }
+
+    var entries: [(field: String, key: FieldValue)] = []
+    entries.reserveCapacity(allFields.count)
+    for field in allFields {
+      guard let raw = dict[field] else { continue }
+      if let key = FieldValue.fromAny(raw) {
+        entries.append((field, key))
+      } else if !Self.isNilOptional(raw) {
+        return nil
+      }
+    }
+
+    return Serializer.DocumentMetadata(
+      id: id, partitionValue: partitionValue, indexEntries: entries)
+  }
+
+  /// Whether the boxed value is an optional containing `nil`.
+  private static func isNilOptional(_ value: Any) -> Bool {
+    let mirror = Mirror(reflecting: value)
+    return mirror.displayStyle == .optional && mirror.children.isEmpty
+  }
+
+  /// Compares two metadata extractions field by field (order-insensitive).
+  private func metadataMatches(
+    _ a: Serializer.DocumentMetadata, _ b: Serializer.DocumentMetadata
+  ) -> Bool {
+    guard a.id == b.id, a.partitionValue == b.partitionValue,
+      a.indexEntries.count == b.indexEntries.count
+    else { return false }
+    let aByField = Dictionary(uniqueKeysWithValues: a.indexEntries.map { ($0.field, $0.key) })
+    for entry in b.indexEntries {
+      guard aByField[entry.field] == entry.key else { return false }
+    }
+    return true
   }
 
   /// Decodes a document from stored data.
@@ -149,7 +306,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Throws: `NyaruError.duplicateID` if the id already exists,
   ///   `NyaruError.encodingFailed` if encoding fails.
   public func insert(_ document: T) async throws {
-    try await core.insert(data: encode(document))
+    let (data, metadata) = try encodeWithMetadata(document)
+    try await core.insert(data: data, metadata: metadata)
   }
 
   /// Inserts a batch of documents atomically.
@@ -161,7 +319,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Parameter documents: An array of documents to insert.
   /// - Throws: `NyaruError.duplicateID` if any id conflicts.
   public func insert(contentsOf documents: [T]) async throws {
-    try await core.insertMany(datas: documents.map(encode))
+    let batch = try documents.map { try encodeWithMetadata($0) }
+    try await core.insertMany(batch: batch)
   }
 
   /// Accumulates insert operations in memory and flushes them as a single
@@ -170,23 +329,24 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   ///
   /// Insertions inside the body are synchronous — no `await` required:
   /// ```swift
-  /// try await collection.withTransaction { tx in
-  ///   for chunk in incomingChunks { tx.insert(contentsOf: chunk) }
+  /// try await collection.insertBatch { batch in
+  ///   for chunk in incomingChunks { batch.insert(contentsOf: chunk) }
   /// }
   /// ```
-  /// If the body throws, nothing is written to disk. Other write operations
-  /// (update, delete, patch) are not buffered — call them after committing.
+  /// If the body throws, nothing is written to disk. This is a write buffer,
+  /// not a transaction: update, delete, and patch are not buffered or rolled
+  /// back — call them outside the batch.
   ///
-  /// - Parameter body: Closure receiving a `NyaruTransaction` that accumulates
+  /// - Parameter body: Closure receiving a `NyaruInsertBatch` that accumulates
   ///   documents via its synchronous `insert` methods.
   /// - Throws: Rethrows from `body` or from the final batch write.
-  public func withTransaction(
-    _ body: (NyaruTransaction<T>) async throws -> Void
+  public func insertBatch(
+    _ body: (NyaruInsertBatch<T>) async throws -> Void
   ) async throws {
-    let tx = NyaruTransaction<T>()
-    try await body(tx)
-    guard !tx.buffer.isEmpty else { return }
-    try await insert(contentsOf: tx.buffer)
+    let batch = NyaruInsertBatch<T>()
+    try await body(batch)
+    guard !batch.buffer.isEmpty else { return }
+    try await insert(contentsOf: batch.buffer)
   }
 
   /// Replaces the document with the same id.
@@ -198,7 +358,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Parameter document: The updated document.
   /// - Throws: `NyaruError.documentNotFound` if the id does not exist.
   public func update(_ document: T) async throws {
-    try await core.update(data: encode(document), upsert: false)
+    let (data, metadata) = try encodeWithMetadata(document)
+    try await core.update(data: data, metadata: metadata, upsert: false)
   }
 
   /// Replaces the document with the same id, or inserts it if absent.
@@ -208,7 +369,8 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   ///
   /// - Parameter document: The document to upsert.
   public func upsert(_ document: T) async throws {
-    try await core.update(data: encode(document), upsert: true)
+    let (data, metadata) = try encodeWithMetadata(document)
+    try await core.update(data: data, metadata: metadata, upsert: true)
   }
 
   /// Deletes a document by its id.
@@ -274,8 +436,9 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// Returns the total number of live documents in the collection.
   ///
   /// - Returns: The live document count (excludes tombstoned records).
-  public func count() async -> Int {
-    await core.count()
+  /// - Throws: `NyaruError.databaseClosed` if the database was closed.
+  public func count() async throws -> Int {
+    try await core.count()
   }
 
   /// Returns every document in the collection.
@@ -332,22 +495,32 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.compact()
   }
 
+  /// Whether any shard's tombstone ratio exceeds the configured
+  /// `DatabaseOptions.maxFragmentation` threshold.
+  ///
+  /// Use this to decide when to call `compact()` — for example, on app
+  /// backgrounding:
+  /// ```swift
+  /// if try await collection.needsCompaction() {
+  ///   try await collection.compact()
+  /// }
+  /// ```
+  ///
+  /// - Returns: `true` if compaction would reclaim meaningful space.
+  /// - Throws: `NyaruError.databaseClosed` if the database was closed.
+  public func needsCompaction() async throws -> Bool {
+    try await core.needsCompaction()
+  }
+
   /// Returns a snapshot of collection statistics.
   ///
   /// The returned `CollectionStats` includes the document count, shard count,
   /// total on-disk size, index entry counts, and the fragmentation ratio.
   ///
   /// - Returns: Current collection statistics.
-  public func stats() async -> CollectionStats {
-    await core.stats()
-  }
-
-  /// Returns whether any shard in the collection exceeds the configured
-  /// fragmentation threshold (`maxFragmentation`).
-  ///
-  /// - Returns: `true` if compaction is recommended.
-  public func needsCompaction() async -> Bool {
-    return await core.checkNeedsCompaction()
+  /// - Throws: `NyaruError.databaseClosed` if the database was closed.
+  public func stats() async throws -> CollectionStats {
+    try await core.stats()
   }
 }
 

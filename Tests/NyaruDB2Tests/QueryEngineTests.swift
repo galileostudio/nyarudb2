@@ -31,7 +31,7 @@ final class QueryEngineTests: XCTestCase {
     try await super.setUp()
     baseURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("nyaru-query-tests-\(UUID().uuidString)", isDirectory: true)
-    db = try await NyaruDB(path: baseURL, options: .init(format: .json))
+    db = try NyaruDB(path: baseURL, options: .init(format: .json))
     users = try await db.collection("users", of: User.self, options: userOptions)
 
     let testData = [
@@ -121,7 +121,7 @@ final class QueryEngineTests: XCTestCase {
     XCTAssertTrue(inPT.contains { $0.id == 99 })
 
     // 4. Total document count should be 6 (5 from setUp + 1 Zeca)
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 6, "The old document was not tombstoned correctly")
   }
 

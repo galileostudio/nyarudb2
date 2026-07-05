@@ -25,7 +25,7 @@ final class StorageStreamingTests: XCTestCase {
     try await super.setUp()
     baseURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("nyaru-stream-tests-\(UUID().uuidString)", isDirectory: true)
-    db = try await NyaruDB(path: baseURL, options: .init(format: .json))
+    db = try NyaruDB(path: baseURL, options: .init(format: .json))
     users = try await db.collection("users", of: User.self, options: userOptions)
   }
 

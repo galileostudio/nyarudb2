@@ -33,7 +33,7 @@ final class RegressionFixTests: XCTestCase {
     let key = NyaruCrypto.generateRandomKey()
     let opts = DatabaseOptions(encryptionKey: key)
     do {
-      let db = try await NyaruDB(path: baseURL, options: opts)
+      let db = try NyaruDB(path: baseURL, options: opts)
       let users = try await db.collection(
         "users", of: User.self,
         options: CollectionOptions(idField: "id", indexedFields: ["age"]))
@@ -41,14 +41,14 @@ final class RegressionFixTests: XCTestCase {
       try await db.close()
     }
     do {
-      let db = try await NyaruDB(path: baseURL, options: opts)
+      let db = try NyaruDB(path: baseURL, options: opts)
       let users = try await db.collection(
         "users", of: User.self,
         options: CollectionOptions(idField: "id", indexedFields: ["age", "name"]))
       try await users.insert(user(2))
       try await db.close()
     }
-    let db = try await NyaruDB(path: baseURL, options: opts)
+    let db = try NyaruDB(path: baseURL, options: opts)
     let users = try await db.collection(
       "users", of: User.self,
       options: CollectionOptions(idField: "id", indexedFields: ["age", "name"]))
@@ -66,7 +66,7 @@ final class RegressionFixTests: XCTestCase {
   // MARK: - Fix 3: patch validates BEFORE anything is written
 
   func testPatchRejectionDoesNotPersistPoison() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self, options: CollectionOptions(idField: "id"))
     try await users.insert(user(1, age: 30))
@@ -84,7 +84,7 @@ final class RegressionFixTests: XCTestCase {
     XCTAssertEqual(fetched2?.age, 44)
     try await db.close()
 
-    let db2 = try await NyaruDB(path: baseURL)
+    let db2 = try NyaruDB(path: baseURL)
     let users2 = try await db2.collection(
       "users", of: User.self, options: CollectionOptions(idField: "id"))
     let fetched3 = try await users2.get(id: 1)
@@ -93,7 +93,7 @@ final class RegressionFixTests: XCTestCase {
   }
 
   func testPatchRejectsDotPathAndIDChange() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self, options: CollectionOptions(idField: "id"))
     try await users.insert(user(1))
@@ -113,7 +113,7 @@ final class RegressionFixTests: XCTestCase {
   // MARK: - Fix 2: reads never return the wrong document during compact
 
   func testGetNeverReturnsWrongDocumentDuringCompact() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self, options: CollectionOptions(idField: "id"))
     try await users.insert(contentsOf: (1...300).map { user($0, age: $0) })
@@ -141,14 +141,14 @@ final class RegressionFixTests: XCTestCase {
       let doc = try await users.get(id: id)
       XCTAssertEqual(doc?.id, id)
     }
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, survivors.count)
     try await db.close()
   }
 
   func testCompactPreservesDataAndIndexesAcrossReopen() async throws {
     do {
-      let db = try await NyaruDB(path: baseURL)
+      let db = try NyaruDB(path: baseURL)
       let users = try await db.collection(
         "users", of: User.self,
         options: CollectionOptions(idField: "id", partitionKey: "city", indexedFields: ["age"]))
@@ -160,11 +160,11 @@ final class RegressionFixTests: XCTestCase {
       XCTAssertEqual(found.map(\.id), [40])
       try await db.close()
     }
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self,
       options: CollectionOptions(idField: "id", partitionKey: "city", indexedFields: ["age"]))
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 25)
     let fetched = try await users.get(id: 40)
     XCTAssertEqual(fetched?.age, 40)
@@ -174,7 +174,7 @@ final class RegressionFixTests: XCTestCase {
   // MARK: - Fix 4: pull-based stream
 
   func testStreamDeliversAllWithSmallBatches() async throws {
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self,
       options: CollectionOptions(idField: "id", partitionKey: "city"))
@@ -201,7 +201,7 @@ final class RegressionFixTests: XCTestCase {
 
   func testCrashReopenSeesPostSyncWrites() async throws {
     do {
-      let db = try await NyaruDB(path: baseURL)
+      let db = try NyaruDB(path: baseURL)
       let users = try await db.collection(
         "users", of: User.self,
         options: CollectionOptions(idField: "id", indexedFields: ["age"]))
@@ -209,13 +209,13 @@ final class RegressionFixTests: XCTestCase {
       try await db.sync()
       try await users.insert(user(2))
     }
-    let db = try await NyaruDB(path: baseURL)
+    let db = try NyaruDB(path: baseURL)
     let users = try await db.collection(
       "users", of: User.self,
       options: CollectionOptions(idField: "id", indexedFields: ["age"]))
     let fetched = try await users.get(id: 2)
     XCTAssertEqual(fetched, user(2))
-    let count = await users.count()
+    let count = try await users.count()
     XCTAssertEqual(count, 2)
     do {
       try await users.insert(user(2))
@@ -248,7 +248,7 @@ final class RegressionFixTests: XCTestCase {
     let key = try NyaruCrypto.deriveKey(
       fromPassword: "s3nh4", salt: salt, using: .pbkdf2sha256(iterations: 1_000))
     do {
-      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: key))
+      let db = try NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: key))
       let users = try await db.collection(
         "users", of: User.self, options: CollectionOptions(idField: "id"))
       try await users.insert(user(7))
@@ -258,7 +258,7 @@ final class RegressionFixTests: XCTestCase {
     let sameKey = try NyaruCrypto.deriveKey(
       fromPassword: "s3nh4", salt: salt, using: .pbkdf2sha256(iterations: 1_000))
     do {
-      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: sameKey))
+      let db = try NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: sameKey))
       let users = try await db.collection(
         "users", of: User.self, options: CollectionOptions(idField: "id"))
       let fetched = try await users.get(id: 7)
@@ -269,10 +269,88 @@ final class RegressionFixTests: XCTestCase {
     let wrong = try NyaruCrypto.deriveKey(
       fromPassword: "errada", salt: salt, using: .pbkdf2sha256(iterations: 1_000))
     do {
-      let db = try await NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: wrong))
+      let db = try NyaruDB(path: baseURL, options: DatabaseOptions(encryptionKey: wrong))
       _ = try await db.collection(
         "users", of: User.self, options: CollectionOptions(idField: "id"))
       XCTFail("wrong key must fail at open")
     } catch {}
+  }
+
+  // MARK: - Fix: Mirror metadata extraction must match the encoded payload
+
+  enum Tier: String, Codable, Sendable {
+    case free, pro
+  }
+
+  struct Account: Codable, Sendable, Equatable {
+    var id: Int
+    var tier: Tier
+    var createdAt: Date
+    var note: String?
+  }
+
+  /// Documents whose indexed fields Mirror cannot convert (enums, Dates) must
+  /// still be indexed from the encoded payload. Before the fix, the Mirror
+  /// fast path silently dropped these index entries, so queries missed
+  /// documents that a disk rebuild would have found.
+  func testUnsupportedMirrorTypesAreStillIndexed() async throws {
+    let db = try NyaruDB(path: baseURL)
+    let accounts = try await db.collection(
+      "accounts", of: Account.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["tier"]))
+
+    let created = Date(timeIntervalSinceReferenceDate: 700_000_000)
+    try await accounts.insert(Account(id: 1, tier: .pro, createdAt: created, note: nil))
+    try await accounts.insert(contentsOf: [
+      Account(id: 2, tier: .free, createdAt: created, note: "x"),
+      Account(id: 3, tier: .pro, createdAt: created, note: nil),
+    ])
+
+    // The "tier" index must serve this equality query.
+    let pros = try await accounts.find()
+      .where("tier", isEqualTo: "pro")
+      .execute()
+    XCTAssertEqual(Set(pros.map(\.id)), [1, 3])
+
+    // The entries must match what a rebuild-from-disk produces.
+    let statsBefore = try await accounts.stats()
+    try await accounts.compact()
+    let prosAfter = try await accounts.find()
+      .where("tier", isEqualTo: "pro")
+      .execute()
+    XCTAssertEqual(Set(prosAfter.map(\.id)), [1, 3])
+    let statsAfter = try await accounts.stats()
+    XCTAssertEqual(statsBefore.indexes["tier"], statsAfter.indexes["tier"])
+
+    try await db.close()
+  }
+
+  // MARK: - Fix: descending sort on the indexed field must page from the top
+
+  /// Pagination pushdown used to slice the ascending index order even for
+  /// descending sorts, returning the *lowest* keys sorted descending instead
+  /// of the highest.
+  func testDescendingSortPaginatesFromTheTop() async throws {
+    let db = try NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    try await users.insert(contentsOf: (1...10).map { user($0) })
+
+    let top = try await users.find()
+      .where("id", isGreaterThan: 0)
+      .sort(by: "id", ascending: false)
+      .limit(3)
+      .execute()
+    XCTAssertEqual(top.map(\.id), [10, 9, 8])
+
+    let secondPage = try await users.find()
+      .where("id", isGreaterThan: 0)
+      .sort(by: "id", ascending: false)
+      .offset(3)
+      .limit(3)
+      .execute()
+    XCTAssertEqual(secondPage.map(\.id), [7, 6, 5])
+
+    try await db.close()
   }
 }
