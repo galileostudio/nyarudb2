@@ -451,21 +451,34 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
   // MARK: - Persistence
 
-  /// Serialises the index to disk using MsgPack encoding, gzip compression,
-  /// and optional AES-256-GCM encryption.
+  /// Magic bytes for the binary snapshot format: `"NYI1"`.
+  private static let snapshotMagic: [UInt8] = [0x4E, 0x59, 0x49, 0x31]
+
+  /// Serialises the index to disk using a hand-rolled binary layout, gzip
+  /// compression, and optional AES-256-GCM encryption.
   ///
-  /// The on-disk format is:
+  /// The binary layout is roughly an order of magnitude faster to encode and
+  /// decode than Codable+MsgPack for large indexes, and it interns shard IDs
+  /// into a string table so each pointer costs 10 bytes instead of carrying
+  /// a repeated string:
   /// ```
-  /// if encrypted: AES-GCM(gzip(MsgPack(OrderedIndex)))
-  /// else:         gzip(MsgPack(OrderedIndex))
+  /// "NYI1" | u16 version | u32 shardCount | shardCount × (u16 len + utf8)
+  /// u32 keyCount
+  /// keyCount × ( FieldValue | u32 postingCount
+  ///              | postingCount × (u16 shardIdx + u64 offset) )
+  /// FieldValue: u8 tag — 0 null, 1 false, 2 true,
+  ///             3 int (+ i64), 4 double (+ f64 bits),
+  ///             5 string (+ u32 len + utf8)
   /// ```
+  /// The whole payload is then gzip-compressed and, when a key is provided,
+  /// AES-GCM sealed — same envelope as before.
   ///
   /// - Parameters:
   ///   - url: The destination file URL.
   ///   - encryptionKey: Optional AES-256-GCM key.
   /// - Throws: `NyaruError.encryptionFailed` if sealing fails.
   public func persist(to url: URL, encryptionKey: SymmetricKey?) throws {
-    let data = try MsgPackEncoder().encode(self)
+    let data = encodeBinary()
     let compressed = try Compressor.compress(data, method: .gzip)
 
     let finalData: Data
@@ -484,12 +497,17 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
   /// Loads an index from disk, handling decompression and optional decryption.
   ///
+  /// Reads the binary snapshot format; snapshots written by older versions
+  /// (Codable+MsgPack) are decoded through the legacy path, so upgrades do
+  /// not force an index rebuild.
+  ///
   /// - Parameters:
   ///   - url: The source file URL.
   ///   - encryptionKey: Optional AES-256-GCM key.
   /// - Returns: A fully restored `OrderedIndex`, or an empty index if the
   ///   file is empty.
-  /// - Throws: `NyaruError.decryptionFailed` if decryption fails.
+  /// - Throws: `NyaruError.decryptionFailed` if decryption fails, or a
+  ///   decoding error if neither format matches.
   public static func load(from url: URL, encryptionKey: SymmetricKey?) throws -> OrderedIndex {
     let raw = try Data(contentsOf: url, options: .alwaysMapped)
     guard !raw.isEmpty else {
@@ -509,6 +527,144 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     }
 
     let data = try Compressor.decompress(decompressed, method: .gzip)
+    if let index = decodeBinary(data) {
+      return index
+    }
+    // Legacy snapshot (Codable + MsgPack) from a previous version.
     return try MsgPackDecoder().decode(OrderedIndex.self, from: data)
+  }
+
+  // MARK: - Binary snapshot codec
+
+  private func encodeBinary() -> Data {
+    // Intern shard IDs.
+    var shardTable: [String] = []
+    var shardIndexByID: [String: UInt16] = [:]
+    for posting in postings {
+      for pointer in posting where shardIndexByID[pointer.shardID] == nil {
+        shardIndexByID[pointer.shardID] = UInt16(shardTable.count)
+        shardTable.append(pointer.shardID)
+      }
+    }
+
+    // Rough size estimate: 10 bytes per posting + ~16 per key.
+    var out = Data(capacity: 64 + _entryCount * 10 + keys.count * 16)
+    out.append(contentsOf: Self.snapshotMagic)
+    Binary.append(UInt16(1), to: &out)  // version
+    Binary.append(UInt32(shardTable.count), to: &out)
+    for shardID in shardTable {
+      let utf8 = Data(shardID.utf8)
+      Binary.append(UInt16(utf8.count), to: &out)
+      out.append(utf8)
+    }
+
+    Binary.append(UInt32(keys.count), to: &out)
+    for i in keys.indices {
+      switch keys[i] {
+      case .null:
+        out.append(0)
+      case .bool(let b):
+        out.append(b ? 2 : 1)
+      case .int(let v):
+        out.append(3)
+        Binary.append(UInt64(bitPattern: v), to: &out)
+      case .double(let d):
+        out.append(4)
+        Binary.append(d.bitPattern, to: &out)
+      case .string(let s):
+        out.append(5)
+        let utf8 = Data(s.utf8)
+        Binary.append(UInt32(utf8.count), to: &out)
+        out.append(utf8)
+      }
+
+      Binary.append(UInt32(postings[i].count), to: &out)
+      for pointer in postings[i] {
+        Binary.append(shardIndexByID[pointer.shardID] ?? 0, to: &out)
+        Binary.append(pointer.offset, to: &out)
+      }
+    }
+    return out
+  }
+
+  private static func decodeBinary(_ data: Data) -> OrderedIndex? {
+    guard data.count >= 10, [UInt8](data.prefix(4)) == snapshotMagic,
+      Binary.readUInt16(data, at: 4) == 1,
+      let shardCount = Binary.readUInt32(data, at: 6)
+    else { return nil }
+
+    var pos = 10
+    var shardTable: [String] = []
+    shardTable.reserveCapacity(Int(shardCount))
+    for _ in 0..<shardCount {
+      guard let len = Binary.readUInt16(data, at: pos),
+        pos + 2 + Int(len) <= data.count,
+        let shardID = String(
+          data: data[data.startIndex + pos + 2..<data.startIndex + pos + 2 + Int(len)],
+          encoding: .utf8)
+      else { return nil }
+      shardTable.append(shardID)
+      pos += 2 + Int(len)
+    }
+
+    guard let keyCount = Binary.readUInt32(data, at: pos) else { return nil }
+    pos += 4
+
+    let index = OrderedIndex()
+    index.keys.reserveCapacity(Int(keyCount))
+    index.postings.reserveCapacity(Int(keyCount))
+    var total = 0
+
+    for _ in 0..<keyCount {
+      guard pos < data.count else { return nil }
+      let tag = data[data.startIndex + pos]
+      pos += 1
+      let key: FieldValue
+      switch tag {
+      case 0: key = .null
+      case 1: key = .bool(false)
+      case 2: key = .bool(true)
+      case 3:
+        guard let bits = Binary.readUInt64(data, at: pos) else { return nil }
+        key = .int(Int64(bitPattern: bits))
+        pos += 8
+      case 4:
+        guard let bits = Binary.readUInt64(data, at: pos) else { return nil }
+        key = .double(Double(bitPattern: bits))
+        pos += 8
+      case 5:
+        guard let len = Binary.readUInt32(data, at: pos),
+          pos + 4 + Int(len) <= data.count,
+          let s = String(
+            data: data[data.startIndex + pos + 4..<data.startIndex + pos + 4 + Int(len)],
+            encoding: .utf8)
+        else { return nil }
+        key = .string(s)
+        pos += 4 + Int(len)
+      default:
+        return nil
+      }
+
+      guard let postingCount = Binary.readUInt32(data, at: pos) else { return nil }
+      pos += 4
+      var list: [RecordPointer] = []
+      list.reserveCapacity(Int(postingCount))
+      for _ in 0..<postingCount {
+        guard let shardIdx = Binary.readUInt16(data, at: pos),
+          Int(shardIdx) < shardTable.count,
+          let offset = Binary.readUInt64(data, at: pos + 2)
+        else { return nil }
+        // Interned lookup: every pointer shares the same String storage.
+        list.append(RecordPointer(shardID: shardTable[Int(shardIdx)], offset: offset))
+        pos += 10
+      }
+      index.keys.append(key)
+      index.postings.append(list)
+      total += list.count
+    }
+
+    guard pos == data.count else { return nil }
+    index._entryCount = total
+    return index
   }
 }

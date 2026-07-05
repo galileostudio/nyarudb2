@@ -700,14 +700,31 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   /// Deletes all matching documents and returns the number removed.
   ///
+  /// The matched documents were already parsed to evaluate the predicates,
+  /// so their index keys are extracted here for free and handed to the core —
+  /// no document is read from disk a second time.
+  ///
   /// - Returns: The count of deleted documents.
   /// - Throws: Errors from the underlying delete operation.
   @discardableResult
   public func delete() async throws -> Int {
     let matched = try await matchedParsed()
     let idField = await core.idField
-    let ids = matched.compactMap { FieldExtractor.value(in: $0.dict, path: idField) }
-    return try await core.deleteMany(ids: ids)
+    let fields = await core.indexedFieldList
+
+    var prepared: [(id: FieldValue, keys: [String: FieldValue])] = []
+    prepared.reserveCapacity(matched.count)
+    for item in matched {
+      guard let id = FieldExtractor.value(in: item.dict, path: idField) else { continue }
+      var keys: [String: FieldValue] = [:]
+      for field in fields {
+        if let key = FieldExtractor.value(in: item.dict, path: field) {
+          keys[field] = key
+        }
+      }
+      prepared.append((id: id, keys: keys))
+    }
+    return try await core.deleteMany(prepared: prepared)
   }
 
   /// Returns matching documents as raw data (for counting).

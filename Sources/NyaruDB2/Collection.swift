@@ -388,6 +388,20 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.delete(id: id.fieldValue)
   }
 
+  /// Deletes multiple documents by id in a single batched pass: one storage
+  /// hop per shard and one index sweep per field, instead of a full
+  /// read/remove cycle per document.
+  ///
+  /// Unknown ids are skipped (they do not count toward the result and do not
+  /// throw).
+  ///
+  /// - Parameter ids: The document ids to delete.
+  /// - Returns: The number of documents actually deleted.
+  @discardableResult
+  public func delete(ids: [FieldValueConvertible]) async throws -> Int {
+    try await core.deleteMany(ids: ids.map(\.fieldValue))
+  }
+
   // MARK: - Partial Update
 
   /// Partially updates a document by applying top-level field changes without

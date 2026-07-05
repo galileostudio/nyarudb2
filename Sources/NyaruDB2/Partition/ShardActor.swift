@@ -188,6 +188,21 @@ actor ShardActor {
     }
   }
 
+  /// Tombstones multiple records in a single actor hop without reading their
+  /// payloads. Used when the caller already knows each document's index keys.
+  ///
+  /// - Parameter offsets: The record offsets to delete.
+  /// - Returns: Whether each record was live and is now tombstoned, in
+  ///   input order.
+  func tombstoneMany(offsets: [UInt64]) throws -> [Bool] {
+    var out: [Bool] = []
+    out.reserveCapacity(offsets.count)
+    for offset in offsets {
+      out.append(try file.tombstone(at: offset))
+    }
+    return out
+  }
+
   /// Reads and tombstones multiple records in a single actor hop.
   ///
   /// - Parameter offsets: The record offsets to delete.
@@ -261,22 +276,32 @@ actor ShardActor {
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
     // Collect all live records first, then write them with a single batch
-    // append (one buffer build + one write) instead of two syscalls per record.
+    // append (one buffer build + one write) instead of two syscalls per
+    // record. The stored CRCs travel along so nothing is re-checksummed.
     var oldOffsets: [UInt64] = []
     var payloads: [(data: Data, compression: CompressionMethod)] = []
+    var crcs: [UInt32] = []
     try file.forEachLive { liveRecord in
       oldOffsets.append(liveRecord.offset)
       payloads.append((data: liveRecord.payload, compression: liveRecord.compression))
+      crcs.append(liveRecord.crc)
     }
-    let newOffsets = try tempFile.appendBatch(payloads: payloads)
+    let newOffsets = try tempFile.appendBatch(payloads: payloads, precomputedCRCs: crcs)
     let mapping = Dictionary(uniqueKeysWithValues: zip(oldOffsets, newOffsets))
+    let newSize = tempFile.sizeInBytes()
 
     try tempFile.sync()
     try tempFile.close()
     try file.close()
 
     _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL)
-    self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+    // The temp file's sidecar is now orphaned; the adopting open below writes
+    // a fresh one for the final path.
+    try? FileManager.default.removeItem(at: URL(fileURLWithPath: tempURL.path + ".state"))
+
+    // The compacted file's state is fully known — adopt it without rescanning.
+    self.file = try SlottedFile(
+      adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(payloads.count))
     return mapping
   }
 

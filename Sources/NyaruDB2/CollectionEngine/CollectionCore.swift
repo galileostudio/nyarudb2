@@ -194,6 +194,10 @@ actor CollectionCore {
   /// The configured document id field name.
   var idField: String { manifest.idField }
 
+  /// The full list of indexed fields (including the id field). Used by the
+  /// query engine to pre-extract index keys for batched deletes.
+  var indexedFieldList: [String] { allIndexedFields }
+
   private var manifestURL: URL { directory.appendingPathComponent("manifest.json") }
   private var shardsDirectory: URL { directory.appendingPathComponent("shards", isDirectory: true) }
   private var indexesDirectory: URL {
@@ -304,14 +308,13 @@ actor CollectionCore {
       for (shardID, shard) in allShards {
         group.addTask {
           let records = try await shard.readAllLive()
-          let perRecord = try Parallel.map(records) { record -> [Entry] in
-            guard let dict = try? FieldExtractor.parse(record.data, using: capturedFormat) else {
-              return []
-            }
+          let perRecord = Parallel.map(records) { record -> [Entry] in
+            let values = Serializer.extractFieldValues(
+              from: record.data, fields: capturedFields, format: capturedFormat)
             let pointer = RecordPointer(shardID: shardID, offset: record.offset)
             var entries: [Entry] = []
             for field in capturedFields {
-              if let key = FieldExtractor.value(in: dict, path: field) {
+              if let key = values[field] {
                 entries.append((field: field, key: key, pointer: pointer))
               }
             }
@@ -325,19 +328,18 @@ actor CollectionCore {
       return all
     }
 
-    // Group entries by field and bulk-load into fresh indexes (O(N log N), no O(N²) shifting).
+    // Group entries by field and bulk-load fresh indexes in parallel.
     var byField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
     for field in capturedFields { byField[field] = [] }
     for entry in allEntries {
       byField[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
     }
-    var fresh: [String: OrderedIndex] = [:]
-    for (field, entries) in byField {
+    let built = Parallel.map(Array(byField), serialThreshold: 2) { field, entries -> (String, OrderedIndex) in
       let idx = OrderedIndex()
       idx.bulkLoad(entries)
-      fresh[field] = idx
+      return (field, idx)
     }
-    indexes = fresh
+    indexes = Dictionary(uniqueKeysWithValues: built)
   }
 
   /// Persists all index snapshots and flushes all shard headers to disk.
@@ -566,9 +568,12 @@ actor CollectionCore {
       }
     }
 
-    for (field, entries) in indexUpdates {
-      indexes[field]?.bulkLoad(entries)
+    // One merge pass per index, in parallel — the indexes are independent
+    // objects and each is touched by exactly one thread.
+    let loads = indexUpdates.compactMap { field, entries in
+      indexes[field].map { (index: $0, entries: entries) }
     }
+    _ = Parallel.map(loads, serialThreshold: 2) { $0.index.bulkLoad($0.entries) }
   }
 
   private func shardID(forPartitionValue value: FieldValue?) throws -> String {
@@ -797,6 +802,62 @@ actor CollectionCore {
     return true
   }
 
+  /// Deletes documents whose index keys were already extracted by the caller
+  /// (the query engine parsed each document to match it, so the keys are
+  /// free). Skips re-reading payloads entirely: one tombstone-only actor hop
+  /// per shard and one bulk removal per index.
+  ///
+  /// - Parameter prepared: `(id, keysByField)` pairs; `keysByField` must map
+  ///   every indexed field present in the document to its key.
+  /// - Returns: The number of documents actually deleted.
+  func deleteMany(prepared: [(id: FieldValue, keys: [String: FieldValue])]) async throws -> Int {
+    if prepared.isEmpty { return 0 }
+    try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
+    guard let primary = indexes[manifest.idField] else { return 0 }
+
+    var byShard: [String: [(entryIndex: Int, pointer: RecordPointer)]] = [:]
+    for (i, entry) in prepared.enumerated() {
+      guard let pointer = primary.search(entry.id).first else { continue }
+      byShard[pointer.shardID, default: []].append((entryIndex: i, pointer: pointer))
+    }
+
+    var removed = 0
+    var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+
+    for (shardID, items) in byShard {
+      let shard = try existingShard(shardID)
+      let results = try await shard.tombstoneMany(offsets: items.map(\.pointer.offset))
+      for (j, wasLive) in results.enumerated() {
+        let item = items[j]
+        if wasLive {
+          removed += 1
+          for (field, key) in prepared[item.entryIndex].keys {
+            removalsByField[field, default: []].append((key, item.pointer))
+          }
+        } else {
+          removeFromAllIndexes(pointer: item.pointer)
+        }
+      }
+    }
+
+    applyBulkRemovals(removalsByField)
+    return removed
+  }
+
+  /// Applies grouped index removals, one bulk sweep per index, in parallel —
+  /// each `OrderedIndex` is an independent object touched by exactly one
+  /// thread.
+  private func applyBulkRemovals(
+    _ removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]]
+  ) {
+    let work = removalsByField.compactMap { field, removals in
+      indexes[field].map { (index: $0, removals: removals) }
+    }
+    _ = Parallel.map(work, serialThreshold: 2) { $0.index.bulkRemove($0.removals) }
+  }
+
   /// Deletes multiple documents by id: one actor hop per shard for the
   /// tombstones (with parallel payload restore), one parse per document, and
   /// one bulk removal per index — instead of a full read/parse/remove cycle
@@ -827,13 +888,13 @@ actor CollectionCore {
       let oldDatas = try await shard.deleteMany(offsets: pointers.map(\.offset))
 
       typealias Removal = (field: String, key: FieldValue, pointer: RecordPointer)
-      let perDoc = try Parallel.map(Array(zip(pointers, oldDatas))) { pair -> [Removal] in
-        guard let data = pair.1,
-          let dict = try? FieldExtractor.parse(data, using: capturedFormat)
-        else { return [] }
+      let perDoc = Parallel.map(Array(zip(pointers, oldDatas))) { pair -> [Removal] in
+        guard let data = pair.1 else { return [] }
+        let values = Serializer.extractFieldValues(
+          from: data, fields: fields, format: capturedFormat)
         var out: [Removal] = []
         for field in fields {
-          if let key = FieldExtractor.value(in: dict, path: field) {
+          if let key = values[field] {
             out.append((field: field, key: key, pointer: pair.0))
           }
         }
@@ -855,9 +916,7 @@ actor CollectionCore {
       }
     }
 
-    for (field, removals) in removalsByField {
-      indexes[field]?.bulkRemove(removals)
-    }
+    applyBulkRemovals(removalsByField)
     return removed
   }
 
@@ -907,13 +966,13 @@ actor CollectionCore {
         for (shardID, shard) in allShards {
           group.addTask {
             let records = try await shard.readAllLive()
-            let perRecord = try Parallel.map(records) { record -> [Entry] in
-              guard let dict = try? FieldExtractor.parse(record.data, using: capturedFormat)
-              else { return [] }
+            let perRecord = Parallel.map(records) { record -> [Entry] in
+              let values = Serializer.extractFieldValues(
+                from: record.data, fields: capturedMissing, format: capturedFormat)
               let pointer = RecordPointer(shardID: shardID, offset: record.offset)
               var entries: [Entry] = []
               for field in capturedMissing {
-                if let key = FieldExtractor.value(in: dict, path: field) {
+                if let key = values[field] {
                   entries.append((field: field, key: key, pointer: pointer))
                 }
               }
@@ -1119,9 +1178,8 @@ actor CollectionCore {
       }
     }
 
-    for index in indexes.values {
-      index.compactRemap(mappings)
-    }
+    let allIndexes = Array(indexes.values)
+    _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(mappings) }
     try await sync()
   }
 

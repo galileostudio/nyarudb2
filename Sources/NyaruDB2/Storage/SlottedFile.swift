@@ -107,6 +107,9 @@ final class SlottedFile {
     let payload: Data
     /// The compression method used when the payload was written.
     let compression: CompressionMethod
+    /// The CRC-32 stored in the record header. Carrying it along lets
+    /// compaction rewrite records without recomputing checksums.
+    let crc: UInt32
   }
 
   private let url: URL
@@ -178,6 +181,29 @@ final class SlottedFile {
     try validateHeaderAndScan()
   }
 
+  /// Opens a freshly compacted file whose state is fully known, skipping the
+  /// full-file scan entirely: zero free slots, a clean dirty flag, and the
+  /// given live count. Falls back to a defensive full validation if the file
+  /// size on disk does not match what the compaction produced.
+  ///
+  /// - Parameters:
+  ///   - url: The file URL (already swapped into place).
+  ///   - expectedSize: The size the compacted file must have.
+  ///   - liveCount: The number of live records written during compaction.
+  init(adoptingCleanFileAt url: URL, expectedSize: UInt64, liveCount: UInt32) throws {
+    self.url = url
+    self.handle = try RawFile(path: url.path)
+    self.fileSize = try handle.size()
+    guard fileSize == expectedSize else {
+      try validateHeaderAndScan()
+      return
+    }
+    self.liveCount = liveCount
+    freeSlots = []
+    _deadBytes = 0
+    writeStateSidecar()
+  }
+
   /// Applies the given file protection level to the file (iOS only).
   private static func applyFileProtection(_ protection: FileProtection, at url: URL) {
     #if os(iOS) || os(tvOS) || os(watchOS)
@@ -217,11 +243,76 @@ final class SlottedFile {
     let flags = Binary.readUInt16(header, at: 6) ?? 0
     let wasDirty = (flags & SlottedFile.dirtyFlag) != 0
 
-    try scan(verifyCRC: wasDirty, repair: wasDirty)
     if wasDirty {
+      // Crash recovery: never trust the sidecar — verify everything.
+      try scan(verifyCRC: true, repair: true)
       recoveredFromDirty = true
       try sync()
+    } else if !loadStateSidecar() {
+      try scan(verifyCRC: false, repair: false)
+      // Persist the state so the next clean open skips the scan.
+      writeStateSidecar()
     }
+  }
+
+  // MARK: - Clean-state sidecar
+
+  /// The sidecar persists the scan-derived state (live count, free slots) at
+  /// clean-sync time, so a clean open avoids reading the entire data region —
+  /// O(1) startup regardless of file size. It is trusted only when the dirty
+  /// flag is clear AND the recorded file size matches the file on disk; any
+  /// crash (dirty flag set) or mismatch falls back to a full scan, so a stale
+  /// or corrupt sidecar can never inject wrong state.
+  private var stateURL: URL { URL(fileURLWithPath: url.path + ".state") }
+  /// Magic bytes for the sidecar format: `"NYS1"`.
+  private static let stateMagic: [UInt8] = [0x4E, 0x59, 0x53, 0x31]
+
+  /// Best-effort write of the sidecar — failure just means the next open
+  /// falls back to scanning.
+  private func writeStateSidecar() {
+    var out = Data()
+    out.append(contentsOf: Self.stateMagic)
+    Binary.append(UInt16(1), to: &out)  // version
+    Binary.append(fileSize, to: &out)
+    Binary.append(liveCount, to: &out)
+    Binary.append(UInt32(freeSlots.count), to: &out)
+    for slot in freeSlots {
+      Binary.append(slot.offset, to: &out)
+      Binary.append(slot.capacity, to: &out)
+    }
+    try? out.write(to: stateURL, options: .atomic)
+  }
+
+  /// Attempts to adopt the sidecar state. Returns `false` (caller must scan)
+  /// when the sidecar is missing, malformed, from another version, or does
+  /// not match the current file size.
+  private func loadStateSidecar() -> Bool {
+    guard let data = try? Data(contentsOf: stateURL) else { return false }
+    let slotsStart = 22
+    guard data.count >= slotsStart,
+      [UInt8](data.prefix(4)) == Self.stateMagic,
+      Binary.readUInt16(data, at: 4) == 1,
+      Binary.readUInt64(data, at: 6) == fileSize,
+      let live = Binary.readUInt32(data, at: 14),
+      let slotCount = Binary.readUInt32(data, at: 18),
+      data.count == slotsStart + Int(slotCount) * 12
+    else { return false }
+
+    var slots: [(offset: UInt64, capacity: UInt32)] = []
+    slots.reserveCapacity(Int(slotCount))
+    var dead: UInt64 = 0
+    for i in 0..<Int(slotCount) {
+      let base = slotsStart + i * 12
+      guard let slotOffset = Binary.readUInt64(data, at: base),
+        let slotCapacity = Binary.readUInt32(data, at: base + 8)
+      else { return false }
+      slots.append((offset: slotOffset, capacity: slotCapacity))
+      dead += UInt64(slotCapacity)
+    }
+    liveCount = live
+    freeSlots = slots
+    _deadBytes = dead
+    return true
   }
 
   /// Iterates over every live record and invokes the block with a `LiveRecord`.
@@ -263,7 +354,8 @@ final class SlottedFile {
           LiveRecord(
             offset: SlottedFile.fileHeaderSize + UInt64(relPos),
             payload: Data(payload),
-            compression: CompressionMethod(recordFlags: flags)
+            compression: CompressionMethod(recordFlags: flags),
+            crc: Binary.readUInt32(fileData, at: relPos + 12) ?? 0
           )
         )
       }
@@ -377,6 +469,11 @@ final class SlottedFile {
   /// mutations have occurred since the last sync, this is a no-op.
   func sync() throws {
     guard isDirty else { return }
+
+    // Write the sidecar BEFORE clearing the dirty flag: it is only ever
+    // trusted on a clean open, so a crash in between leaves the flag set and
+    // forces a full recovery scan.
+    writeStateSidecar()
 
     var patch = Data()
     Binary.append(UInt16(0), to: &patch)  // flags: clean
@@ -507,9 +604,16 @@ final class SlottedFile {
   /// - Warning: This method does NOT reuse tombstoned slots. For single
   ///   record insertions or when space reuse is desired, use `append(payload:compression:)`
   ///   instead.
-  func appendBatch(payloads: [(data: Data, compression: CompressionMethod)]) throws -> [UInt64] {
+  func appendBatch(
+    payloads: [(data: Data, compression: CompressionMethod)],
+    precomputedCRCs: [UInt32]? = nil
+  ) throws -> [UInt64] {
     try markDirtyIfNeeded()
     if payloads.isEmpty { return [] }
+
+    // CRCs are either supplied by the caller (compaction reuses the stored
+    // ones) or computed here across all cores.
+    let crcs = precomputedCRCs ?? Parallel.map(payloads) { Compressor.crc32Checksum($0.data) }
 
     // Calculate total buffer size to allocate everything at once in memory
     var totalBufferSize = 0
@@ -535,7 +639,7 @@ final class SlottedFile {
       Binary.append(UInt32(payload.count), to: &buffer)
       buffer.append(payloadInfo.compression.flagBit)
       buffer.append(Self.reservedBytes)
-      Binary.append(Compressor.crc32Checksum(payload), to: &buffer)
+      Binary.append(crcs[i], to: &buffer)
 
       // Add payload and padding
       buffer.append(payload)
@@ -610,7 +714,8 @@ final class SlottedFile {
     return LiveRecord(
       offset: offset,
       payload: payload,
-      compression: CompressionMethod(recordFlags: flags)
+      compression: CompressionMethod(recordFlags: flags),
+      crc: storedCRC
     )
   }
 
@@ -759,6 +864,7 @@ final class SlottedFile {
 
       let flags = chunkData[chunkData.startIndex + relPos + 8]
       if flags & RecordFlags.tombstone == 0 {
+        let storedCRC = Binary.readUInt32(chunkData, at: relPos + 12) ?? 0
         let payloadStart = relPos + headerSize
         let payloadEnd = payloadStart + Int(payloadLength)
         if payloadEnd <= chunkData.count {
@@ -767,7 +873,7 @@ final class SlottedFile {
           records.append(
             LiveRecord(
               offset: cursor, payload: Data(slice),
-              compression: CompressionMethod(recordFlags: flags)))
+              compression: CompressionMethod(recordFlags: flags), crc: storedCRC))
         } else {
           // Payload straddles the chunk boundary — fall back to a direct read.
           let payload = try handle.read(
@@ -778,7 +884,7 @@ final class SlottedFile {
           records.append(
             LiveRecord(
               offset: cursor, payload: payload,
-              compression: CompressionMethod(recordFlags: flags)))
+              compression: CompressionMethod(recordFlags: flags), crc: storedCRC))
         }
       }
       relPos += headerSize + Int(capacity)

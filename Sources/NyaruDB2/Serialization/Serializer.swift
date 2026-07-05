@@ -91,7 +91,12 @@ enum Serializer {
     case .json:
       return try Parallel.map(datas) { try JSONDecoder().decode(type, from: $0) }
     case .msgpack:
-      return try Parallel.map(datas) { try MsgPackDecoder().decode(type, from: $0) }
+      // lazyScan materialises containers on demand instead of building the
+      // whole MsgPackValue tree upfront — measurably faster for flat
+      // documents where only leaf values are consumed.
+      return try Parallel.map(datas) {
+        try MsgPackDecoder(options: .lazyScan).decode(type, from: $0)
+      }
     }
   }
 
@@ -117,51 +122,61 @@ enum Serializer {
     }
   }
 
-  /// Extracts a single field value without building the full document dictionary.
-  static func fieldValue(in data: Data, path: String, format: SerializationFormat) -> FieldValue? {
-    switch format {
-    case .json:
-
-      guard let dict = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
-      else {
-        return nil
-      }
-      return FieldExtractor.value(in: dict, path: path)
-    case .msgpack:
-      return MsgPackExtractor.fieldValue(in: data, path: path)
-    }
-  }
-
   public struct DocumentMetadata {
     public let id: FieldValue
     public let partitionValue: FieldValue?
     public let indexEntries: [(field: String, key: FieldValue)]
   }
 
+  /// Extracts the values of the given fields, using a MsgPack skip-scan when
+  /// every requested path is top-level — unwanted fields (e.g. large content
+  /// strings) are skipped via length prefixes instead of being decoded. JSON
+  /// and dot paths fall back to a full parse.
+  ///
+  /// - Returns: The scalar values found; absent or non-scalar fields are
+  ///   omitted. Malformed input yields an empty dictionary.
+  static func extractFieldValues(
+    from data: Data, fields: [String], format: SerializationFormat
+  ) -> [String: FieldValue] {
+    if format == .msgpack, !fields.contains(where: { $0.contains(".") }),
+      let found = MsgPackExtractor.extractTopLevelFields(from: data, fields: fields)
+    {
+      return found
+    }
+
+    guard let dict = try? FieldExtractor.parse(data, using: format) else { return [:] }
+    var out: [String: FieldValue] = [:]
+    out.reserveCapacity(fields.count)
+    for field in fields {
+      if let value = FieldExtractor.value(in: dict, path: field) {
+        out[field] = value
+      }
+    }
+    return out
+  }
+
   /// Extracts the id, partition value, and index keys from an encoded
-  /// document in a single parse, avoiding repeated per-field parses.
+  /// document in a single pass, avoiding repeated per-field parses (and,
+  /// for MsgPack, avoiding materialising the document at all).
   static func extractMetadata(
     from data: Data, idField: String, partitionKey: String?, indexedFields: [String],
     format: SerializationFormat
   ) throws -> DocumentMetadata {
-    let dict: [String: Any]
-    switch format {
-    case .json:
-      dict = (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]) ?? [:]
-    case .msgpack:
-      dict = try MsgPackExtractor.extractDictionary(from: data)
-    }
+    var fields = indexedFields
+    if !fields.contains(idField) { fields.append(idField) }
+    if let pk = partitionKey, !fields.contains(pk) { fields.append(pk) }
 
-    guard let id = FieldExtractor.value(in: dict, path: idField) else {
+    let values = extractFieldValues(from: data, fields: fields, format: format)
+
+    guard let id = values[idField] else {
       throw NyaruError.idFieldMissing(field: idField)
     }
-
-    let partitionValue = partitionKey.flatMap { FieldExtractor.value(in: dict, path: $0) }
+    let partitionValue = partitionKey.flatMap { values[$0] }
 
     var entries: [(field: String, key: FieldValue)] = []
-    entries.reserveCapacity(indexedFields.count + 1)
+    entries.reserveCapacity(indexedFields.count)
     for field in indexedFields {
-      if let key = FieldExtractor.value(in: dict, path: field) {
+      if let key = values[field] {
         entries.append((field, key))
       }
     }

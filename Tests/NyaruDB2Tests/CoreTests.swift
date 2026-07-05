@@ -1,3 +1,4 @@
+import SwiftMsgpack
 import XCTest
 
 @testable import NyaruDB2
@@ -181,6 +182,46 @@ final class OrderedIndexTests: XCTestCase {
     let decoded = try JSONDecoder().decode(OrderedIndex.self, from: encoded)
     XCTAssertEqual(decoded.search(.string("k")), [ptr(1)])
     XCTAssertEqual(decoded.search(.number(7)), [ptr(2)])
+  }
+
+  func testBinarySnapshotPersistLoadRoundTrip() throws {
+    let index = OrderedIndex()
+    index.insert(key: .string("k"), pointer: ptr(1))
+    index.insert(key: .string("k"), pointer: ptr(9, shard: "other"))
+    index.insert(key: .number(7), pointer: ptr(2))
+    index.insert(key: .number(2.5), pointer: ptr(3))
+    index.insert(key: .bool(true), pointer: ptr(4))
+    index.insert(key: .null, pointer: ptr(5))
+
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nyaru-idx-\(UUID().uuidString).idx")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    try index.persist(to: url, encryptionKey: nil)
+    let loaded = try OrderedIndex.load(from: url, encryptionKey: nil)
+
+    XCTAssertEqual(loaded.entryCount, index.entryCount)
+    XCTAssertEqual(Set(loaded.search(.string("k"))), [ptr(1), ptr(9, shard: "other")])
+    XCTAssertEqual(loaded.search(.number(7)), [ptr(2)])
+    XCTAssertEqual(loaded.search(.number(2.5)), [ptr(3)])
+    XCTAssertEqual(loaded.search(.bool(true)), [ptr(4)])
+    XCTAssertEqual(loaded.search(.null), [ptr(5)])
+  }
+
+  func testLegacyMsgPackSnapshotStillLoads() throws {
+    // Snapshots written before the binary format used gzip(MsgPack(Codable)).
+    let index = OrderedIndex()
+    index.insert(key: .string("legacy"), pointer: ptr(42))
+    let legacyPayload = try Compressor.compress(
+      try MsgPackEncoder().encode(index), method: .gzip)
+
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nyaru-idx-legacy-\(UUID().uuidString).idx")
+    defer { try? FileManager.default.removeItem(at: url) }
+    try legacyPayload.write(to: url)
+
+    let loaded = try OrderedIndex.load(from: url, encryptionKey: nil)
+    XCTAssertEqual(loaded.search(.string("legacy")), [ptr(42)])
   }
 }
 

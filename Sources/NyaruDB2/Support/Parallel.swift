@@ -65,4 +65,16 @@ enum Parallel {
     if let error = firstError { throw error }
     return results.map { $0! }
   }
+
+  /// Non-throwing overload for pure transforms (CRC, encoding into memory).
+  static func map<T, R>(
+    _ items: [T], serialThreshold: Int = Parallel.serialThreshold,
+    _ transform: (T) -> R
+  ) -> [R] {
+    withoutActuallyEscaping(transform) { escapable in
+      let throwing: (T) throws -> R = escapable
+      // The transform cannot throw, so neither can the throwing implementation.
+      return try! map(items, serialThreshold: serialThreshold, throwing)
+    }
+  }
 }
