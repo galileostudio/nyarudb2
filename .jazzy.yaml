@@ -1,9 +1,24 @@
+# .jazzy.yaml
 module: NyaruDB2
+module_version: 0.2.0
+output: docs
+source-directory: Sources/NyaruDB2
+readme: README.md
 author: Demetrius Albuquerque
 author_url: https://github.com/maltzsama
 github_url: https://github.com/galileostudio/nyarudb2
-output: docs
-theme: apple
-exclude: [Tests/*, Sources/Benchmark]
-documentation: Sources/NyaruDB2
-module-version: 0.1.0-alpha
+theme: fullwidth
+skip-undocumented: true
+clean: true
+
+swift_build_tool: symbolgraph
+
+build_tool_arguments:
+  - -sdk
+  - $(xcrun --show-sdk-path --sdk macosx)
+  - -target
+  - arm64-apple-macosx26.0
+  - -I
+  - .build/release
+  - -F
+  - .build/release
