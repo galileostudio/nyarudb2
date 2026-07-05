@@ -10,6 +10,7 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/nnabeyang/swift-msgpack", from: "1.2.0"),
     .package(url: "https://github.com/apple/swift-crypto", from: "4.5.0"),
+    .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.5.0"),
   ],
   targets: [
     .target(
