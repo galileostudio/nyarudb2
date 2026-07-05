@@ -103,13 +103,11 @@ actor ShardActor {
   func insertMany(datas: [Data]) throws -> [RecordPointer] {
     if datas.isEmpty { return [] }
 
-    // Prepares all payloads in memory (CPU bound, but no I/O)
-    var preparedPayloads: [(data: Data, compression: CompressionMethod)] = []
-    preparedPayloads.reserveCapacity(datas.count)
-
-    for data in datas {
-      let prepared = try preparePayload(data)
-      preparedPayloads.append((data: prepared.payload, compression: prepared.method))
+    // Prepare all payloads in memory (CPU bound, no I/O). Compression and
+    // encryption of each record are independent, so this saturates all cores.
+    let preparedPayloads = try Parallel.map(datas) { data in
+      let prepared = try self.preparePayload(data)
+      return (data: prepared.payload, compression: prepared.method)
     }
 
     // Single I/O call for all records
@@ -160,33 +158,55 @@ actor ShardActor {
     return try file.tombstone(at: offset)
   }
 
-  // MARK: - Iteration
+  // MARK: - Batch reads
 
-  /// Iterates over every live record in the shard, materialising only one
-  /// decoded payload at a time.
+  func readBatch(offsets: [UInt64]) throws -> [Data] {
+    // I/O phase: gather raw records serially (the file handle is not
+    // shareable), then restore (decrypt + decompress) in parallel.
+    var raw: [(payload: Data, compression: CompressionMethod)] = []
+    raw.reserveCapacity(offsets.count)
+    for offset in offsets {
+      if let record = try file.read(at: offset) {
+        raw.append((payload: record.payload, compression: record.compression))
+      }
+    }
+    return try Parallel.map(raw) { try self.restorePayload($0) }
+  }
+
+  /// Reads every live record in the shard, restoring payloads in parallel.
   ///
-  /// - Parameter block: A closure called with the offset and the restored
-  ///   (decompressed, decrypted) payload for each live record.
-  /// - Throws: Re-throws errors from the block or from payload restoration.
-  internal func forEachLive(_ block: (UInt64, Data) throws -> Void) async throws {
+  /// Materialises the whole shard — the right trade-off for full scans and
+  /// index rebuilds that collect everything anyway, because decompression
+  /// and decryption run across all cores.
+  func readAllLive() throws -> [(offset: UInt64, data: Data)] {
+    var raw: [(offset: UInt64, payload: Data, compression: CompressionMethod)] = []
     try file.forEachLive { liveRecord in
-      let data = try restorePayload(
-        (payload: liveRecord.payload, compression: liveRecord.compression))
-      try block(liveRecord.offset, data)
+      raw.append((liveRecord.offset, liveRecord.payload, liveRecord.compression))
+    }
+    return try Parallel.map(raw) { item in
+      (offset: item.offset, data: try self.restorePayload((item.payload, item.compression)))
     }
   }
 
-  func readBatch(offsets: [UInt64]) throws -> [Data] {
-    var out: [Data] = []
-    out.reserveCapacity(offsets.count)
-
+  /// Reads and tombstones multiple records in a single actor hop.
+  ///
+  /// - Parameter offsets: The record offsets to delete.
+  /// - Returns: The restored payload for each offset that was live (`nil`
+  ///   for offsets that were already dead), in input order.
+  func deleteMany(offsets: [UInt64]) throws -> [Data?] {
+    var raw: [(payload: Data, compression: CompressionMethod)?] = []
+    raw.reserveCapacity(offsets.count)
     for offset in offsets {
       if let record = try file.read(at: offset) {
-        let data = try restorePayload((payload: record.payload, compression: record.compression))
-        out.append(data)
+        raw.append((record.payload, record.compression))
+        try file.tombstone(at: offset)
+      } else {
+        raw.append(nil)
       }
     }
-    return out
+    return try Parallel.map(raw) { item in
+      try item.map { try self.restorePayload($0) }
+    }
   }
 
   /// Reads a batch of live records starting at the given position.
@@ -240,12 +260,16 @@ actor ShardActor {
 
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
-    var mapping: [UInt64: UInt64] = [:]
+    // Collect all live records first, then write them with a single batch
+    // append (one buffer build + one write) instead of two syscalls per record.
+    var oldOffsets: [UInt64] = []
+    var payloads: [(data: Data, compression: CompressionMethod)] = []
     try file.forEachLive { liveRecord in
-      let newOffset = try tempFile.append(
-        payload: liveRecord.payload, compression: liveRecord.compression)
-      mapping[liveRecord.offset] = newOffset
+      oldOffsets.append(liveRecord.offset)
+      payloads.append((data: liveRecord.payload, compression: liveRecord.compression))
     }
+    let newOffsets = try tempFile.appendBatch(payloads: payloads)
+    let mapping = Dictionary(uniqueKeysWithValues: zip(oldOffsets, newOffsets))
 
     try tempFile.sync()
     try tempFile.close()
@@ -270,7 +294,9 @@ actor ShardActor {
   ///   used (`.none` if compression was not beneficial or encryption was
   ///   applied, since encryption outputs are incompressible).
   /// - Throws: `NyaruError.compressionFailed` or `NyaruError.encryptionFailed`.
-  private func preparePayload(_ data: Data) throws -> (payload: Data, method: CompressionMethod) {
+  nonisolated private func preparePayload(_ data: Data) throws
+    -> (payload: Data, method: CompressionMethod)
+  {
     var payload = data
     var method: CompressionMethod = .none
 
@@ -302,9 +328,9 @@ actor ShardActor {
   ///   compression method (which is `.none` for encrypted records).
   /// - Returns: The original uncompressed, unencrypted data.
   /// - Throws: `NyaruError.decryptionFailed` or `NyaruError.decompressionFailed`.
-  private func restorePayload(_ record: (payload: Data, compression: CompressionMethod)) throws
-    -> Data
-  {
+  nonisolated private func restorePayload(
+    _ record: (payload: Data, compression: CompressionMethod)
+  ) throws -> Data {
     if let key = encryptionKey {
       guard record.payload.count > 1 else { throw NyaruError.decryptionFailed }
       let methodByte = record.payload[0]

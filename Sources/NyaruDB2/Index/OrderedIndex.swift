@@ -86,11 +86,15 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   ///   - lowerInclusive: Whether the lower bound is inclusive.
   ///   - upper: The upper bound, or `nil` for no upper bound.
   ///   - upperInclusive: Whether the upper bound is inclusive.
-  /// - Returns: All pointers in the range, deduplicated across keys.
+  ///   - maxCount: Stop after collecting this many pointers (`nil` = all).
+  ///     Results are collected in ascending key order, so the first
+  ///     `maxCount` pointers are the lowest-keyed matches.
+  /// - Returns: The pointers in the range, in ascending key order.
   @inlinable
   public func range(
     lower: FieldValue?, lowerInclusive: Bool,
-    upper: FieldValue?, upperInclusive: Bool
+    upper: FieldValue?, upperInclusive: Bool,
+    maxCount: Int? = nil
   ) -> [RecordPointer] {
     let start: Int
     if let lower = lower {
@@ -109,8 +113,19 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     guard start <= end, start < keys.count else { return [] }
     let safeEnd = min(end, keys.count)
 
-    let total = postings[start..<safeEnd].reduce(0) { $0 + $1.count }
     var out: [RecordPointer] = []
+    if let maxCount {
+      out.reserveCapacity(maxCount)
+      for i in start..<safeEnd {
+        for pointer in postings[i] {
+          out.append(pointer)
+          if out.count >= maxCount { return out }
+        }
+      }
+      return out
+    }
+
+    let total = postings[start..<safeEnd].reduce(0) { $0 + $1.count }
     out.reserveCapacity(total)
     for i in start..<safeEnd {
       out.append(contentsOf: postings[i])
@@ -250,6 +265,53 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
         postings.remove(at: pos)
       }
     }
+  }
+
+  /// Removes a batch of `(key, pointer)` entries in a single sweep — the
+  /// removal analogue of `bulkLoad`. Removing entries one at a time shifts
+  /// the tail of the key array on every emptied key, which is quadratic for
+  /// large batches; this rebuilds the arrays once instead.
+  ///
+  /// - Parameter entries: The entries to remove. Pointers not present under
+  ///   their key are ignored.
+  public func bulkRemove(_ entries: [(key: FieldValue, pointer: RecordPointer)]) {
+    if entries.isEmpty { return }
+
+    var toRemove: [FieldValue: [RecordPointer]] = [:]
+    toRemove.reserveCapacity(entries.count)
+    for entry in entries {
+      toRemove[entry.key, default: []].append(entry.pointer)
+    }
+
+    var newKeys: [FieldValue] = []
+    var newPostings: [[RecordPointer]] = []
+    newKeys.reserveCapacity(keys.count)
+    newPostings.reserveCapacity(postings.count)
+    var count = 0
+
+    for i in keys.indices {
+      guard let victims = toRemove[keys[i]] else {
+        newKeys.append(keys[i])
+        newPostings.append(postings[i])
+        count += postings[i].count
+        continue
+      }
+      var list = postings[i]
+      for victim in victims {
+        if let j = list.firstIndex(of: victim) {
+          list.remove(at: j)
+        }
+      }
+      if !list.isEmpty {
+        newKeys.append(keys[i])
+        newPostings.append(list)
+        count += list.count
+      }
+    }
+
+    keys = newKeys
+    postings = newPostings
+    _entryCount = count
   }
 
   /// Removes every occurrence of the given pointer across all keys in a

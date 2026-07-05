@@ -180,6 +180,10 @@ public final class NyaruDBBenchmark {
     let formats = enabledFormats.compactMap { SerializationFormat(rawValue: $0) }
 
     let allScenarios = methods.flatMap { m in formats.map { (method: m, format: $0) } }
+    print(
+      "🔬 Scenarios: \(allScenarios.count) "
+        + "(compression: \(enabledCompression) → \(methods.map(\.rawValue)); "
+        + "formats: \(enabledFormats) → \(formats.map(\.rawValue)))")
     var results = [BenchmarkResult]()
     var progress = ProgressBar(total: allScenarios.count)
 

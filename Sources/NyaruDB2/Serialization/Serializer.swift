@@ -72,6 +72,29 @@ enum Serializer {
     }
   }
 
+  /// Decodes many payloads in parallel across all cores, preserving order.
+  ///
+  /// Fresh decoder instances are created inside the parallel region — the
+  /// shared decoders above must not be used from multiple threads
+  /// (`MsgPackDecoder` is documented non-Sendable).
+  ///
+  /// - Parameters:
+  ///   - type: The expected Swift type.
+  ///   - datas: The encoded payloads.
+  ///   - format: The serialization format of the payloads.
+  /// - Returns: The decoded values, in input order.
+  /// - Throws: Decoding errors from the underlying decoder.
+  static func decodeBatch<T: Decodable>(
+    _ type: T.Type, from datas: [Data], format: SerializationFormat
+  ) throws -> [T] {
+    switch format {
+    case .json:
+      return try Parallel.map(datas) { try JSONDecoder().decode(type, from: $0) }
+    case .msgpack:
+      return try Parallel.map(datas) { try MsgPackDecoder().decode(type, from: $0) }
+    }
+  }
+
   /// Converts encoded document data into a generic `[String: Any]` dictionary
   /// for field extraction and predicate evaluation.
   ///

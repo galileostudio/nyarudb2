@@ -319,7 +319,9 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Parameter documents: An array of documents to insert.
   /// - Throws: `NyaruError.duplicateID` if any id conflicts.
   public func insert(contentsOf documents: [T]) async throws {
-    let batch = try documents.map { try encodeWithMetadata($0) }
+    // Encoding and metadata extraction are independent per document — run
+    // them across all cores for large batches.
+    let batch = try Parallel.map(documents) { try encodeWithMetadata($0) }
     try await core.insertMany(batch: batch)
   }
 
@@ -449,7 +451,12 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Returns: An array of all decoded documents.
   /// - Throws: `NyaruError.decodingFailed` if any document fails to decode.
   public func all() async throws -> [T] {
-    try await core.scanAll().map(decode)
+    let raw = try await core.scanAll()
+    do {
+      return try Serializer.decodeBatch(T.self, from: raw, format: format)
+    } catch {
+      throw NyaruError.decodingFailed(String(describing: error))
+    }
   }
 
   /// Returns a pull-based async sequence over all documents.

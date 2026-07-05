@@ -297,22 +297,27 @@ actor CollectionCore {
     let capturedFormat = format
     let capturedFields = allIndexedFields
 
-    // Scan all shards in parallel — each ShardActor is independent.
+    // Scan all shards in parallel — each ShardActor is independent — and
+    // parse records across all cores within each shard.
     typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
     let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
       for (shardID, shard) in allShards {
         group.addTask {
-          var entries: [Entry] = []
-          try await shard.forEachLive { offset, data in
-            let pointer = RecordPointer(shardID: shardID, offset: offset)
-            guard let dict = try? FieldExtractor.parse(data, using: capturedFormat) else { return }
+          let records = try await shard.readAllLive()
+          let perRecord = try Parallel.map(records) { record -> [Entry] in
+            guard let dict = try? FieldExtractor.parse(record.data, using: capturedFormat) else {
+              return []
+            }
+            let pointer = RecordPointer(shardID: shardID, offset: record.offset)
+            var entries: [Entry] = []
             for field in capturedFields {
               if let key = FieldExtractor.value(in: dict, path: field) {
                 entries.append((field: field, key: key, pointer: pointer))
               }
             }
+            return entries
           }
-          return entries
+          return perRecord.flatMap { $0 }
         }
       }
       var all: [Entry] = []
@@ -336,10 +341,16 @@ actor CollectionCore {
   }
 
   /// Persists all index snapshots and flushes all shard headers to disk.
+  ///
+  /// Snapshots are persisted in parallel — each is an independent
+  /// encode + compress + atomic write, and the encode/compress cost
+  /// dominates for large indexes.
   func sync() async throws {
     try ensureOpen()
-    for (field, index) in indexes {
-      try index.persist(to: snapshotURL(for: field), encryptionKey: encryptionKey)
+    let snapshots = indexes.map { (index: $0.value, url: snapshotURL(for: $0.key)) }
+    let key = encryptionKey
+    _ = try Parallel.map(snapshots, serialThreshold: 2) { item in
+      try item.index.persist(to: item.url, encryptionKey: key)
     }
     for shard in shards.values {
       try await shard.sync()
@@ -592,23 +603,18 @@ actor CollectionCore {
 
   /// Point lookup by document id through the primary index.
   ///
-  /// - Parameter id: The document id.
-  /// - Returns: The encoded document data, or `nil` if not found.
+  /// No identity re-verification is performed: the compaction gate guarantees
+  /// pointer-based operations never interleave with offset rewrites, all
+  /// index mutations are actor-serialised with their writes, and dirty opens
+  /// rebuild indexes from disk — so a pointer always references the record it
+  /// was created for. Payload corruption is still caught by the record CRC.
   func get(id: FieldValue) async throws -> Data? {
     try ensureOpen()
     await beginPointerOp()
     defer { endPointerOp() }
     guard let pointer = indexes[manifest.idField]?.search(id).first else { return nil }
     let shard = try existingShard(pointer.shardID)
-    guard let data = try await shard.read(at: pointer.offset) else { return nil }
-
-    if let actualID = Serializer.fieldValue(in: data, path: manifest.idField, format: format),
-      actualID != id
-    {
-      indexes[manifest.idField]?.remove(key: id, pointer: pointer)
-      return nil
-    }
-    return data
+    return try await shard.read(at: pointer.offset)
   }
 
   /// Point update with pre-extracted new-document metadata, skipping one parse.
@@ -791,6 +797,70 @@ actor CollectionCore {
     return true
   }
 
+  /// Deletes multiple documents by id: one actor hop per shard for the
+  /// tombstones (with parallel payload restore), one parse per document, and
+  /// one bulk removal per index — instead of a full read/parse/remove cycle
+  /// per document.
+  ///
+  /// - Parameter ids: The document ids to delete. Unknown ids are skipped.
+  /// - Returns: The number of documents actually deleted.
+  func deleteMany(ids: [FieldValue]) async throws -> Int {
+    if ids.isEmpty { return 0 }
+    try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
+    guard let primary = indexes[manifest.idField] else { return 0 }
+
+    var pointersByShard: [String: [RecordPointer]] = [:]
+    for id in ids {
+      guard let pointer = primary.search(id).first else { continue }
+      pointersByShard[pointer.shardID, default: []].append(pointer)
+    }
+
+    let capturedFormat = format
+    let fields = allIndexedFields
+    var removed = 0
+    var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+
+    for (shardID, pointers) in pointersByShard {
+      let shard = try existingShard(shardID)
+      let oldDatas = try await shard.deleteMany(offsets: pointers.map(\.offset))
+
+      typealias Removal = (field: String, key: FieldValue, pointer: RecordPointer)
+      let perDoc = try Parallel.map(Array(zip(pointers, oldDatas))) { pair -> [Removal] in
+        guard let data = pair.1,
+          let dict = try? FieldExtractor.parse(data, using: capturedFormat)
+        else { return [] }
+        var out: [Removal] = []
+        for field in fields {
+          if let key = FieldExtractor.value(in: dict, path: field) {
+            out.append((field: field, key: key, pointer: pair.0))
+          }
+        }
+        return out
+      }
+
+      for (i, data) in oldDatas.enumerated() {
+        if data != nil {
+          removed += 1
+        } else {
+          // The record was already dead — purge the stale pointer everywhere.
+          removeFromAllIndexes(pointer: pointers[i])
+        }
+      }
+      for removals in perDoc {
+        for removal in removals {
+          removalsByField[removal.field, default: []].append((removal.key, removal.pointer))
+        }
+      }
+    }
+
+    for (field, removals) in removalsByField {
+      indexes[field]?.bulkRemove(removals)
+    }
+    return removed
+  }
+
   /// Removes a pointer from every index. Used when a record disappears
   /// (corrupt, stale pointer, or phantom).
   private func removeFromAllIndexes(pointer: RecordPointer) {
@@ -836,17 +906,20 @@ actor CollectionCore {
       let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
         for (shardID, shard) in allShards {
           group.addTask {
-            var entries: [Entry] = []
-            try await shard.forEachLive { offset, data in
-              let pointer = RecordPointer(shardID: shardID, offset: offset)
-              guard let dict = try? FieldExtractor.parse(data, using: capturedFormat) else { return }
+            let records = try await shard.readAllLive()
+            let perRecord = try Parallel.map(records) { record -> [Entry] in
+              guard let dict = try? FieldExtractor.parse(record.data, using: capturedFormat)
+              else { return [] }
+              let pointer = RecordPointer(shardID: shardID, offset: record.offset)
+              var entries: [Entry] = []
               for field in capturedMissing {
                 if let key = FieldExtractor.value(in: dict, path: field) {
                   entries.append((field: field, key: key, pointer: pointer))
                 }
               }
+              return entries
             }
-            return entries
+            return perRecord.flatMap { $0 }
           }
         }
         var all: [Entry] = []
@@ -882,11 +955,7 @@ actor CollectionCore {
     return try await withThrowingTaskGroup(of: [Data].self) { group in
       for shard in allShards {
         group.addTask {
-          var out: [Data] = []
-          try await shard.forEachLive { _, data in
-            out.append(data)
-          }
-          return out
+          try await shard.readAllLive().map(\.data)
         }
       }
       var out: [Data] = []
@@ -902,11 +971,7 @@ actor CollectionCore {
   func scanPartition(value: FieldValue) async throws -> [Data] {
     try ensureOpen()
     guard let shard = try? shard(for: physicalShardID(for: value)) else { return [] }
-    var out: [Data] = []
-    try await shard.forEachLive { _, data in
-      out.append(data)
-    }
-    return out
+    return try await shard.readAllLive().map(\.data)
   }
 
   /// Returns all known shard IDs, sorted.
@@ -952,15 +1017,18 @@ actor CollectionCore {
     return out
   }
 
-  /// Performs a range lookup on an indexed field.
+  /// Performs a range lookup on an indexed field, optionally stopping after
+  /// `maxCount` pointers (in ascending key order).
   func indexRange(
     field: String,
     lower: FieldValue?, lowerInclusive: Bool,
-    upper: FieldValue?, upperInclusive: Bool
+    upper: FieldValue?, upperInclusive: Bool,
+    maxCount: Int? = nil
   ) -> [RecordPointer] {
     indexes[field]?.range(
       lower: lower, lowerInclusive: lowerInclusive,
-      upper: upper, upperInclusive: upperInclusive
+      upper: upper, upperInclusive: upperInclusive,
+      maxCount: maxCount
     ) ?? []
   }
 

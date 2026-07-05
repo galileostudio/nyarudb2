@@ -532,7 +532,10 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       sortField == nil || (sortField == field && sortAscending)
     else { return nil }
 
-    let pointers = await pointers(forIndexedField: field)
+    // Range scans can stop as soon as offset+limit pointers are collected —
+    // no need to materialise every match just to slice the head.
+    let needed = limitCount.map { offsetCount + $0 }
+    let pointers = await pointers(forIndexedField: field, maxCount: needed)
     let start = min(offsetCount, pointers.count)
     let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
     return Array(pointers[start..<end])
@@ -571,7 +574,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   /// Resolves index pointers for the indexed field used in the plan.
-  private func pointers(forIndexedField field: String) async -> [RecordPointer] {
+  ///
+  /// - Parameter maxCount: When set, range scans stop after collecting this
+  ///   many pointers. Only pass it when the query is fully covered — residual
+  ///   predicates need every match.
+  private func pointers(forIndexedField field: String, maxCount: Int? = nil) async
+    -> [RecordPointer]
+  {
     var topLevelPredicates: [Predicate] = []
     if case .and(let arr) = rootPredicate {
       topLevelPredicates = arr
@@ -589,27 +598,32 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
         return await core.indexRange(
           field: field,
           lower: lower.fieldValue, lowerInclusive: true,
-          upper: upper.fieldValue, upperInclusive: true
+          upper: upper.fieldValue, upperInclusive: true,
+          maxCount: maxCount
         )
       case .lessThan(_, let value):
         return await core.indexRange(
           field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: false
+          upper: value.fieldValue, upperInclusive: false,
+          maxCount: maxCount
         )
       case .lessThanOrEqual(_, let value):
         return await core.indexRange(
           field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: true
+          upper: value.fieldValue, upperInclusive: true,
+          maxCount: maxCount
         )
       case .greaterThan(_, let value):
         return await core.indexRange(
           field: field, lower: value.fieldValue, lowerInclusive: false,
-          upper: nil, upperInclusive: true
+          upper: nil, upperInclusive: true,
+          maxCount: maxCount
         )
       case .greaterThanOrEqual(_, let value):
         return await core.indexRange(
           field: field, lower: value.fieldValue, lowerInclusive: true,
-          upper: nil, upperInclusive: true
+          upper: nil, upperInclusive: true,
+          maxCount: maxCount
         )
       default:
         continue
@@ -627,27 +641,19 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     // requested — fetch and decode without parsing or re-evaluating anything.
     // (With a sort field, results must flow through the in-memory sort in
     // matchedParsed, because fetch returns documents in disk order.)
-    if sortField == nil {
-      let planResult = await plan()
-      if let covered = await coveredPointers(for: planResult) {
-        let raw = try await core.fetch(pointers: covered)
-        return try raw.map { json in
-          do {
-            return try Serializer.decode(T.self, from: json, format: format)
-          } catch {
-            throw NyaruError.decodingFailed(String(describing: error))
-          }
-        }
-      }
+    let raw: [Data]
+    if sortField == nil, case let planResult = await plan(),
+      let covered = await coveredPointers(for: planResult)
+    {
+      raw = try await core.fetch(pointers: covered)
+    } else {
+      raw = try await matchingDocuments()
     }
 
-    let matching = try await matchingDocuments()
-    return try matching.map { json in
-      do {
-        return try Serializer.decode(T.self, from: json, format: format)
-      } catch {
-        throw NyaruError.decodingFailed(String(describing: error))
-      }
+    do {
+      return try Serializer.decodeBatch(T.self, from: raw, format: format)
+    } catch {
+      throw NyaruError.decodingFailed(String(describing: error))
     }
   }
 
@@ -700,12 +706,8 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   public func delete() async throws -> Int {
     let matched = try await matchedParsed()
     let idField = await core.idField
-    var removed = 0
-    for item in matched {
-      guard let id = FieldExtractor.value(in: item.dict, path: idField) else { continue }
-      if try await core.delete(id: id) { removed += 1 }
-    }
-    return removed
+    let ids = matched.compactMap { FieldExtractor.value(in: $0.dict, path: idField) }
+    return try await core.deleteMany(ids: ids)
   }
 
   /// Returns matching documents as raw data (for counting).
