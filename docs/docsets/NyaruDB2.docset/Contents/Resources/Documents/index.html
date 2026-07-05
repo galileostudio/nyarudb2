@@ -4,352 +4,584 @@
     <title>NyaruDB2  Reference</title>
     <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="css/highlight.css" />
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <script src="js/jquery.min.js" defer></script>
     <script src="js/jazzy.js" defer></script>
     
     <script src="js/lunr.min.js" defer></script>
     <script src="js/typeahead.jquery.js" defer></script>
     <script src="js/jazzy.search.js" defer></script>
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-T053MYQXDL"></script>
-<script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag("js", new Date());
-gtag("config", "G-T053MYQXDL", { "page_path": window.location.pathname });
-</script>
   </head>
   <body>
+
+
     <a title="NyaruDB2  Reference"></a>
-    <header>
-      <div class="content-wrapper">
-        <p><a href="index.html">NyaruDB2 Docs</a> (60% documented)</p>
-        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="img/gh.png" alt="GitHub"/>View on GitHub</a></p>
-        <div class="header-right">
-          <form role="search" action="search.json">
-            <input type="text" placeholder="Search documentation" data-typeahead>
-          </form>
-        </div>
-      </div>
-    </header>
-    <div class="content-wrapper">
-      <p id="breadcrumbs">
-        <a href="index.html">NyaruDB2</a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
       </p>
-    </div>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="index.html">NyaruDB2</a>
+    </p>
+
     <div class="content-wrapper">
-      <nav class="sidebar">
+      <nav class="navigation">
         <ul class="nav-groups">
           <li class="nav-group-name">
-            <a href="Actors.html">Actors</a>
+            <a class="nav-group-name-link" href="Actors.html">Actors</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Actors/BTreeIndex.html">BTreeIndex</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/IndexManager.html">IndexManager</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StatsEngine.html">StatsEngine</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StorageEngine.html">StorageEngine</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StorageEngine/StorageError.html">– StorageError</a>
+                <a class="nav-group-task-link" href="Actors/NyaruDB.html">NyaruDB</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Classes.html">Classes</a>
+            <a class="nav-group-name-link" href="Classes.html">Classes</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Classes/CollectionCatalog.html">CollectionCatalog</a>
+                <a class="nav-group-task-link" href="Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
               </li>
               <li class="nav-group-task">
-                <a href="Classes/DocumentCollection.html">DocumentCollection</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/NyaruDB2.html">NyaruDB2</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/Shard.html">Shard</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/ShardManager.html">ShardManager</a>
+                <a class="nav-group-task-link" href="Classes/OrderedIndex.html">OrderedIndex</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Enums.html">Enumerations</a>
+            <a class="nav-group-name-link" href="Enums.html">Enumerations</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Enums/CompressionError.html">CompressionError</a>
+                <a class="nav-group-task-link" href="Enums/CompressionMethod.html">CompressionMethod</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/CompressionMethod.html">CompressionMethod</a>
+                <a class="nav-group-task-link" href="Enums/FieldValue.html">FieldValue</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/DynamicDecoder.html">DynamicDecoder</a>
+                <a class="nav-group-task-link" href="Enums/FileProtection.html">FileProtection</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/FileProtectionType.html">FileProtectionType</a>
+                <a class="nav-group-task-link" href="Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/QueryOperator.html">QueryOperator</a>
+                <a class="nav-group-task-link" href="Enums/NyaruCrypto.html">NyaruCrypto</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/ShardManagerError.html">ShardManagerError</a>
+                <a class="nav-group-task-link" href="Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/SerializationFormat.html">SerializationFormat</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Extensions.html">Extensions</a>
+            <a class="nav-group-name-link" href="Extensions.html">Extensions</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Extensions.html#/s:SS">String</a>
+                <a class="nav-group-task-link" href="Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/UUID.html">UUID</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Functions.html">Functions</a>
+            <a class="nav-group-name-link" href="Protocols.html">Protocols</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+                <a class="nav-group-task-link" href="Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Protocols.html">Protocols</a>
+            <a class="nav-group-name-link" href="Structs.html">Structures</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
-              </li>
-            </ul>
-          </li>
-          <li class="nav-group-name">
-            <a href="Structs.html">Structures</a>
-            <ul class="nav-group-tasks">
-              <li class="nav-group-task">
-                <a href="Structs/CollectionMetadata.html">CollectionMetadata</a>
+                <a class="nav-group-task-link" href="Structs/CollectionOptions.html">CollectionOptions</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/CollectionStats.html">CollectionStats</a>
+                <a class="nav-group-task-link" href="Structs/CollectionStats.html">CollectionStats</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ExecutionPlan.html">ExecutionPlan</a>
+                <a class="nav-group-task-link" href="Structs/DatabaseOptions.html">DatabaseOptions</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+                <a class="nav-group-task-link" href="Structs/NyaruCollection.html">NyaruCollection</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/GlobalStats.html">GlobalStats</a>
+                <a class="nav-group-task-link" href="Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/IndexMetrics.html">IndexMetrics</a>
+                <a class="nav-group-task-link" href="Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/IndexStat.html">IndexStat</a>
+                <a class="nav-group-task-link" href="Structs/QueryBuilder.html">QueryBuilder</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/Query.html">Query</a>
+                <a class="nav-group-task-link" href="Structs/QueryPlan.html">QueryPlan</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/QueryPlanner.html">QueryPlanner</a>
+                <a class="nav-group-task-link" href="Structs/RecordPointer.html">RecordPointer</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ShardMetadata.html">ShardMetadata</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Structs/ShardStat.html">ShardStat</a>
+                <a class="nav-group-task-link" href="Structs/SafeRegex.html">SafeRegex</a>
               </li>
             </ul>
           </li>
         </ul>
       </nav>
       <article class="main-content">
-        <section>
-          <section class="section">
+
+        <section class="section">
+          <div class="section-content top-matter">
             
-            <h1 id='h1-style-display-flex-align-items-center-gap-0-5rem-img-src-img-nyaru-svg-alt-logo-height-40-style-vertical-align-baseline-span-nyarudb2-span-h1' class='heading'><h1 style="display: flex; align-items: center; gap: 0.5rem;"><img src="./img/nyaru.svg" alt="Logo" height="40" style="vertical-align: baseline;"/> <span>NyaruDB2</span> </h1></h1>
+            <h1 id='img-src-img-nyaru-svg-alt-nyarudb2-height-36-style-vertical-align-middle-nyarudb2' class='heading'><img src="./img/nyaru.svg" alt="NyaruDB2" height="36" style="vertical-align:middle"/> NyaruDB2</h1>
 
-<p><strong>Lightweight, high-performance embedded database for Swift</strong>  </p>
+<p><strong>Embedded document database for Swift. No server, no schema, no ceremony.</strong></p>
 
-<p><a href="https://github.com/apple/swift-package-manager"><img src="https://img.shields.io/badge/SwiftPM-compatible-brightgreen" alt="SwiftPM"></a><a href="LICENSE.md"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a></p>
+<p><a href="https://github.com/apple/swift-package-manager"><img src="https://img.shields.io/badge/SwiftPM-compatible-brightgreen" alt="SwiftPM"></a>
+<a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9+-orange" alt="Swift"></a>
+<a href="https://developer.apple.com"><img src="https://img.shields.io/badge/iOS%2015%2B%20%7C%20macOS%2013%2B-black" alt="Platforms"></a>
+<a href="LICENSE.md"><img src="https://img.shields.io/badge/Apache%202.0-blue" alt="License"></a></p>
 
-<p>NyaruDB2 is an embedded database optimized for iOS and macOS applications, designed to handle large datasets efficiently using modern Swift Concurrency. It provides:</p>
+<p>Store, query, and stream any <code>Codable</code> type — directly on device, with indexed queries, optional AES-256-GCM encryption, crash recovery, and real backpressure streaming. No Core Data stack, no migrations, no SQL.</p>
+
+<hr>
+<h2 id='why-nyarudb2' class='heading'>Why NyaruDB2?</h2>
+
+<table><thead>
+<tr>
+<th></th>
+<th>NyaruDB2</th>
+<th>SQLite / GRDB</th>
+<th>Core Data</th>
+<th>Realm</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>API</td>
+<td>Codable, async/await</td>
+<td>SQL / ORM</td>
+<td>NSManagedObject</td>
+<td>RealmObject</td>
+</tr>
+<tr>
+<td>Schema</td>
+<td>none</td>
+<td>required</td>
+<td>required</td>
+<td>required</td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td>built-in (AES-256-GCM)</td>
+<td>SQLCipher (separate dep)</td>
+<td>❌</td>
+<td>built-in</td>
+</tr>
+<tr>
+<td>Disk size</td>
+<td><strong>~10× smaller</strong> with gzip</td>
+<td>baseline</td>
+<td>baseline</td>
+<td>baseline</td>
+</tr>
+<tr>
+<td>Thread model</td>
+<td>Swift Actors</td>
+<td>varies</td>
+<td>main-thread traps</td>
+<td>thread-confined</td>
+</tr>
+<tr>
+<td>Crash recovery</td>
+<td>automatic (CRC-32 + dirty flag)</td>
+<td>WAL</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+
+<p>NyaruDB2 is a good fit when:</p>
 
 <ul>
-<li><strong>Automatic Sharding</strong> with parallel I/O</li>
-<li><strong>Multi-Algorithm Compression</strong> (GZIP, LZFSE, LZ4)</li>
-<li><strong>Actor-Safe B-Tree Indexing</strong></li>
-<li><strong>Cost-Based Query Planner</strong> with shard pruning</li>
-<li><strong>Lazy Loading</strong> via <code>AsyncThrowingStream</code></li>
+<li>Your data is document-shaped and changes schema between app versions</li>
+<li>You need per-record encryption without a third-party dependency</li>
+<li>You want to stream large datasets without materializing them in memory</li>
+<li>You are already writing async/await Swift and want a storage layer that feels the same</li>
 </ul>
 
 <hr>
-<h2 id='table-of-contents' class='heading'>🔖 Table of Contents</h2>
-
-<ol>
-<li><a href="#installation">Installation</a></li>
-<li><a href="#quick-start-example">Quick Start Example</a></li>
-<li><a href="#key-features">Key Features</a></li>
-<li><a href="#architecture">Architecture</a></li>
-<li><a href="#documentation">Documentation</a></li>
-<li><a href="#contributing">Contributing</a></li>
-<li><a href="#license">License</a></li>
-<li><a href="#acknowledgements">Acknowledgements</a></li>
-</ol>
-
-<hr>
-<h2 id='installation' class='heading'>📦 Installation</h2>
-
-<p>NyaruDB2 supports Swift Package Manager:</p>
-<pre class="highlight swift"><code><span class="c1">// swift-tools-version:5.9</span>
-
-<span class="k">let</span> <span class="nv">package</span> <span class="o">=</span> <span class="kt">Package</span><span class="p">(</span>
-    <span class="nv">name</span><span class="p">:</span> <span class="s">"YourApp"</span><span class="p">,</span>
-    <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span>
-        <span class="o">.</span><span class="nf">package</span><span class="p">(</span><span class="nv">url</span><span class="p">:</span> <span class="s">"https://github.com/galileostudio/NyaruDB2.git"</span><span class="p">,</span> <span class="nv">from</span><span class="p">:</span> <span class="s">"0.1.0-alpha"</span><span class="p">)</span>
-    <span class="p">],</span>
-    <span class="nv">targets</span><span class="p">:</span> <span class="p">[</span>
-        <span class="o">.</span><span class="nf">target</span><span class="p">(</span>
-            <span class="nv">name</span><span class="p">:</span> <span class="s">"YourApp"</span><span class="p">,</span>
-            <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span><span class="s">"NyaruDB2"</span><span class="p">]</span>
-        <span class="p">)</span>
-    <span class="p">]</span>
-<span class="p">)</span>
+<h2 id='installation' class='heading'>Installation</h2>
+<pre class="highlight swift"><code><span class="c1">// Package.swift</span>
+<span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span>
+    <span class="o">.</span><span class="nf">package</span><span class="p">(</span><span class="nv">url</span><span class="p">:</span> <span class="s">"https://github.com/galileostudio/NyaruDB2.git"</span><span class="p">,</span> <span class="nv">from</span><span class="p">:</span> <span class="s">"0.2.0"</span><span class="p">)</span>
+<span class="p">],</span>
+<span class="nv">targets</span><span class="p">:</span> <span class="p">[</span>
+    <span class="o">.</span><span class="nf">target</span><span class="p">(</span><span class="nv">name</span><span class="p">:</span> <span class="s">"YourApp"</span><span class="p">,</span> <span class="nv">dependencies</span><span class="p">:</span> <span class="p">[</span><span class="s">"NyaruDB2"</span><span class="p">])</span>
+<span class="p">]</span>
 </code></pre>
 
-<p><strong>Requirements</strong>:</p>
-
-<ul>
-<li>Xcode 15+</li>
-<li>Swift 5.9+</li>
-<li>iOS 15+ / macOS 12+</li>
-</ul>
+<p><strong>Requirements:</strong> Swift 5.9+ · iOS 15+ · macOS 13+</p>
 
 <hr>
-<h2 id='quick-start-example' class='heading'>🚀 Quick Start Example</h2>
+<h2 id='quick-start' class='heading'>Quick Start</h2>
 <pre class="highlight swift"><code><span class="kd">import</span> <span class="kt">NyaruDB2</span>
 
-<span class="c1">// Define a model</span>
-<span class="kd">struct</span> <span class="kt">User</span><span class="p">:</span> <span class="kt">Codable</span><span class="p">,</span> <span class="kt">Equatable</span> <span class="p">{</span>
+<span class="kd">struct</span> <span class="kt">Article</span><span class="p">:</span> <span class="kt">Codable</span><span class="p">,</span> <span class="kt">Sendable</span> <span class="p">{</span>
     <span class="k">let</span> <span class="nv">id</span><span class="p">:</span> <span class="kt">Int</span>
-    <span class="k">let</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span>
-    <span class="k">let</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="kt">String</span>
+    <span class="k">let</span> <span class="nv">title</span><span class="p">:</span> <span class="kt">String</span>
+    <span class="k">let</span> <span class="nv">author</span><span class="p">:</span> <span class="kt">String</span>
+    <span class="k">let</span> <span class="nv">publishedAt</span><span class="p">:</span> <span class="kt">Date</span>
 <span class="p">}</span>
 
-<span class="c1">// 1. Initialize the database</span>
-<span class="k">let</span> <span class="nv">db</span> <span class="o">=</span> <span class="k">try</span> <span class="kt">NyaruDB2</span><span class="p">(</span>
-    <span class="nv">path</span><span class="p">:</span> <span class="s">"NyaruDB_Demo"</span><span class="p">,</span>
-    <span class="nv">compressionMethod</span><span class="p">:</span> <span class="o">.</span><span class="n">lzfse</span><span class="p">,</span>
-    <span class="nv">fileProtectionType</span><span class="p">:</span> <span class="o">.</span><span class="n">completeUntilFirstUserAuthentication</span>
+<span class="c1">// Open the database (creates the directory if needed)</span>
+<span class="k">let</span> <span class="nv">db</span> <span class="o">=</span> <span class="k">try</span> <span class="kt">NyaruDB</span><span class="p">(</span>
+    <span class="nv">path</span><span class="p">:</span> <span class="s">"/path/to/db"</span><span class="p">,</span>
+    <span class="nv">options</span><span class="p">:</span> <span class="kt">DatabaseOptions</span><span class="p">(</span><span class="nv">compression</span><span class="p">:</span> <span class="o">.</span><span class="n">gzip</span><span class="p">,</span> <span class="nv">format</span><span class="p">:</span> <span class="o">.</span><span class="n">msgpack</span><span class="p">)</span>
 <span class="p">)</span>
 
-<span class="c1">// 2. Create a partitioned collection</span>
-<span class="k">let</span> <span class="nv">users</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">createCollection</span><span class="p">(</span>
-    <span class="nv">name</span><span class="p">:</span> <span class="s">"Users"</span><span class="p">,</span>
-    <span class="nv">indexes</span><span class="p">:</span> <span class="p">[</span><span class="s">"id"</span><span class="p">],</span>
-    <span class="nv">partitionKey</span><span class="p">:</span> <span class="s">"createdAt"</span>
+<span class="c1">// Open a typed collection with secondary indexes</span>
+<span class="k">let</span> <span class="nv">articles</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">collection</span><span class="p">(</span>
+    <span class="s">"articles"</span><span class="p">,</span>
+    <span class="nv">of</span><span class="p">:</span> <span class="kt">Article</span><span class="o">.</span><span class="k">self</span><span class="p">,</span>
+    <span class="nv">options</span><span class="p">:</span> <span class="kt">CollectionOptions</span><span class="p">(</span>
+        <span class="nv">idField</span><span class="p">:</span> <span class="s">"id"</span><span class="p">,</span>
+        <span class="nv">indexedFields</span><span class="p">:</span> <span class="p">[</span><span class="s">"author"</span><span class="p">,</span> <span class="s">"publishedAt"</span><span class="p">]</span>
+    <span class="p">)</span>
 <span class="p">)</span>
 
-<span class="c1">// 3. Bulk insert documents</span>
-<span class="k">try</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">bulkInsert</span><span class="p">([</span>
-    <span class="kt">User</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="nv">name</span><span class="p">:</span> <span class="s">"Alice"</span><span class="p">,</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="s">"2024-01"</span><span class="p">),</span>
-    <span class="kt">User</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="nv">name</span><span class="p">:</span> <span class="s">"Bob"</span><span class="p">,</span> <span class="nv">createdAt</span><span class="p">:</span> <span class="s">"2024-02"</span><span class="p">)</span>
-<span class="p">])</span>
+<span class="c1">// Insert</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="kt">Article</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="nv">title</span><span class="p">:</span> <span class="s">"Hello"</span><span class="p">,</span> <span class="nv">author</span><span class="p">:</span> <span class="s">"Ana"</span><span class="p">,</span> <span class="nv">publishedAt</span><span class="p">:</span> <span class="o">.</span><span class="n">now</span><span class="p">))</span>
 
-<span class="c1">// 4. Perform a query</span>
-<span class="k">var</span> <span class="nv">query</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">query</span><span class="p">()</span> <span class="k">as</span> <span class="kt">Query</span><span class="o">&lt;</span><span class="kt">User</span><span class="o">&gt;</span>
-<span class="n">query</span><span class="o">.</span><span class="nf">where</span><span class="p">(\</span><span class="kt">User</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">.</span><span class="nf">greaterThan</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
-<span class="k">let</span> <span class="nv">results</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">query</span><span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
-<span class="nf">print</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+<span class="c1">// Bulk insert — validates all documents before writing any</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="nv">contentsOf</span><span class="p">:</span> <span class="n">moreArticles</span><span class="p">)</span>
+
+<span class="c1">// Buffered bulk insert — accumulate from multiple sources, flush once</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="n">insertBatch</span> <span class="p">{</span> <span class="n">batch</span> <span class="k">in</span>
+    <span class="k">for</span> <span class="n">chunk</span> <span class="k">in</span> <span class="n">incomingChunks</span> <span class="p">{</span>
+        <span class="n">batch</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="nv">contentsOf</span><span class="p">:</span> <span class="n">chunk</span><span class="p">)</span>   <span class="c1">// synchronous, no await</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// Query</span>
+<span class="k">let</span> <span class="nv">recent</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"publishedAt"</span><span class="p">,</span> <span class="nv">isGreaterThan</span><span class="p">:</span> <span class="kt">Date</span><span class="p">()</span><span class="o">.</span><span class="nf">addingTimeInterval</span><span class="p">(</span><span class="o">-</span><span class="mi">86400</span> <span class="o">*</span> <span class="mi">7</span><span class="p">))</span>
+    <span class="o">.</span><span class="nf">sort</span><span class="p">(</span><span class="nv">by</span><span class="p">:</span> <span class="s">"publishedAt"</span><span class="p">,</span> <span class="nv">ascending</span><span class="p">:</span> <span class="kc">false</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+
+<span class="c1">// Partial update — only the changed fields; result is validated against Article before writing</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">patch</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="nv">changes</span><span class="p">:</span> <span class="p">[</span><span class="s">"title"</span><span class="p">:</span> <span class="s">"Updated title"</span><span class="p">])</span>
+
+<span class="c1">// Delete by predicate</span>
+<span class="k">let</span> <span class="nv">removed</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"author"</span><span class="p">,</span> <span class="nv">isEqualTo</span><span class="p">:</span> <span class="s">"spam-bot"</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">delete</span><span class="p">()</span>
+
+<span class="c1">// Delete many by id in a single batched pass</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">delete</span><span class="p">(</span><span class="nv">ids</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">])</span>
+
+<span class="c1">// Pull-based stream — memory stays bounded regardless of collection size</span>
+<span class="k">for</span> <span class="k">try</span> <span class="k">await</span> <span class="n">article</span> <span class="k">in</span> <span class="n">articles</span><span class="o">.</span><span class="nf">stream</span><span class="p">(</span><span class="nv">batchSize</span><span class="p">:</span> <span class="mi">64</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">process</span><span class="p">(</span><span class="n">article</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="c1">// Reclaim space left by deletions</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">compact</span><span class="p">()</span>
+
+<span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">close</span><span class="p">()</span>
 </code></pre>
 
 <hr>
-<h2 id='key-features' class='heading'>✨ Key Features</h2>
-<h3 id='performance' class='heading'>Performance</h3>
+<h2 id='core-concepts' class='heading'>Core Concepts</h2>
+<h3 id='collections' class='heading'>Collections</h3>
 
-<ul>
-<li><strong>Sharded Storage</strong>: automatic partitioning by configurable shard keys</li>
-<li><strong>Multi-Algorithm Compression</strong>: GZIP, LZFSE, LZ4 via <code>Compression.framework</code></li>
-<li><strong>Actor-Safe B-Tree Indexing</strong>: configurable minimum degree for performance tuning</li>
-</ul>
-<h3 id='advanced-queries' class='heading'>Advanced Queries</h3>
-
-<ul>
-<li><strong>Type-Safe Query Builder</strong>: supports 15+ predicates (equal, range, contains, startsWith, etc.)</li>
-<li><strong>Lazy Loading</strong>: <code>AsyncThrowingStream</code> for memory-efficient iterating</li>
-<li><strong>Cost-Based Query Planner</strong>: selects optimal indexes and prunes shards using statistics</li>
-</ul>
-<h3 id='monitoring-amp-stats' class='heading'>Monitoring &amp; Stats</h3>
-
-<ul>
-<li><strong>StatsEngine</strong>: <code><a href="Structs/CollectionStats.html">CollectionStats</a></code>, <code><a href="Structs/GlobalStats.html">GlobalStats</a></code> with shard count, document count, and sizes</li>
-<li><strong>IndexStats</strong>: tracks value distribution, selectivity, access counts</li>
-</ul>
-
-<hr>
-<h2 id='️-architecture' class='heading'>🏗️ Architecture</h2>
-<pre class="highlight shell"><code>NyaruDB2/
-├── Sources/
-│   ├── NyaruDB2/
-│   │   ├── Core/
-│   │   │   ├── Commons/          <span class="c"># FileProtection, DynamicDecoder</span>
-│   │   │   ├── IndexManager/     <span class="c"># BTreeIndex, IndexManager</span>
-│   │   │   ├── QueryEngine/      <span class="c"># Query, QueryPlanner, ExecutionPlan</span>
-│   │   │   ├── StatsEngine/      <span class="c"># CollectionStats, GlobalStats</span>
-│   │   │   └── StorageEngine/    <span class="c"># ShardManager, Compression, StorageEngine</span>
-│   │   ├── CollectionEngine/     <span class="c"># DocumentCollection, CollectionCatalog</span>
-│   │   └── NyaruDB2.swift        <span class="c"># public API</span>
-│   └── Benchmark/                <span class="c"># performance test suite</span>
-└── Tests/                        <span class="c"># unit and integration tests</span>
+<p>A collection is a typed, actor-isolated handle to a set of documents stored under a shared directory. Opening the same collection twice returns a cached handle; there is no risk of concurrent writers corrupting it.</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">users</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">,</span> <span class="nv">of</span><span class="p">:</span> <span class="kt">User</span><span class="o">.</span><span class="k">self</span><span class="p">,</span> <span class="nv">options</span><span class="p">:</span> <span class="n">options</span><span class="p">)</span>
 </code></pre>
 
-<hr>
-<h2 id='documentation' class='heading'>📚 Documentation</h2>
+<p><code><a href="Structs/CollectionOptions.html">CollectionOptions</a></code> configures the primary key field, secondary indexes, and the partition key. Compression, serialization format, and the encryption key are database-wide (<code><a href="Structs/DatabaseOptions.html">DatabaseOptions</a></code>) and are frozen into each collection&rsquo;s manifest when it is first created.</p>
+<h3 id='indexes' class='heading'>Indexes</h3>
 
-<p>Full API reference:<br>
-🔗 <a href="https://nyarudb2.docs.example.com">https://nyarudb2.docs.example.com</a></p>
+<p>The <code>idField</code> is always indexed. Declare additional fields at open time:</p>
+<pre class="highlight swift"><code><span class="kt">CollectionOptions</span><span class="p">(</span>
+    <span class="nv">idField</span><span class="p">:</span> <span class="s">"id"</span><span class="p">,</span>
+    <span class="nv">indexedFields</span><span class="p">:</span> <span class="p">[</span><span class="s">"email"</span><span class="p">,</span> <span class="s">"region"</span><span class="p">,</span> <span class="s">"score"</span><span class="p">]</span>
+<span class="p">)</span>
+</code></pre>
 
-<hr>
-<h2 id='contributing' class='heading'>🤝 Contributing</h2>
+<p>You can add or remove indexed fields between opens — NyaruDB2 builds missing indexes with a single scan and removes dropped ones. The <code>idField</code>, <code>partitionKey</code>, and <code>compression</code> are frozen after the first open.</p>
+
+<p>Indexed operations run in O(log n). Unindexed fields fall back to a full scan with the predicate applied in memory.</p>
+<h3 id='queries' class='heading'>Queries</h3>
+<pre class="highlight swift"><code><span class="c1">// Equality, comparisons, ranges</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"score"</span><span class="p">,</span> <span class="nv">isGreaterThanOrEqualTo</span><span class="p">:</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"score"</span><span class="p">,</span> <span class="nv">isLessThan</span><span class="p">:</span> <span class="mi">500</span><span class="p">)</span>
+
+<span class="c1">// Set membership</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"tier"</span><span class="p">,</span> <span class="nv">isIn</span><span class="p">:</span> <span class="p">[</span><span class="s">"gold"</span><span class="p">,</span> <span class="s">"platinum"</span><span class="p">])</span>
+
+<span class="c1">// Text predicates</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"email"</span><span class="p">,</span> <span class="nv">endsWith</span><span class="p">:</span> <span class="s">"@example.com"</span><span class="p">)</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"username"</span><span class="p">,</span> <span class="nv">like</span><span class="p">:</span> <span class="s">"ana%"</span><span class="p">)</span>      <span class="c1">// SQL-style wildcards</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"slug"</span><span class="p">,</span> <span class="nv">glob</span><span class="p">:</span> <span class="s">"2026-*-post"</span><span class="p">)</span>   <span class="c1">// glob wildcards</span>
+
+<span class="c1">// Logical composition — chained wheres are AND; use Predicate for OR/NOT</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"age"</span><span class="p">,</span> <span class="nv">isGreaterThanOrEqualTo</span><span class="p">:</span> <span class="mi">18</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="o">.</span><span class="nf">or</span><span class="p">([</span>
+        <span class="o">.</span><span class="nf">equal</span><span class="p">(</span><span class="s">"country"</span><span class="p">,</span> <span class="s">"BR"</span><span class="p">),</span>
+        <span class="o">.</span><span class="nf">equal</span><span class="p">(</span><span class="s">"country"</span><span class="p">,</span> <span class="s">"PT"</span><span class="p">),</span>
+    <span class="p">]))</span>
+
+<span class="c1">// Existence</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">whereExists</span><span class="p">(</span><span class="s">"phoneNumber"</span><span class="p">)</span>
+
+<span class="c1">// Sort, page</span>
+<span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">sort</span><span class="p">(</span><span class="nv">by</span><span class="p">:</span> <span class="s">"name"</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">offset</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+
+<span class="c1">// Inspect the plan before running</span>
+<span class="k">let</span> <span class="nv">plan</span> <span class="o">=</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span><span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"score"</span><span class="p">,</span> <span class="nv">isGreaterThan</span><span class="p">:</span> <span class="mi">50</span><span class="p">)</span><span class="o">.</span><span class="nf">explain</span><span class="p">()</span>
+</code></pre>
+<h3 id='partitioning' class='heading'>Partitioning</h3>
+
+<p>When documents share a partition key (e.g. <code>region</code>, <code>category</code>), route them to dedicated shard files:</p>
+<pre class="highlight swift"><code><span class="kt">CollectionOptions</span><span class="p">(</span><span class="nv">idField</span><span class="p">:</span> <span class="s">"id"</span><span class="p">,</span> <span class="nv">partitionKey</span><span class="p">:</span> <span class="s">"region"</span><span class="p">)</span>
+</code></pre>
+
+<p>Queries that filter on the partition key touch only the matching shard. Full scans read shards concurrently.</p>
+<h3 id='encryption' class='heading'>Encryption</h3>
+<pre class="highlight swift"><code><span class="c1">// Recommended: random key stored in the Keychain</span>
+<span class="k">let</span> <span class="nv">key</span> <span class="o">=</span> <span class="kt">NyaruCrypto</span><span class="o">.</span><span class="nf">generateRandomKey</span><span class="p">()</span>
+
+<span class="c1">// Password-derived key (PBKDF2-HMAC-SHA256, 210k iterations)</span>
+<span class="k">let</span> <span class="nv">salt</span> <span class="o">=</span> <span class="kt">NyaruCrypto</span><span class="o">.</span><span class="nf">generateSalt</span><span class="p">()</span>     <span class="c1">// persist alongside the database</span>
+<span class="k">let</span> <span class="nv">key</span>  <span class="o">=</span> <span class="k">try</span> <span class="kt">NyaruCrypto</span><span class="o">.</span><span class="nf">deriveKey</span><span class="p">(</span><span class="nv">fromPassword</span><span class="p">:</span> <span class="s">"passphrase"</span><span class="p">,</span> <span class="nv">salt</span><span class="p">:</span> <span class="n">salt</span><span class="p">)</span>
+
+<span class="k">let</span> <span class="nv">db</span> <span class="o">=</span> <span class="k">try</span> <span class="kt">NyaruDB</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="nv">options</span><span class="p">:</span> <span class="kt">DatabaseOptions</span><span class="p">(</span><span class="nv">encryptionKey</span><span class="p">:</span> <span class="n">key</span><span class="p">))</span>
+</code></pre>
+
+<p>Encryption covers every record payload, every index snapshot, and the collection manifest. Shard filenames are HMAC-derived so partition values are not visible in the filesystem. Opening with the wrong key fails immediately at the manifest with <code><a href="Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO16decryptionFailedyA2CmF">NyaruError.decryptionFailed</a></code>.</p>
+
+<blockquote>
+<p>Use <code>generateRandomKey()</code> + Keychain for new integrations. <code>deriveKey(fromPassword:salt:)</code> is for cases where the key must be re-derived from user input; its PBKDF2 cost resists offline brute force, but a hardware-bound key is always stronger.</p>
+</blockquote>
+<h3 id='crash-recovery-amp-fast-opens' class='heading'>Crash Recovery &amp; Fast Opens</h3>
+
+<p>Every record carries a CRC-32 checksum. The shard file header has a dirty flag that is set (and fsynced) before the first write and cleared on clean close. On the next open:</p>
 
 <ol>
-<li>Fork the repository</li>
-<li>Create a feature branch: <code>git checkout -b feature/awesome</code></li>
-<li>Commit your changes: <code>git commit -m &quot;Add awesome feature&quot;</code></li>
-<li>Push to your branch: <code>git push origin feature/awesome</code></li>
-<li>Open a Pull Request</li>
+<li>Any shard whose flag is still set is fully scanned.</li>
+<li>Records with bad checksums are tombstoned.</li>
+<li>Torn trailing writes are truncated.</li>
+<li>All indexes are rebuilt from the recovered data.</li>
 </ol>
 
-<p>Please see <a href=".github/CONTRIBUTING.md">CONTRIBUTING.md</a> for details.</p>
+<p>The operation is automatic and requires no intervention.</p>
+
+<p><strong>Clean opens are O(1).</strong> On every clean sync, each shard persists its scan-derived state (live count, free slots) to a small <code>.state</code> sidecar. A clean open adopts that state instead of reading the entire data region — the database opens instantly regardless of file size. The sidecar is trusted only when the dirty flag is clear <em>and</em> the recorded file size matches; anything suspicious falls back to the full scan.</p>
+<h3 id='compaction' class='heading'>Compaction</h3>
+
+<p>Deleted documents are tombstoned in-place — space is not immediately reclaimed. Call <code>compact()</code> to rewrite shards and rebuild indexes:</p>
+<pre class="highlight swift"><code><span class="c1">// Compact a specific collection</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">compact</span><span class="p">()</span>
+
+<span class="c1">// Only compact if fragmentation is worth it (threshold: DatabaseOptions.maxFragmentation)</span>
+<span class="k">if</span> <span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">needsCompaction</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">try</span> <span class="k">await</span> <span class="n">articles</span><span class="o">.</span><span class="nf">compact</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre>
+
+<p>Compaction preserves encryption and compression, runs up to 3 shards concurrently, and never re-reads documents: each shard reports its old→new offset map and index pointers are remapped in place. A compaction gate suspends concurrent reads/writes while shard files are being swapped, so there is no stale-pointer window — and reused payload checksums mean nothing is re-hashed.</p>
 
 <hr>
-<h2 id='license' class='heading'>📜 License</h2>
+<h2 id='serialization-amp-compression' class='heading'>Serialization &amp; Compression</h2>
 
-<p>Apache 2.0 © 2025 galileostudio. See <a href="LICENSE.md">LICENSE</a>.</p>
+<table><thead>
+<tr>
+<th>Option</th>
+<th>Notes</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><code>.gzip</code></td>
+<td>Portable, ~10× size reduction on typical document payloads</td>
+</tr>
+<tr>
+<td><code>.lzfse</code></td>
+<td>Apple platforms only; faster decompression, moderate ratio</td>
+</tr>
+<tr>
+<td><code>.lz4</code></td>
+<td>Apple platforms only; recommended only for large documents</td>
+</tr>
+<tr>
+<td><code>.none</code></td>
+<td>No compression</td>
+</tr>
+<tr>
+<td><code>format: .msgpack</code></td>
+<td>Binary serialization; use <code>.json</code> for human-readable storage</td>
+</tr>
+</tbody></table>
+
+<p>Default recommendation: <code>gzip</code> + <code>msgpack</code> for production; <code>none</code> + <code>json</code> for debugging.</p>
 
 <hr>
-<h2 id='acknowledgements' class='heading'>🙏 Acknowledgements</h2>
+<h2 id='performance' class='heading'>Performance</h2>
 
-<p>Inspired by the original <a href="https://github.com/kelp404/NyaruDB">NyaruDB</a> by <code>kelp404</code>. Many thanks for the foundational ideas.</p>
+<p>Measured with the bundled benchmark (10,000 documents, batch size 1,000, Apple Silicon, release build). SQLite runs in WAL mode with prepared statements and the same secondary indexes. Times are milliseconds — lower is better.</p>
 
-          </section>
+<table><thead>
+<tr>
+<th></th>
+<th>InsertMany</th>
+<th>InsertBatch</th>
+<th>Delete (1k)</th>
+<th>Compact</th>
+<th>File size</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>NyaruDB2 (gzip + msgpack)</td>
+<td>97</td>
+<td>93</td>
+<td>7.6</td>
+<td><strong>17.7</strong></td>
+<td><strong>1.1 MB</strong></td>
+</tr>
+<tr>
+<td>NyaruDB2 (none + msgpack)</td>
+<td>41</td>
+<td>38</td>
+<td>7.5</td>
+<td>29.7</td>
+<td>11.4 MB</td>
+</tr>
+<tr>
+<td>SQLite (WAL)</td>
+<td>34</td>
+<td>33</td>
+<td>0.7</td>
+<td>23.0</td>
+<td>11.8 MB</td>
+</tr>
+</tbody></table>
+
+<p>Highlights:</p>
+
+<ul>
+<li><strong>Uncompressed inserts run within ~15% of SQLite</strong> — with gzip enabled, the extra time buys a file ~10× smaller.</li>
+<li><strong>Compaction beats SQLite&rsquo;s VACUUM</strong> thanks to offset-remapped indexes (no document is re-read, re-parsed, or re-hashed).</li>
+<li>Fully index-covered queries answer <code>count()</code> with zero disk I/O and skip all redundant parsing.</li>
+</ul>
+
+<p>Reproduce it yourself:</p>
+<pre class="highlight shell"><code>swift run <span class="nt">-c</span> release NyaruDB2Benchmark <span class="nt">-q</span> <span class="nt">-d</span> 10000          <span class="c"># gzip + msgpack vs SQLite</span>
+swift run <span class="nt">-c</span> release NyaruDB2Benchmark <span class="nt">--compression</span> none <span class="nt">--format</span> msgpack <span class="nt">-d</span> 10000
+</code></pre>
+<h3 id='how-it-goes-fast' class='heading'>How it goes fast</h3>
+
+<ul>
+<li><strong>Positioned I/O</strong> — all storage goes through <code>pread</code>/<code>pwrite</code> (one syscall per access); point reads speculatively fetch header + payload in a single call.</li>
+<li><strong>Parallel CPU pipeline</strong> — compression, encryption, encoding, decoding, checksums, and index merges all fan out across cores for batch operations.</li>
+<li><strong>Skip-scan extraction</strong> — MsgPack index keys are extracted by skipping over unwanted fields via length prefixes; large content fields are never decoded just to index a document.</li>
+<li><strong>Binary index snapshots</strong> — hand-rolled snapshot format with interned shard IDs, an order of magnitude faster than Codable to persist and load.</li>
+<li><strong>O(1) clean opens</strong> — see <a href="#crash-recovery--fast-opens">Crash Recovery &amp; Fast Opens</a>.</li>
+</ul>
+
+<hr>
+<h2 id='error-handling' class='heading'>Error Handling</h2>
+
+<p>All operations throw <code><a href="Enums/NyaruError.html">NyaruError</a></code>. Common cases:</p>
+<pre class="highlight swift"><code><span class="k">do</span> <span class="p">{</span>
+    <span class="k">try</span> <span class="k">await</span> <span class="n">users</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+<span class="p">}</span> <span class="k">catch</span> <span class="kt">NyaruError</span><span class="o">.</span><span class="nf">duplicateID</span><span class="p">(</span><span class="k">let</span> <span class="nv">id</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Document with this id already exists</span>
+<span class="p">}</span> <span class="k">catch</span> <span class="kt">NyaruError</span><span class="o">.</span><span class="n">decryptionFailed</span> <span class="p">{</span>
+    <span class="c1">// Wrong key or corrupted record</span>
+<span class="p">}</span> <span class="k">catch</span> <span class="kt">NyaruError</span><span class="o">.</span><span class="nf">collectionTypeMismatch</span><span class="p">(</span><span class="k">let</span> <span class="nv">name</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// idField / partitionKey / compression changed between opens</span>
+<span class="p">}</span>
+</code></pre>
+
+<hr>
+<h2 id='documentation' class='heading'>Documentation</h2>
+
+<p>Full API reference is generated with <a href="https://github.com/realm/jazzy">jazzy</a> and published on GitHub Pages:</p>
+<pre class="highlight shell"><code>gem <span class="nb">install </span>jazzy
+jazzy   <span class="c"># reads .jazzy.yaml, outputs to docs/</span>
+</code></pre>
+
+<p>Every public symbol carries doc comments, so the generated reference covers the complete API surface. See <a href="CHANGELOG.md">CHANGELOG.md</a> for release notes.</p>
+
+<hr>
+<h2 id='license' class='heading'>License</h2>
+
+<p>Apache 2.0 © 2026 <a href="https://github.com/galileostudio">galileostudio</a>. See <a href="LICENSE.md">LICENSE</a>.</p>
+
+<hr>
+<h2 id='acknowledgements' class='heading'>Acknowledgements</h2>
+
+<p>Inspired by the original <a href="https://github.com/kelp404/NyaruDB">NyaruDB</a> by kelp404.</p>
+
+          </div>
         </section>
-        <section id="footer">
-          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-25)</p>
-          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
-        </section>
+
+
       </article>
     </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
   </body>
 </html>

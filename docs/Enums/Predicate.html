@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Predicate Enumeration Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Enum/Predicate" class="dashAnchor"></a>
+
+    <a title="Predicate Enumeration Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
+      </p>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="../img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">NyaruDB2</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      <a class="breadcrumb" href="../Enums.html">Enumerations</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      Predicate Enumeration Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Actors/NyaruDB.html">NyaruDB</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/OrderedIndex.html">OrderedIndex</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FieldValue.html">FieldValue</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FileProtection.html">FileProtection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruCrypto.html">NyaruCrypto</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/SerializationFormat.html">SerializationFormat</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/UUID.html">UUID</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionOptions.html">CollectionOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/DatabaseOptions.html">DatabaseOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruCollection.html">NyaruCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryBuilder.html">QueryBuilder</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryPlan.html">QueryPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/RecordPointer.html">RecordPointer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/SafeRegex.html">SafeRegex</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content top-matter">
+            <h1>Predicate</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">indirect</span> <span class="kd">enum</span> <span class="kt">Predicate</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
+
+                </div>
+              </div>
+            <p>A recursive predicate tree that represents complex boolean logic for
+filtering documents.</p>
+
+<p>Predicates can be combined with <code>.and</code>, <code>.or</code>, and <code>.not</code> to build
+arbitrary boolean expressions. Leaf predicates compare a document field
+against a value using operators such as equals, less-than, range,
+substring, and regex.</p>
+
+<p>The predicate tree is evaluated bottom-up by <code>QueryBuilder.evaluate(_:in:)</code>,
+which walks the tree recursively for each candidate document.</p>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO5equalyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/equal(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO5equalyACSS_AA21FieldValueConvertible_ptcACmF">equal(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field equals the given value. This is the
+most efficient predicate because it can be pushed down to an indexed
+lookup O(log n) via binary search when an index on the field exists.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">equal</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO8notEqualyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/notEqual(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO8notEqualyACSS_AA21FieldValueConvertible_ptcACmF">notEqual(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field differs from the given value.
+Always evaluated in memory — the index can only answer equality, not
+inequality, without a full scan.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">notEqual</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO8lessThanyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/lessThan(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO8lessThanyACSS_AA21FieldValueConvertible_ptcACmF">lessThan(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is strictly less than the given value.
+Uses an indexed range scan (O(log n + k)) when an index on the field
+exists; falls back to in-memory filtering otherwise.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">lessThan</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO15lessThanOrEqualyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/lessThanOrEqual(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO15lessThanOrEqualyACSS_AA21FieldValueConvertible_ptcACmF">lessThanOrEqual(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is less than or equal to the given
+value. Uses an indexed range scan when available.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">lessThanOrEqual</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO11greaterThanyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/greaterThan(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO11greaterThanyACSS_AA21FieldValueConvertible_ptcACmF">greaterThan(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is strictly greater than the given
+value. Uses an indexed range scan when available.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">greaterThan</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO18greaterThanOrEqualyACSS_AA21FieldValueConvertible_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/greaterThanOrEqual(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO18greaterThanOrEqualyACSS_AA21FieldValueConvertible_ptcACmF">greaterThanOrEqual(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is greater than or equal to the given
+value. Uses an indexed range scan when available.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">greaterThanOrEqual</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO7betweenyACSS_AA21FieldValueConvertible_pAaE_ptcACmF"></a>
+                    <a name="//apple_ref/swift/Element/between(_:_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO7betweenyACSS_AA21FieldValueConvertible_pAaE_ptcACmF">between(_:<wbr>_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field falls within the inclusive range
+<code>[lower, upper]</code>. Uses an indexed range scan when available. Both
+bounds are required and must be of compatible types.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">between</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">,</span> <span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO5inSetyACSS_SayAA21FieldValueConvertible_pGtcACmF"></a>
+                    <a name="//apple_ref/swift/Element/inSet(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO5inSetyACSS_SayAA21FieldValueConvertible_pGtcACmF">inSet(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is a member of the given set. When an
+index exists, each element is looked up individually and the results are
+merged (OR semantics). This avoids a full scan for small-to-medium IN
+lists; for large sets a full scan may be cheaper.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">inSet</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="p">[</span><span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">])</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO8notInSetyACSS_SayAA21FieldValueConvertible_pGtcACmF"></a>
+                    <a name="//apple_ref/swift/Element/notInSet(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO8notInSetyACSS_SayAA21FieldValueConvertible_pGtcACmF">notInSet(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the field is <strong>not</strong> a member of the given set.
+Always evaluated in memory because the index stores only positive
+membership — exclusion requires scanning the posting list or filtering.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">notInSet</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="p">[</span><span class="kd">any</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">])</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO8containsyACSS_SStcACmF"></a>
+                    <a name="//apple_ref/swift/Element/contains(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO8containsyACSS_SStcACmF">contains(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the string field contains the given substring
+anywhere in its value. Comparison is case-sensitive and uses
+<code>String.contains(_:)</code>. Always evaluated in memory — there is no
+substring index.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">contains</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO10startsWithyACSS_SStcACmF"></a>
+                    <a name="//apple_ref/swift/Element/startsWith(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO10startsWithyACSS_SStcACmF">startsWith(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the string field starts with the given prefix.
+Comparison is case-sensitive and uses <code>String.hasPrefix(_:)</code>. Always
+evaluated in memory.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">startsWith</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO8endsWithyACSS_SStcACmF"></a>
+                    <a name="//apple_ref/swift/Element/endsWith(_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO8endsWithyACSS_SStcACmF">endsWith(_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the string field ends with the given suffix.
+Comparison is case-sensitive and uses <code>String.hasSuffix(_:)</code>. Always
+evaluated in memory.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">endsWith</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO4likeyACSS_SSAA9SafeRegexVtcACmF"></a>
+                    <a name="//apple_ref/swift/Element/like(_:_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO4likeyACSS_SSAA9SafeRegexVtcACmF">like(_:<wbr>_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the string field matches a SQL-style LIKE
+pattern. Supports <code>%</code> (any sequence of characters) and <code>_</code> (any single
+character). The pattern is compiled into an <code>NSRegularExpression</code> at
+predicate-construction time (so the regex is built once, not once per
+document). Matching is <strong>case-insensitive</strong>. Always evaluated in memory.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    There is no escape character. To match a literal <code>%</code> or <code>_</code>,
+use a custom <code>Predicate.glob</code> or <code>.equal</code> instead.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">like</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kt">String</span><span class="p">,</span> <span class="kt"><a href="../Structs/SafeRegex.html">SafeRegex</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO4globyACSS_SSAA9SafeRegexVtcACmF"></a>
+                    <a name="//apple_ref/swift/Element/glob(_:_:_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO4globyACSS_SSAA9SafeRegexVtcACmF">glob(_:<wbr>_:<wbr>_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the string field matches a shell-style glob
+pattern. Supports <code>*</code> (any sequence), <code>?</code> (any single character), and
+<code>[...]</code> (character class with optional negation via <code>[!...]</code>). The
+pattern is compiled into an <code>NSRegularExpression</code> at predicate-construction
+time. Matching is <strong>case-sensitive</strong>. Always evaluated in memory.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    The implementation converts the glob to a regex, so edge cases
+with path separators or special file-glob rules may not apply.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">glob</span><span class="p">(</span><span class="kt">String</span><span class="p">,</span> <span class="kt">String</span><span class="p">,</span> <span class="kt"><a href="../Structs/SafeRegex.html">SafeRegex</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO6existsyACSScACmF"></a>
+                    <a name="//apple_ref/swift/Element/exists(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO6existsyACSScACmF">exists(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the given field is present (not null and not
+absent from the document). The field must exist at any depth reachable
+via dot-path notation. Always evaluated in memory.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">exists</span><span class="p">(</span><span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO9notExistsyACSScACmF"></a>
+                    <a name="//apple_ref/swift/Element/notExists(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO9notExistsyACSScACmF">notExists(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents where the given field is absent (null or missing from
+the document). Always evaluated in memory.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">notExists</span><span class="p">(</span><span class="kt">String</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO3andyACSayACGcACmF"></a>
+                    <a name="//apple_ref/swift/Element/and(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO3andyACSayACGcACmF">and(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents that satisfy <strong>all</strong> child predicates (logical AND).
+Evaluation short-circuits on the first failure for performance.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">and</span><span class="p">([</span><span class="kt">Predicate</span><span class="p">])</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO2oryACSayACGcACmF"></a>
+                    <a name="//apple_ref/swift/Element/or(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO2oryACSayACGcACmF">or(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents that satisfy <strong>any</strong> child predicate (logical OR).
+Evaluation short-circuits on the first success for performance.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">or</span><span class="p">([</span><span class="kt">Predicate</span><span class="p">])</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB29PredicateO3notyA2CcACmF"></a>
+                    <a name="//apple_ref/swift/Element/not(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29PredicateO3notyA2CcACmF">not(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Matches documents that do <strong>not</strong> satisfy the child predicate
+(logical NOT).</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="k">case</span> <span class="nf">not</span><span class="p">(</span><span class="kt">Predicate</span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
+  </body>
+</html>

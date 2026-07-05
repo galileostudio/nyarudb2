@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>NyaruDB Actor Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Actor/NyaruDB" class="dashAnchor"></a>
+
+    <a title="NyaruDB Actor Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
+      </p>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="../img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">NyaruDB2</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      <a class="breadcrumb" href="../Actors.html">Actors</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      NyaruDB Actor Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Actors/NyaruDB.html">NyaruDB</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/OrderedIndex.html">OrderedIndex</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FieldValue.html">FieldValue</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FileProtection.html">FileProtection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruCrypto.html">NyaruCrypto</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/SerializationFormat.html">SerializationFormat</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/UUID.html">UUID</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionOptions.html">CollectionOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/DatabaseOptions.html">DatabaseOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruCollection.html">NyaruCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryBuilder.html">QueryBuilder</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryPlan.html">QueryPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/RecordPointer.html">RecordPointer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/SafeRegex.html">SafeRegex</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content top-matter">
+            <h1>NyaruDB</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">actor</span> <span class="kt">NyaruDB</span></code></pre>
+
+                </div>
+              </div>
+            <p>The root entry point for the NyaruDB embedded document database.</p>
+
+<p><code>NyaruDB</code> is an actor that serialises all file I/O through Swift&rsquo;s
+concurrency model. It manages the lifecycle of collections, handles
+manifest I/O, and coordinates durability across all open collections.</p>
+
+<p><strong>Opening a database.</strong> Provide a directory URL or filesystem path:</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">db</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="kt">NyaruDB</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="s">"path/to/database"</span><span class="p">)</span>
+</code></pre>
+
+<p><strong>Opening collections.</strong> Use <code>collection(_:of:options:)</code> to open or create
+a typed collection:</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">users</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">db</span><span class="o">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">,</span> <span class="nv">of</span><span class="p">:</span> <span class="kt">User</span><span class="o">.</span><span class="k">self</span><span class="p">)</span>
+</code></pre>
+
+<p><strong>Lifecycle.</strong> Call <code>sync()</code> to flush pending index and shard I/O, and
+<code>close()</code> to shut down cleanly. After <code>close()</code>, the instance cannot be
+used again.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    A single <code>NyaruDB</code> instance corresponds to one directory on disk.
+Opening multiple instances pointing at the same directory is not supported.
+
+</div>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC4path7optionsAC10Foundation3URLV_AA15DatabaseOptionsVtKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(path:options:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC4path7optionsAC10Foundation3URLV_AA15DatabaseOptionsVtKcfc">init(path:<wbr>options:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Opens or creates a database at the given directory URL.</p>
+
+<p>If the directory does not exist, it is created (with intermediate
+directories). All collection data is stored as subdirectories within
+this directory.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.ioError</code> if the directory cannot be created.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="kt">URL</span><span class="p">,</span> <span class="nv">options</span><span class="p">:</span> <span class="kt"><a href="../Structs/DatabaseOptions.html">DatabaseOptions</a></span> <span class="o">=</span> <span class="kt"><a href="../Structs/DatabaseOptions.html">DatabaseOptions</a></span><span class="p">())</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>path</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The directory URL for the database.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>options</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Database-wide configuration applied to all collections.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC4path7optionsACSS_AA15DatabaseOptionsVtKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(path:options:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC4path7optionsACSS_AA15DatabaseOptionsVtKcfc">init(path:<wbr>options:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Opens or creates a database at the given filesystem path string.</p>
+
+<p>Convenience initialiser that converts the string to a directory URL and
+delegates to <code><a href="../Actors/NyaruDB.html#/s:8NyaruDB20A2DBC4path7optionsAC10Foundation3URLV_AA15DatabaseOptionsVtKcfc">init(path:options:)</a></code>.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.ioError</code> if the directory cannot be created.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">convenience</span> <span class="nf">init</span><span class="p">(</span><span class="nv">path</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">options</span><span class="p">:</span> <span class="kt"><a href="../Structs/DatabaseOptions.html">DatabaseOptions</a></span> <span class="o">=</span> <span class="kt"><a href="../Structs/DatabaseOptions.html">DatabaseOptions</a></span><span class="p">())</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>path</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The filesystem path to the database directory.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>options</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Database-wide configuration.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Collections"></a>
+                <a name="//apple_ref/swift/Section/Collections" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Collections"></a>
+                  <h3 class="section-name"><span>Collections</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC10collection_2of7optionsAA0A10CollectionVyxGSS_xmAA0G7OptionsVtYaKSeRzSERzs8SendableRzlF"></a>
+                    <a name="//apple_ref/swift/Method/collection(_:of:options:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC10collection_2of7optionsAA0A10CollectionVyxGSS_xmAA0G7OptionsVtYaKSeRzSERzs8SendableRzlF">collection(_:<wbr>of:<wbr>options:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Opens an existing collection or creates a new one with the given name
+and document type.</p>
+
+<p>When opening an existing collection, the provided options are validated
+against the persisted manifest. If the base configuration (id field,
+partition key, compression, encryption, format) does not match,
+<code>collectionTypeMismatch</code> is thrown.</p>
+
+<p>Indexed fields <strong>can</strong> be added across opens — new fields are populated
+by scanning all shards on first open. The id field is always indexed
+automatically.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.collectionTypeMismatch</code> if options conflict with the
+persisted manifest, <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if closed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="n">collection</span><span class="o">&lt;</span><span class="kt">T</span><span class="p">:</span> <span class="kt">Codable</span> <span class="o">&amp;</span> <span class="kt">Sendable</span><span class="o">&gt;</span><span class="p">(</span>
+  <span class="n">_</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span>
+  <span class="n">of</span> <span class="nv">type</span><span class="p">:</span> <span class="kt">T</span><span class="o">.</span><span class="k">Type</span><span class="p">,</span>
+  <span class="n">options</span> <span class="nv">collectionOptions</span><span class="p">:</span> <span class="kt"><a href="../Structs/CollectionOptions.html">CollectionOptions</a></span> <span class="o">=</span> <span class="kt"><a href="../Structs/CollectionOptions.html">CollectionOptions</a></span><span class="p">()</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Structs/NyaruCollection.html">NyaruCollection</a></span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>name</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The collection name.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>type</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document type, which must conform to <code>Codable &amp; Sendable</code>.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>collectionOptions</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Per-collection options (id field, partition key,
+indexed fields).</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A typed <code><a href="../Structs/NyaruCollection.html">NyaruCollection&lt;T&gt;</a></code> handle.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC15listCollectionsSaySSGyKF"></a>
+                    <a name="//apple_ref/swift/Method/listCollections()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC15listCollectionsSaySSGyKF">listCollections()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the names of all collections present on disk.</p>
+
+<p>Scans the database directory for subdirectories containing a
+<code>manifest.json</code> file and reads each manifest to extract the collection
+name. Handles encrypted manifests transparently.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if closed, or
+<code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO16decryptionFailedyA2CmF">NyaruError.decryptionFailed</a></code> if a manifest cannot be decrypted.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">listCollections</span><span class="p">()</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">String</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A sorted list of collection names.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC4dropyySSYaKF"></a>
+                    <a name="//apple_ref/swift/Method/drop(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC4dropyySSYaKF">drop(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Permanently deletes a collection and all of its files from disk.</p>
+
+<p>If the collection is currently open, it is destroyed through the core
+(which shuts down shards cleanly). Otherwise the directory is removed
+directly.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.collectionNotFound</code> if the collection directory
+does not exist, <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if closed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">drop</span><span class="p">(</span><span class="n">_</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>name</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The name of the collection to drop.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Durability%20%2F%20lifecycle"></a>
+                <a name="//apple_ref/swift/Section/Durability / lifecycle" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Durability%20%2F%20lifecycle"></a>
+                  <h3 class="section-name"><span>Durability / lifecycle</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC4syncyyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/sync()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC4syncyyYaKF">sync()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Flushes all index snapshots and shard headers to disk.</p>
+
+<p>After <code>sync()</code> returns successfully, a crash on any clean shard requires
+no recovery work — the index snapshots are current and the dirty flag
+is cleared. This is a no-op if no mutations have occurred since the last
+sync.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if closed, or the first I/O error
+encountered across all collections.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">sync</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A2DBC5closeyyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/close()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A2DBC5closeyyYaKF">close()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Syncs and then closes every open collection.</p>
+
+<p>After <code>close()</code> returns, the instance is permanently closed. Calling any
+method other than <code>close()</code> (which is idempotent) will throw
+<code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code>.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    The first I/O error encountered from any collection&rsquo;s sync or
+close operations.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">close</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
+  </body>
+</html>

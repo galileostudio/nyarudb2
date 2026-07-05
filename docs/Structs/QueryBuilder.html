@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>QueryBuilder Structure Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Struct/QueryBuilder" class="dashAnchor"></a>
+
+    <a title="QueryBuilder Structure Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
+      </p>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="../img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">NyaruDB2</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      <a class="breadcrumb" href="../Structs.html">Structures</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      QueryBuilder Structure Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Actors/NyaruDB.html">NyaruDB</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/OrderedIndex.html">OrderedIndex</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FieldValue.html">FieldValue</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FileProtection.html">FileProtection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruCrypto.html">NyaruCrypto</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/SerializationFormat.html">SerializationFormat</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/UUID.html">UUID</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionOptions.html">CollectionOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/DatabaseOptions.html">DatabaseOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruCollection.html">NyaruCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryBuilder.html">QueryBuilder</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryPlan.html">QueryPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/RecordPointer.html">RecordPointer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/SafeRegex.html">SafeRegex</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content top-matter">
+            <h1>QueryBuilder</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="p">:</span> <span class="kt">Sendable</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
+
+                </div>
+              </div>
+            <p>An immutable, fluent query builder for executing typed queries against a
+NyaruDB collection.</p>
+
+<p><code>QueryBuilder</code> is created by <code><a href="../Structs/NyaruCollection.html#/s:8NyaruDB20A10CollectionV4findAA12QueryBuilderVyxGyF">NyaruCollection.find()</a></code> and provides a
+chainable API for adding predicates, sorting, pagination, and executing
+the query:</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">results</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"age"</span><span class="p">,</span> <span class="nv">isGreaterThan</span><span class="p">:</span> <span class="mi">18</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"status"</span><span class="p">,</span> <span class="nv">isEqualTo</span><span class="p">:</span> <span class="s">"active"</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">sort</span><span class="p">(</span><span class="nv">by</span><span class="p">:</span> <span class="s">"name"</span><span class="p">,</span> <span class="nv">ascending</span><span class="p">:</span> <span class="kc">true</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">offset</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+</code></pre>
+
+<p><strong>Query planning.</strong> The builder includes a simple cost-based planner that
+selects the most efficient access path:</p>
+
+<ol>
+<li>Index equality lookup (highest priority).</li>
+<li>Index <code>IN</code> set lookup.</li>
+<li>Index range/comparison lookup.</li>
+<li>Partition scan (if a partition key equality predicate exists).</li>
+<li>Full collection scan (fallback).</li>
+</ol>
+
+<p>Call <code>explain()</code> to inspect the plan without executing.</p>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Fluent%20predicate%20API"></a>
+                <a name="//apple_ref/swift/Section/Fluent predicate API" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Fluent%20predicate%20API"></a>
+                  <h3 class="section-name"><span>Fluent predicate API</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_9isEqualToACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isEqualTo:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_9isEqualToACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isEqualTo:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds an equality predicate: <code>field == value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isEqualTo</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>field</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The field name.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>value</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The expected value.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A new query builder with the predicate added.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_12isNotEqualToACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isNotEqualTo:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_12isNotEqualToACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isNotEqualTo:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a not-equal predicate: <code>field != value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isNotEqualTo</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_10isLessThanACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isLessThan:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_10isLessThanACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isLessThan:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a less-than predicate: <code>field &lt; value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isLessThan</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_19isLessThanOrEqualToACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isLessThanOrEqualTo:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_19isLessThanOrEqualToACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isLessThanOrEqualTo:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a less-than-or-equal predicate: <code>field &lt;= value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isLessThanOrEqualTo</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_13isGreaterThanACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isGreaterThan:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_13isGreaterThanACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isGreaterThan:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a greater-than predicate: <code>field &gt; value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isGreaterThan</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_22isGreaterThanOrEqualToACyxGSS_AA21FieldValueConvertible_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isGreaterThanOrEqualTo:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_22isGreaterThanOrEqualToACyxGSS_AA21FieldValueConvertible_ptF">where(_:<wbr>isGreaterThanOrEqualTo:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a greater-than-or-equal predicate: <code>field &gt;= value</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isGreaterThanOrEqualTo</span> <span class="nv">value</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_9isBetween3andACyxGSS_AA21FieldValueConvertible_pAaH_ptF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isBetween:and:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_9isBetween3andACyxGSS_AA21FieldValueConvertible_pAaH_ptF">where(_:<wbr>isBetween:<wbr>and:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds an inclusive range predicate: <code>lower &lt;= field &lt;= upper</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span>
+  <span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isBetween</span> <span class="nv">lower</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">,</span> <span class="n">and</span> <span class="nv">upper</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="k">Self</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>field</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The field name.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>lower</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The lower bound.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>upper</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The upper bound.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_4isInACyxGSS_SayAA21FieldValueConvertible_pGtF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isIn:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_4isInACyxGSS_SayAA21FieldValueConvertible_pGtF">where(_:<wbr>isIn:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a membership predicate: <code>field IN values</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isIn</span> <span class="nv">values</span><span class="p">:</span> <span class="p">[</span><span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_7isNotInACyxGSS_SayAA21FieldValueConvertible_pGtF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:isNotIn:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_7isNotInACyxGSS_SayAA21FieldValueConvertible_pGtF">where(_:<wbr>isNotIn:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a negated membership predicate: <code>field NOT IN values</code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">isNotIn</span> <span class="nv">values</span><span class="p">:</span> <span class="p">[</span><span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_8containsACyxGSS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:contains:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_8containsACyxGSS_SStF">where(_:<wbr>contains:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a substring containment predicate on a string field.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">contains</span> <span class="nv">substring</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_10startsWithACyxGSS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:startsWith:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_10startsWithACyxGSS_SStF">where(_:<wbr>startsWith:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a string prefix predicate.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">startsWith</span> <span class="nv">prefix</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_8endsWithACyxGSS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:endsWith:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_8endsWithACyxGSS_SStF">where(_:<wbr>endsWith:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a string suffix predicate.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">endsWith</span> <span class="nv">suffix</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_4likeACyxGSS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:like:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_4likeACyxGSS_SStF">where(_:<wbr>like:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a SQL-style LIKE predicate. The pattern supports <code>%</code> (any sequence)
+and <code>_</code> (single character). Matching is case-insensitive.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">like</span> <span class="nv">pattern</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>pattern</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The LIKE pattern.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5where_4globACyxGSS_SStF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:glob:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5where_4globACyxGSS_SStF">where(_:<wbr>glob:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds a shell-style glob predicate. The pattern supports <code>*</code> (any
+sequence), <code>?</code> (single character), and <code>[...]</code> (character class).
+Matching is case-sensitive.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">glob</span> <span class="nv">pattern</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>pattern</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The glob pattern.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV11whereExistsyACyxGSSF"></a>
+                    <a name="//apple_ref/swift/Method/whereExists(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV11whereExistsyACyxGSSF">whereExists(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Requires that the given field is present (not null/absent).</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">whereExists</span><span class="p">(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV14whereNotExistsyACyxGSSF"></a>
+                    <a name="//apple_ref/swift/Method/whereNotExists(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV14whereNotExistsyACyxGSSF">whereNotExists(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Requires that the given field is absent (null or missing).</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">whereNotExists</span><span class="p">(</span><span class="n">_</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5whereyACyxGAA9PredicateOF"></a>
+                    <a name="//apple_ref/swift/Method/where(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5whereyACyxGAA9PredicateOF">where(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Adds an arbitrary predicate node to the conjunction.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="p">`</span><span class="nv">where</span><span class="p">`(</span><span class="n">_</span> <span class="nv">predicate</span><span class="p">:</span> <span class="kt"><a href="../Enums/Predicate.html">Predicate</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV4sort2by9ascendingACyxGSS_SbtF"></a>
+                    <a name="//apple_ref/swift/Method/sort(by:ascending:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV4sort2by9ascendingACyxGSS_SbtF">sort(by:<wbr>ascending:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Sets the sort field and direction for the query results.</p>
+
+<p>Sorting is performed in memory after fetching matching documents.
+When a sort field is set, pagination (offset/limit) is applied after
+sorting.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">sort</span><span class="p">(</span><span class="n">by</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="nv">ascending</span><span class="p">:</span> <span class="kt">Bool</span> <span class="o">=</span> <span class="kc">true</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>field</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The field to sort by.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>ascending</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p><code>true</code> for ascending order (default), <code>false</code> for descending.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A new query builder with sort applied.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5limityACyxGSiF"></a>
+                    <a name="//apple_ref/swift/Method/limit(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5limityACyxGSiF">limit(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Limits the number of results returned.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">limit</span><span class="p">(</span><span class="n">_</span> <span class="nv">count</span><span class="p">:</span> <span class="kt">Int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>count</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Maximum number of documents to return (0 means none).</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A new query builder with the limit applied.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV6offsetyACyxGSiF"></a>
+                    <a name="//apple_ref/swift/Method/offset(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV6offsetyACyxGSiF">offset(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Skips the first <code>count</code> results.</p>
+
+<p>Pagination (offset) requires a sort field to guarantee deterministic
+ordering. Throws <code>unsupportedOperation</code> if offset is set without a
+sort field.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">offset</span><span class="p">(</span><span class="n">_</span> <span class="nv">count</span><span class="p">:</span> <span class="kt">Int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>count</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Number of results to skip.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A new query builder with the offset applied.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Planning"></a>
+                <a name="//apple_ref/swift/Section/Planning" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Planning"></a>
+                  <h3 class="section-name"><span>Planning</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV7explainAA0C4PlanVyYaF"></a>
+                    <a name="//apple_ref/swift/Method/explain()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV7explainAA0C4PlanVyYaF">explain()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the query execution plan without running the query.</p>
+
+<p>Use this to inspect how the query will be executed and which access
+path the planner selected. The planner uses a fixed priority order
+(index equality &gt; IN set &gt; range &gt; partition scan &gt; full scan) and
+reports how many top-level predicates remain as residual memory filters.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">explain</span><span class="p">()</span> <span class="k">async</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Structs/QueryPlan.html">QueryPlan</a></span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A <code><a href="../Structs/QueryPlan.html">QueryPlan</a></code> describing the strategy and residual predicates.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Execution"></a>
+                <a name="//apple_ref/swift/Section/Execution" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Execution"></a>
+                  <h3 class="section-name"><span>Execution</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV7executeSayxGyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/execute()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV7executeSayxGyYaKF">execute()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Executes the query and returns all matching documents, decoded.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.decodingFailed</code> if a document fails to decode.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">execute</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of decoded documents matching all predicates.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5firstxSgyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/first()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5firstxSgyYaKF">first()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the first matching document, or <code>nil</code> if none match.</p>
+
+<p>Internally applies <code>limit(1)</code> before executing.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">first</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">T</span><span class="p">?</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV5countSiyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/count()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV5countSiyYaKF">count()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the count of matching documents without decoding them.</p>
+
+<p>More efficient than <code>execute().count</code> because it skips decoding. When
+the query is fully covered by an index, the count is answered from the
+pointer list alone — no disk I/O at all.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">count</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV14distinctValues2onSayAA10FieldValueOGSS_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/distinctValues(on:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV14distinctValues2onSayAA10FieldValueOGSS_tYaKF">distinctValues(on:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns all distinct values of a field among the matching documents.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">distinctValues</span><span class="p">(</span><span class="n">on</span> <span class="nv">field</span><span class="p">:</span> <span class="kt">String</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>field</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The field to collect distinct values from.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of distinct <code><a href="../Enums/FieldValue.html">FieldValue</a></code> instances.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV6deleteSiyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/delete()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV6deleteSiyYaKF">delete()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Deletes all matching documents and returns the number removed.</p>
+
+<p>The matched documents were already parsed to evaluate the predicates,
+so their index keys are extracted here for free and handed to the core —
+no document is read from disk a second time.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    Errors from the underlying delete operation.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@discardableResult</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">delete</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The count of deleted documents.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
+  </body>
+</html>

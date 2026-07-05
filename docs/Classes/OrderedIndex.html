@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>OrderedIndex Class Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Class/OrderedIndex" class="dashAnchor"></a>
+
+    <a title="OrderedIndex Class Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
+      </p>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="../img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">NyaruDB2</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      <a class="breadcrumb" href="../Classes.html">Classes</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      OrderedIndex Class Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Actors/NyaruDB.html">NyaruDB</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/OrderedIndex.html">OrderedIndex</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FieldValue.html">FieldValue</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FileProtection.html">FileProtection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruCrypto.html">NyaruCrypto</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/SerializationFormat.html">SerializationFormat</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/UUID.html">UUID</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionOptions.html">CollectionOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/DatabaseOptions.html">DatabaseOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruCollection.html">NyaruCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryBuilder.html">QueryBuilder</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryPlan.html">QueryPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/RecordPointer.html">RecordPointer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/SafeRegex.html">SafeRegex</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content top-matter">
+            <h1>OrderedIndex</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">final</span> <span class="kd">class</span> <span class="kt">OrderedIndex</span> <span class="p">:</span> <span class="kt">Codable</span><span class="p">,</span> <span class="kd">@unchecked</span> <span class="kt">Sendable</span></code></pre>
+
+                </div>
+              </div>
+            <p>An in-memory sorted array-based index that maps <code><a href="../Enums/FieldValue.html">FieldValue</a></code> keys to
+posting lists of <code><a href="../Structs/RecordPointer.html">RecordPointer</a></code> values.</p>
+
+<p><strong>Architecture choice.</strong> This index uses a sorted array with binary search,
+giving O(log n) point lookups and trivially correct range scans — the same
+asymptotic performance as a B-tree. An array is significantly simpler to
+implement, test, and debug. Since the entire index is kept in memory,
+the O(n) insertion cost of shifting array elements is acceptable for the
+typical mobile workloads NyaruDB targets (hundreds to low thousands of
+unique keys).</p>
+
+<p>Persistence is O(n): the entire array is serialised at once using MsgPack
+and compressed with gzip. For the expected key counts this is negligible.</p>
+
+<p><strong>Class semantics.</strong> <code>OrderedIndex</code> is a <code>final class</code> rather than a value
+type to avoid Swift&rsquo;s Copy-on-Write (COW) penalties during bulk inserts.
+With COW, mutating an array-backed value type duplicates the entire
+internal storage on every mutation, which would make building indexes from
+a large shard scan quadratic.</p>
+
+<p><strong>Thread safety.</strong> The <code>@unchecked Sendable</code> conformance is safe because
+<code>OrderedIndex</code> is always accessed from within a single <code>CollectionCore</code>
+actor, which serialises all mutations.</p>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC10entryCountSivp"></a>
+                    <a name="//apple_ref/swift/Property/entryCount" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC10entryCountSivp">entryCount</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>The total number of index entries (sum of all posting-list lengths).</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">entryCount</span><span class="p">:</span> <span class="kt">Int</span> <span class="p">{</span> <span class="k">get</span> <span class="p">}</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC14uniqueKeyCountSivp"></a>
+                    <a name="//apple_ref/swift/Property/uniqueKeyCount" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC14uniqueKeyCountSivp">uniqueKeyCount</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>The number of unique keys in the index.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">var</span> <span class="nv">uniqueKeyCount</span><span class="p">:</span> <span class="kt">Int</span> <span class="p">{</span> <span class="k">get</span> <span class="p">}</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexCACycfc"></a>
+                    <a name="//apple_ref/swift/Method/init()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexCACycfc">init()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Undocumented</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="nf">init</span><span class="p">()</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:Se4fromxs7Decoder_p_tKcfc"></a>
+                    <a name="//apple_ref/swift/Method/init(from:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:Se4fromxs7Decoder_p_tKcfc">init(from:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">required</span> <span class="nf">init</span><span class="p">(</span><span class="n">from</span> <span class="nv">decoder</span><span class="p">:</span> <span class="kt">Decoder</span><span class="p">)</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Search"></a>
+                <a name="//apple_ref/swift/Section/Search" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Search"></a>
+                  <h3 class="section-name"><span>Search</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC8containsySbAA10FieldValueOF"></a>
+                    <a name="//apple_ref/swift/Method/contains(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC8containsySbAA10FieldValueOF">contains(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns whether the given key exists in the index.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@inlinable</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">contains</span><span class="p">(</span><span class="n">_</span> <span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The key to look up.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p><code>true</code> if at least one record is indexed under this key.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC6searchySayAA13RecordPointerVGAA10FieldValueOF"></a>
+                    <a name="//apple_ref/swift/Method/search(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC6searchySayAA13RecordPointerVGAA10FieldValueOF">search(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns all record pointers indexed under the given key.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@inlinable</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">search</span><span class="p">(</span><span class="n">_</span> <span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The key to look up.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The posting list for that key, or an empty array if the key
+is not present.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC5range5lower0F9Inclusive5upper0hG08maxCountSayAA13RecordPointerVGAA10FieldValueOSg_SbAOSbSiSgtF"></a>
+                    <a name="//apple_ref/swift/Method/range(lower:lowerInclusive:upper:upperInclusive:maxCount:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC5range5lower0F9Inclusive5upper0hG08maxCountSayAA13RecordPointerVGAA10FieldValueOSg_SbAOSbSiSgtF">range(lower:<wbr>lowerInclusive:<wbr>upper:<wbr>upperInclusive:<wbr>maxCount:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns all record pointers whose keys fall within the specified range.</p>
+
+<p>Each bound can be <code>nil</code> (unbounded on that side). The inclusivity of
+each bound is controlled separately.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@inlinable</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">range</span><span class="p">(</span>
+  <span class="nv">lower</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">?,</span> <span class="nv">lowerInclusive</span><span class="p">:</span> <span class="kt">Bool</span><span class="p">,</span>
+  <span class="nv">upper</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">?,</span> <span class="nv">upperInclusive</span><span class="p">:</span> <span class="kt">Bool</span><span class="p">,</span>
+  <span class="nv">maxCount</span><span class="p">:</span> <span class="kt">Int</span><span class="p">?</span> <span class="o">=</span> <span class="kc">nil</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>lower</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The lower bound, or <code>nil</code> for no lower bound.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>lowerInclusive</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Whether the lower bound is inclusive.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>upper</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The upper bound, or <code>nil</code> for no upper bound.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>upperInclusive</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Whether the upper bound is inclusive.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>maxCount</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Stop after collecting this many pointers (<code>nil</code> = all).
+Results are collected in ascending key order, so the first
+<code>maxCount</code> pointers are the lowest-keyed matches.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The pointers in the range, in ascending key order.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Mutation"></a>
+                <a name="//apple_ref/swift/Section/Mutation" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Mutation"></a>
+                  <h3 class="section-name"><span>Mutation</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC6insert3key7pointeryAA10FieldValueO_AA13RecordPointerVtF"></a>
+                    <a name="//apple_ref/swift/Method/insert(key:pointer:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC6insert3key7pointeryAA10FieldValueO_AA13RecordPointerVtF">insert(key:<wbr>pointer:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts a pointer for the given key. If the key already exists, the
+pointer is appended to its posting list.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">insert</span><span class="p">(</span><span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">,</span> <span class="nv">pointer</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The index key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>pointer</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The record pointer to insert.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC8bulkLoadyySayAA10FieldValueO3key_AA13RecordPointerV7pointertGF"></a>
+                    <a name="//apple_ref/swift/Method/bulkLoad(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC8bulkLoadyySayAA10FieldValueO3key_AA13RecordPointerV7pointertGF">bulkLoad(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Efficiently loads a batch of index entries in O(n + m) time.</p>
+
+<p>This method performs a bulk insertion of multiple index entries without
+causing O(n²) array-shifting overhead. It uses a single-pass merge algorithm
+that combines existing keys with new entries in one operation.</p>
+
+<p>The algorithm works as follows:</p>
+
+<ol>
+<li>Sorts incoming entries by key (O(m log m))</li>
+<li>Allocates new arrays with pre-calculated capacity (O(1) amortized)</li>
+<li>Merges existing and new entries in a single pass (O(n + m))</li>
+<li>Groups multiple pointers for duplicate keys</li>
+</ol>
+<div class="aside aside-complexity">
+    <p class="aside-title">Complexity</p>
+    <p>O(n + m log m) where n is the existing entry count and
+m is the number of new entries.</p>
+
+</div><div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    <p>This method replaces the entire internal storage with newly
+allocated arrays, which is acceptable for batch operations where the
+index is being rebuilt. For incremental inserts, prefer <code><a href="../Classes/OrderedIndex.html#/s:8NyaruDB212OrderedIndexC6insert3key7pointeryAA10FieldValueO_AA13RecordPointerVtF">insert(key:pointer:)</a></code>.</p>
+
+</div><div class="aside aside-see-also">
+    <p class="aside-title">See also</p>
+    <p><code><a href="../Classes/OrderedIndex.html#/s:8NyaruDB212OrderedIndexC6insert3key7pointeryAA10FieldValueO_AA13RecordPointerVtF">insert(key:pointer:)</a></code> for single-entry insertion,
+<code>rebuildAllIndexes()</code> for rebuilding indexes from scratch.</p>
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">bulkLoad</span><span class="p">(</span><span class="n">_</span> <span class="nv">entries</span><span class="p">:</span> <span class="p">[(</span><span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">,</span> <span class="nv">pointer</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)])</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>entries</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An array of <code>(key: FieldValue, pointer: RecordPointer)</code>
+tuples representing the new entries to load.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC6remove3key7pointeryAA10FieldValueO_AA13RecordPointerVtF"></a>
+                    <a name="//apple_ref/swift/Method/remove(key:pointer:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC6remove3key7pointeryAA10FieldValueO_AA13RecordPointerVtF">remove(key:<wbr>pointer:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Removes a specific pointer from the posting list for the given key.
+If the posting list becomes empty, the key entry is removed entirely.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">remove</span><span class="p">(</span><span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">,</span> <span class="nv">pointer</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The index key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>pointer</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The record pointer to remove.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC10bulkRemoveyySayAA10FieldValueO3key_AA13RecordPointerV7pointertGF"></a>
+                    <a name="//apple_ref/swift/Method/bulkRemove(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC10bulkRemoveyySayAA10FieldValueO3key_AA13RecordPointerV7pointertGF">bulkRemove(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Removes a batch of <code>(key, pointer)</code> entries in a single sweep — the
+removal analogue of <code>bulkLoad</code>. Removing entries one at a time shifts
+the tail of the key array on every emptied key, which is quadratic for
+large batches; this rebuilds the arrays once instead.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">bulkRemove</span><span class="p">(</span><span class="n">_</span> <span class="nv">entries</span><span class="p">:</span> <span class="p">[(</span><span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">,</span> <span class="nv">pointer</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)])</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>entries</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The entries to remove. Pointers not present under
+their key are ignored.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC9removeAll7pointeryAA13RecordPointerV_tF"></a>
+                    <a name="//apple_ref/swift/Method/removeAll(pointer:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC9removeAll7pointeryAA13RecordPointerV_tF">removeAll(pointer:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Removes every occurrence of the given pointer across all keys in a
+single pass. Keys whose posting lists become empty are removed.</p>
+
+<p>Used when a record disappears (stale pointer, corruption) and its index
+keys are unknown.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">removeAll</span><span class="p">(</span><span class="nv">pointer</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>pointer</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The record pointer to purge from the index.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC12compactRemapyySDySSSDys6UInt64VAFGGF"></a>
+                    <a name="//apple_ref/swift/Method/compactRemap(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC12compactRemapyySDySSSDys6UInt64VAFGGF">compactRemap(_:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Rewrites pointer offsets after shard compaction using per-shard offset
+maps, without re-reading or re-parsing any document.</p>
+
+<p>For every pointer whose shard appears in <code>mapping</code>:</p>
+
+<ul>
+<li>If the old offset has a new offset, the pointer is rewritten.</li>
+<li>If the old offset is absent (the record no longer exists), the stale
+entry is dropped.</li>
+</ul>
+
+<p>Pointers into shards not present in <code>mapping</code> are kept unchanged.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">compactRemap</span><span class="p">(</span><span class="n">_</span> <span class="nv">mapping</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span> <span class="p">:</span> <span class="p">[</span><span class="kt">UInt64</span> <span class="p">:</span> <span class="kt">UInt64</span><span class="p">]])</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>mapping</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Shard ID → (old offset → new offset).</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC7replace3key3old3newSbAA10FieldValueO_AA13RecordPointerVAKtF"></a>
+                    <a name="//apple_ref/swift/Method/replace(key:old:new:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC7replace3key3old3newSbAA10FieldValueO_AA13RecordPointerVAKtF">replace(key:<wbr>old:<wbr>new:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Replaces <code>old</code> pointer with <code>new</code> pointer for a given key.</p>
+
+<p>Assumes the key has not changed — this is used when a record is updated
+in place (same key, same shard) and only the file offset changes.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@discardableResult</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">replace</span><span class="p">(</span><span class="nv">key</span><span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">,</span> <span class="nv">old</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">,</span> <span class="nv">new</span><span class="p">:</span> <span class="kt"><a href="../Structs/RecordPointer.html">RecordPointer</a></span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>key</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The index key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>old</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The old pointer to replace.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>new</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The new pointer.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p><code>true</code> if the replacement was performed, <code>false</code> if the old
+pointer was not found.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Persistence"></a>
+                <a name="//apple_ref/swift/Section/Persistence" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Persistence"></a>
+                  <h3 class="section-name"><span>Persistence</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC7persistyXeXeF"></a>
+                    <a name="//apple_ref/swift/Method/persist(to:encryptionKey:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC7persistyXeXeF">persist(to:<wbr>encryptionKey:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Serialises the index to disk using a hand-rolled binary layout, gzip
+compression, and optional AES-256-GCM encryption.</p>
+
+<p>The binary layout is roughly an order of magnitude faster to encode and
+decode than Codable+MsgPack for large indexes, and it interns shard IDs
+into a string table so each pointer costs 10 bytes instead of carrying
+a repeated string:</p>
+<pre class="highlight swift"><code><span class="s">"NYI1"</span> <span class="o">|</span> <span class="n">u16</span> <span class="n">version</span> <span class="o">|</span> <span class="n">u32</span> <span class="n">shardCount</span> <span class="o">|</span> <span class="n">shardCount</span> <span class="err">×</span> <span class="p">(</span><span class="n">u16</span> <span class="n">len</span> <span class="o">+</span> <span class="n">utf8</span><span class="p">)</span>
+<span class="n">u32</span> <span class="n">keyCount</span>
+<span class="n">keyCount</span> <span class="err">×</span> <span class="p">(</span> <span class="kt">FieldValue</span> <span class="o">|</span> <span class="n">u32</span> <span class="n">postingCount</span>
+             <span class="o">|</span> <span class="n">postingCount</span> <span class="err">×</span> <span class="p">(</span><span class="n">u16</span> <span class="n">shardIdx</span> <span class="o">+</span> <span class="n">u64</span> <span class="n">offset</span><span class="p">)</span> <span class="p">)</span>
+<span class="kt">FieldValue</span><span class="p">:</span> <span class="n">u8</span> <span class="n">tag</span> <span class="err">—</span> <span class="mi">0</span> <span class="n">null</span><span class="p">,</span> <span class="mi">1</span> <span class="kc">false</span><span class="p">,</span> <span class="mi">2</span> <span class="kc">true</span><span class="p">,</span>
+            <span class="mi">3</span> <span class="nf">int</span> <span class="p">(</span><span class="o">+</span> <span class="n">i64</span><span class="p">),</span> <span class="mi">4</span> <span class="nf">double</span> <span class="p">(</span><span class="o">+</span> <span class="n">f64</span> <span class="n">bits</span><span class="p">),</span>
+            <span class="mi">5</span> <span class="nf">string</span> <span class="p">(</span><span class="o">+</span> <span class="n">u32</span> <span class="n">len</span> <span class="o">+</span> <span class="n">utf8</span><span class="p">)</span>
+</code></pre>
+
+<p>The whole payload is then gzip-compressed and, when a key is provided,
+AES-GCM sealed — same envelope as before.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO16encryptionFailedyA2CmF">NyaruError.encryptionFailed</a></code> if sealing fails.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">persist</span><span class="p">(</span><span class="n">to</span> <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span><span class="p">,</span> <span class="nv">encryptionKey</span><span class="p">:</span> <span class="kt">SymmetricKey</span><span class="p">?)</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>url</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The destination file URL.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>encryptionKey</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Optional AES-256-GCM key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212OrderedIndexC4loadyXeXeFZ"></a>
+                    <a name="//apple_ref/swift/Method/load(from:encryptionKey:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212OrderedIndexC4loadyXeXeFZ">load(from:<wbr>encryptionKey:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Loads an index from disk, handling decompression and optional decryption.</p>
+
+<p>Reads the binary snapshot format; snapshots written by older versions
+(Codable+MsgPack) are decoded through the legacy path, so upgrades do
+not force an index rebuild.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO16decryptionFailedyA2CmF">NyaruError.decryptionFailed</a></code> if decryption fails, or a
+decoding error if neither format matches.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">static</span> <span class="kd">func</span> <span class="nf">load</span><span class="p">(</span><span class="n">from</span> <span class="nv">url</span><span class="p">:</span> <span class="kt">URL</span><span class="p">,</span> <span class="nv">encryptionKey</span><span class="p">:</span> <span class="kt">SymmetricKey</span><span class="p">?)</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">OrderedIndex</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>url</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The source file URL.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>encryptionKey</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Optional AES-256-GCM key.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A fully restored <code>OrderedIndex</code>, or an empty index if the
+file is empty.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
+  </body>
+</html>

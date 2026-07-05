@@ -4,195 +4,197 @@
     <title>Structures  Reference</title>
     <link rel="stylesheet" type="text/css" href="css/jazzy.css" />
     <link rel="stylesheet" type="text/css" href="css/highlight.css" />
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <script src="js/jquery.min.js" defer></script>
     <script src="js/jazzy.js" defer></script>
     
     <script src="js/lunr.min.js" defer></script>
     <script src="js/typeahead.jquery.js" defer></script>
     <script src="js/jazzy.search.js" defer></script>
-<!-- Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-T053MYQXDL"></script>
-<script>
-window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag("js", new Date());
-gtag("config", "G-T053MYQXDL", { "page_path": window.location.pathname });
-</script>
   </head>
   <body>
+
     <a name="//apple_ref/swift/Section/Structures" class="dashAnchor"></a>
+
     <a title="Structures  Reference"></a>
-    <header>
-      <div class="content-wrapper">
-        <p><a href="index.html">NyaruDB2 Docs</a> (60% documented)</p>
-        <p class="header-right"><a href="https://github.com/galileostudio/nyarudb2"><img src="img/gh.png" alt="GitHub"/>View on GitHub</a></p>
-        <div class="header-right">
-          <form role="search" action="search.json">
-            <input type="text" placeholder="Search documentation" data-typeahead>
-          </form>
-        </div>
-      </div>
-    </header>
-    <div class="content-wrapper">
-      <p id="breadcrumbs">
-        <a href="index.html">NyaruDB2</a>
-        <img id="carat" src="img/carat.png" alt=""/>
-        Structures  Reference
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
       </p>
-    </div>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="index.html">NyaruDB2</a>
+      <img class="carat" src="img/carat.png" alt=""/>
+      Structures  Reference
+    </p>
+
     <div class="content-wrapper">
-      <nav class="sidebar">
+      <nav class="navigation">
         <ul class="nav-groups">
           <li class="nav-group-name">
-            <a href="Actors.html">Actors</a>
+            <a class="nav-group-name-link" href="Actors.html">Actors</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Actors/BTreeIndex.html">BTreeIndex</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/IndexManager.html">IndexManager</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StatsEngine.html">StatsEngine</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StorageEngine.html">StorageEngine</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Actors/StorageEngine/StorageError.html">– StorageError</a>
+                <a class="nav-group-task-link" href="Actors/NyaruDB.html">NyaruDB</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Classes.html">Classes</a>
+            <a class="nav-group-name-link" href="Classes.html">Classes</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Classes/CollectionCatalog.html">CollectionCatalog</a>
+                <a class="nav-group-task-link" href="Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
               </li>
               <li class="nav-group-task">
-                <a href="Classes/DocumentCollection.html">DocumentCollection</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/NyaruDB2.html">NyaruDB2</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/Shard.html">Shard</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Classes/ShardManager.html">ShardManager</a>
+                <a class="nav-group-task-link" href="Classes/OrderedIndex.html">OrderedIndex</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Enums.html">Enumerations</a>
+            <a class="nav-group-name-link" href="Enums.html">Enumerations</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Enums/CompressionError.html">CompressionError</a>
+                <a class="nav-group-task-link" href="Enums/CompressionMethod.html">CompressionMethod</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/CompressionMethod.html">CompressionMethod</a>
+                <a class="nav-group-task-link" href="Enums/FieldValue.html">FieldValue</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/DynamicDecoder.html">DynamicDecoder</a>
+                <a class="nav-group-task-link" href="Enums/FileProtection.html">FileProtection</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/FileProtectionType.html">FileProtectionType</a>
+                <a class="nav-group-task-link" href="Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/QueryOperator.html">QueryOperator</a>
+                <a class="nav-group-task-link" href="Enums/NyaruCrypto.html">NyaruCrypto</a>
               </li>
               <li class="nav-group-task">
-                <a href="Enums/ShardManagerError.html">ShardManagerError</a>
+                <a class="nav-group-task-link" href="Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Enums/SerializationFormat.html">SerializationFormat</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Extensions.html">Extensions</a>
+            <a class="nav-group-name-link" href="Extensions.html">Extensions</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Extensions.html#/s:SS">String</a>
+                <a class="nav-group-task-link" href="Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="Extensions/UUID.html">UUID</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Functions.html">Functions</a>
+            <a class="nav-group-name-link" href="Protocols.html">Protocols</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Functions.html#/s:8NyaruDB212compressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">compressData(_:method:)</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Functions.html#/s:8NyaruDB214decompressData_6method10Foundation0D0VAF_AA17CompressionMethodOtKF">decompressData(_:method:)</a>
+                <a class="nav-group-task-link" href="Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
               </li>
             </ul>
           </li>
           <li class="nav-group-name">
-            <a href="Protocols.html">Protocols</a>
+            <a class="nav-group-name-link" href="Structs.html">Structures</a>
             <ul class="nav-group-tasks">
               <li class="nav-group-task">
-                <a href="Protocols.html#/s:8NyaruDB28IndexKeyP">IndexKey</a>
-              </li>
-            </ul>
-          </li>
-          <li class="nav-group-name">
-            <a href="Structs.html">Structures</a>
-            <ul class="nav-group-tasks">
-              <li class="nav-group-task">
-                <a href="Structs/CollectionMetadata.html">CollectionMetadata</a>
+                <a class="nav-group-task-link" href="Structs/CollectionOptions.html">CollectionOptions</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/CollectionStats.html">CollectionStats</a>
+                <a class="nav-group-task-link" href="Structs/CollectionStats.html">CollectionStats</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ExecutionPlan.html">ExecutionPlan</a>
+                <a class="nav-group-task-link" href="Structs/DatabaseOptions.html">DatabaseOptions</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ExecutionPlan/IndexStrategy.html">– IndexStrategy</a>
+                <a class="nav-group-task-link" href="Structs/NyaruCollection.html">NyaruCollection</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/GlobalStats.html">GlobalStats</a>
+                <a class="nav-group-task-link" href="Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/IndexMetrics.html">IndexMetrics</a>
+                <a class="nav-group-task-link" href="Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/IndexStat.html">IndexStat</a>
+                <a class="nav-group-task-link" href="Structs/QueryBuilder.html">QueryBuilder</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/Query.html">Query</a>
+                <a class="nav-group-task-link" href="Structs/QueryPlan.html">QueryPlan</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/QueryPlanner.html">QueryPlanner</a>
+                <a class="nav-group-task-link" href="Structs/RecordPointer.html">RecordPointer</a>
               </li>
               <li class="nav-group-task">
-                <a href="Structs/ShardMetadata.html">ShardMetadata</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Structs/ShardMetadataInfo.html">ShardMetadataInfo</a>
-              </li>
-              <li class="nav-group-task">
-                <a href="Structs/ShardStat.html">ShardStat</a>
+                <a class="nav-group-task-link" href="Structs/SafeRegex.html">SafeRegex</a>
               </li>
             </ul>
           </li>
         </ul>
       </nav>
       <article class="main-content">
-        <section>
-          <section class="section">
+
+        <section class="section">
+          <div class="section-content top-matter">
             <h1>Structures</h1>
             <p>The following structures are available globally.</p>
 
-          </section>
-          <section class="section task-group-section">
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
             <div class="task-group">
-              <ul>
+              <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB218CollectionMetadataV"></a>
-                    <a name="//apple_ref/swift/Struct/CollectionMetadata" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB218CollectionMetadataV">CollectionMetadata</a>
+                    <a name="/s:8NyaruDB217CollectionOptionsV"></a>
+                    <a name="//apple_ref/swift/Struct/CollectionOptions" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB217CollectionOptionsV">CollectionOptions</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -200,25 +202,26 @@ gtag("config", "G-T053MYQXDL", { "page_path": window.location.pathname });
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure representing metadata for a collection in the database.</p>
+                        <p>Configuration options for opening or creating a collection.</p>
 
-<p>This metadata includes the collection&rsquo;s name, the indexes associated with it,
-and the partition key used for organizing the data.</p>
+<p><code>CollectionOptions</code> lets you specify the document id field, an optional
+partition key for shard routing, and additional fields to index for
+query performance.</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    The <code>idField</code> and <code>partitionKey</code> are frozen at collection creation.
+Changing them after data exists would make existing records unreadable.
+<code>indexedFields</code> can be extended across opens.
 
-<ul>
-<li>Properties:</li>
-<li>name: The name of the collection.</li>
-<li>indexes: An array of strings representing the indexes defined for the collection.</li>
-<li>partitionKey: The key used to partition the data within the collection.</li>
-</ul>
+</div>
 
-                        <a href="Structs/CollectionMetadata.html" class="slightly-smaller">See more</a>
+                        <a href="Structs/CollectionOptions.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">CollectionMetadata</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">CollectionOptions</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -228,9 +231,9 @@ and the partition key used for organizing the data.</p>
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB212IndexMetricsV"></a>
-                    <a name="//apple_ref/swift/Struct/IndexMetrics" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB212IndexMetricsV">IndexMetrics</a>
+                    <a name="/s:8NyaruDB20A10CollectionV"></a>
+                    <a name="//apple_ref/swift/Struct/NyaruCollection" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV">NyaruCollection</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -238,155 +241,32 @@ and the partition key used for organizing the data.</p>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure that represents metrics for an index, providing insights into its usage and value distribution.</p>
+                        <p>A typed, Sendable handle to one collection within a NyaruDB database.</p>
 
-<ul>
-<li>Properties:
+<p><code>NyaruCollection</code> is a thin facade that encodes and decodes the generic
+document type <code>T</code> and delegates all storage operations to a shared
+<code>CollectionCore</code> actor. Handles are cheap value types — copy them freely.</p>
 
-<ul>
-<li><code>accessCount</code>: The number of times the index has been accessed. Defaults to <code>0</code>.</li>
-<li><code>lastAccess</code>: The date and time when the index was last accessed. Defaults to <code>.distantPast</code>.</li>
-<li><code>valueDistribution</code>: A dictionary that tracks the distribution of values associated with the index, 
-where the keys are the values and the values are their respective counts. Defaults to an empty dictionary.</li>
-</ul></li>
-</ul>
+<p><strong>Writing documents.</strong> Use <code>insert</code>, <code>update</code>, <code>upsert</code>, <code>patch</code>, and
+<code>delete</code>:</p>
+<pre class="highlight swift"><code><span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">patch</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="n">userId</span><span class="p">,</span> <span class="nv">changes</span><span class="p">:</span> <span class="p">[</span><span class="s">"name"</span><span class="p">:</span> <span class="s">"New Name"</span><span class="p">])</span>
+</code></pre>
 
-                        <a href="Structs/IndexMetrics.html" class="slightly-smaller">See more</a>
+<p><strong>Reading documents.</strong> Use <code>get(id:)</code> for point lookups, <code>all()</code> for
+everything, <code>stream()</code> for bounded-memory iteration, and <code>find()</code> for
+fluent queries with predicates, sorting, and pagination.</p>
+
+<p><strong>Maintenance.</strong> Call <code>compact()</code> opportunistically (e.g. on app
+backgrounding) to reclaim space from tombstoned records.</p>
+
+                        <a href="Structs/NyaruCollection.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">IndexMetrics</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:8NyaruDB25QueryV"></a>
-                    <a name="//apple_ref/swift/Struct/Query" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB25QueryV">Query</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>A generic structure representing a query for a specific type of data.</p>
-
-<p>This structure is used to build and execute queries on a collection of data
-stored in a database. It supports filtering data using predicates and key path
-predicates, and relies on a storage engine and query planner for execution.</p>
-
-<ul>
-<li><p>Properties:</p>
-
-<ul>
-<li>collection: The name of the collection being queried.</li>
-<li>predicates: A list of field-based predicates used to filter the data.</li>
-<li>storage: The storage engine responsible for managing the data.</li>
-<li>planner: The query planner responsible for optimizing and executing the query.</li>
-<li>keyPathPredicates: A list of key path-based predicates used to filter the data.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/Query.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">Query</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span></code></pre>
-
-                        </div>
-                      </div>
-                      <div>
-                        <h4>Parameters</h4>
-                        <table class="graybox">
-                          <tbody>
-                            <tr>
-                              <td>
-                                <code>
-                                <em>T</em>
-                                </code>
-                              </td>
-                              <td>
-                                <div>
-                                  <p>The type of the data being queried. Must conform to <code>Codable</code>.</p>
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div class="task-group">
-              <div class="task-name-container">
-                <a name="/ExecutionPlan"></a>
-                <a name="//apple_ref/swift/Section/ExecutionPlan" class="dashAnchor"></a>
-                <div class="section-name-container">
-                  <a class="section-name-link" href="#/ExecutionPlan"></a>
-                  <h3 class="section-name"><span>ExecutionPlan</span>
-</h3>
-                </div>
-              </div>
-              <ul>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:8NyaruDB213ExecutionPlanV"></a>
-                    <a name="//apple_ref/swift/Struct/ExecutionPlan" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB213ExecutionPlanV">ExecutionPlan</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>A structure representing the execution plan for a query in the database.</p>
-
-<p>The <code>ExecutionPlan</code> provides details about how a query will be executed,
-including the collection being queried, the predicates applied, the estimated
-number of documents to scan, and the index strategy used.</p>
-
-<ul>
-<li><p>Properties:</p>
-
-<ul>
-<li>collection: The name of the collection being queried.</li>
-<li>predicates: An array of tuples representing the query predicates, where each
-tuple contains a field name and a query operator.</li>
-<li>estimatedDocsToScan: The estimated number of documents that will be scanned
-during the query execution.</li>
-<li>shardsToSkip: The number of shards that can be skipped during query execution.</li>
-<li>usedIndex: The name of the index used for the query, if any. If no index is used,
-this will be <code>nil</code>.</li>
-<li>indexStrategy: The strategy used for indexing during query execution.</li>
-</ul></li>
-<li><p>Conforms to:</p>
-
-<ul>
-<li><code>CustomStringConvertible</code>: Provides a human-readable description of the execution plan.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/ExecutionPlan.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">ExecutionPlan</span> <span class="p">:</span> <span class="kt">CustomStringConvertible</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">NyaruCollection</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="p">:</span> <span class="kt">Sendable</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -397,21 +277,21 @@ this will be <code>nil</code>.</li>
             </div>
             <div class="task-group">
               <div class="task-name-container">
-                <a name="/Query%20Operator"></a>
-                <a name="//apple_ref/swift/Section/Query Operator" class="dashAnchor"></a>
+                <a name="/Pull-based%20document%20stream"></a>
+                <a name="//apple_ref/swift/Section/Pull-based document stream" class="dashAnchor"></a>
                 <div class="section-name-container">
-                  <a class="section-name-link" href="#/Query%20Operator"></a>
-                  <h3 class="section-name"><span>Query Operator</span>
+                  <a class="section-name-link" href="#/Pull-based%20document%20stream"></a>
+                  <h3 class="section-name"><span>Pull-based document stream</span>
 </h3>
                 </div>
               </div>
-              <ul>
+              <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB212QueryPlannerV"></a>
-                    <a name="//apple_ref/swift/Struct/QueryPlanner" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB212QueryPlannerV">QueryPlanner</a>
+                    <a name="/s:8NyaruDB20A14DocumentStreamV"></a>
+                    <a name="//apple_ref/swift/Struct/NyaruDocumentStream" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A14DocumentStreamV">NyaruDocumentStream</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -419,115 +299,48 @@ this will be <code>nil</code>.</li>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure responsible for planning and optimizing database queries.</p>
+                        <p>A pull-based <code>AsyncSequence</code> that yields documents one by one without
+materialising the entire collection in memory.</p>
 
-<p><code>QueryPlanner</code> provides statistical information about indexes and shards
-to assist in query execution planning.</p>
+<p>The iterator fetches documents in bounded batches from the storage engine.
+Each batch is decoded lazily as the consumer calls <code>next()</code>. When the
+batch is exhausted, the next batch is fetched from the collection actor.</p>
 
-<ul>
-<li>Properties:
+<p>Memory usage is bounded by one batch (<code>batchSize</code> documents).</p>
+<div class="aside aside-note">
+    <p class="aside-title">Note</p>
+    This replaces the earlier <code>AsyncThrowingStream</code>-based approach
+whose unbounded buffer allowed a fast producer to materialise the whole
+collection behind a slow consumer, defeating the purpose of streaming.
 
-<ul>
-<li>indexStats: A dictionary containing statistics for each index, where the key is the index name and the value is an <code><a href="Structs/IndexStat.html">IndexStat</a></code> object.</li>
-<li>shardStats: An array of <code><a href="Structs/ShardStat.html">ShardStat</a></code> objects representing statistics for each shard in the database.</li>
-</ul></li>
-</ul>
+</div>
 
-                        <a href="Structs/QueryPlanner.html" class="slightly-smaller">See more</a>
+                        <a href="Structs/NyaruDocumentStream.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">QueryPlanner</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">NyaruDocumentStream</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="p">:</span> <span class="kt">AsyncSequence</span><span class="p">,</span> <span class="kt">Sendable</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
                     </section>
                   </div>
                 </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:8NyaruDB213ShardMetadataV"></a>
-                    <a name="//apple_ref/swift/Struct/ShardMetadata" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB213ShardMetadataV">ShardMetadata</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>A structure that represents metadata for a shard in the database.</p>
-
-<p><code>ShardMetadata</code> contains information about the shard, such as the number of documents it holds,
-and timestamps for when it was created and last updated.</p>
-
-<ul>
-<li>Properties:
-
-<ul>
-<li>documentCount: The total number of documents stored in the shard.</li>
-<li>createdAt: The date and time when the shard was created.</li>
-<li>updatedAt: The date and time when the shard was last updated.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/ShardMetadata.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">ShardMetadata</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
-                <li class="item">
-                  <div>
-                    <code>
-                    <a name="/s:8NyaruDB217ShardMetadataInfoV"></a>
-                    <a name="//apple_ref/swift/Struct/ShardMetadataInfo" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB217ShardMetadataInfoV">ShardMetadataInfo</a>
-                    </code>
-                  </div>
-                  <div class="height-container">
-                    <div class="pointer-container"></div>
-                    <section class="section">
-                      <div class="pointer"></div>
-                      <div class="abstract">
-                        <p>A structure representing metadata information for a shard.</p>
-
-<p><code>ShardMetadataInfo</code> contains details about a specific shard, including its unique identifier,
-its location as a URL, and its associated metadata.</p>
-
-<ul>
-<li>Properties:
-
-<ul>
-<li>id: A unique identifier for the shard.</li>
-<li>url: The URL location of the shard.</li>
-<li>metadata: The metadata associated with the shard.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/ShardMetadataInfo.html" class="slightly-smaller">See more</a>
-                      </div>
-                      <div class="declaration">
-                        <h4>Declaration</h4>
-                        <div class="language">
-                          <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">ShardMetadataInfo</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
-
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Manifest%20I%2FO%20%28single%20source%20of%20truth%29"></a>
+                <a name="//apple_ref/swift/Section/Manifest I/O (single source of truth)" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Manifest%20I%2FO%20%28single%20source%20of%20truth%29"></a>
+                  <h3 class="section-name"><span>Manifest I/O (single source of truth)</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
                 <li class="item">
                   <div>
                     <code>
@@ -541,23 +354,7 @@ its location as a URL, and its associated metadata.</p>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure representing statistics for a collection in the database.</p>
-
-<p><code>CollectionStats</code> provides detailed information about a specific collection,
-including its name, the number of shards, the total number of documents,
-the total size in bytes, and metadata about each shard.</p>
-
-<ul>
-<li>Properties:
-
-<ul>
-<li>collectionName: The name of the collection.</li>
-<li>numberOfShards: The number of shards associated with the collection.</li>
-<li>totalDocuments: The total number of documents stored in the collection.</li>
-<li>totalSizeInBytes: The total size of the collection in bytes.</li>
-<li>shardDetails: An array of metadata information for each shard.</li>
-</ul></li>
-</ul>
+                        <p>A snapshot of collection statistics returned by <code><a href="Structs/NyaruCollection.html#/s:8NyaruDB20A10CollectionV5statsAA0C5StatsVyYaKF">NyaruCollection.stats()</a></code>.</p>
 
                         <a href="Structs/CollectionStats.html" class="slightly-smaller">See more</a>
                       </div>
@@ -565,7 +362,7 @@ the total size in bytes, and metadata about each shard.</p>
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">CollectionStats</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">CollectionStats</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -575,9 +372,9 @@ the total size in bytes, and metadata about each shard.</p>
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB211GlobalStatsV"></a>
-                    <a name="//apple_ref/swift/Struct/GlobalStats" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB211GlobalStatsV">GlobalStats</a>
+                    <a name="/s:8NyaruDB215DatabaseOptionsV"></a>
+                    <a name="//apple_ref/swift/Struct/DatabaseOptions" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB215DatabaseOptionsV">DatabaseOptions</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -585,28 +382,26 @@ the total size in bytes, and metadata about each shard.</p>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure representing global statistics for the database.</p>
+                        <p>Configuration shared by every collection opened from a single <code><a href="Actors/NyaruDB.html">NyaruDB</a></code>
+instance.</p>
 
-<p><code>GlobalStats</code> provides an overview of the database&rsquo;s state, including
-the total number of collections, documents, and the total size in bytes.</p>
+<p><code>DatabaseOptions</code> controls compression, encryption, serialization format,
+file protection, and the fragmentation threshold that drives compaction
+hints. These options are applied to all collections within the database
+and are persisted in each collection&rsquo;s manifest at creation time.</p>
 
-<ul>
-<li>Properties:
+<p>Changing options after collections exist has no effect on existing
+collections — the manifest is frozen at creation. Only <code>encryptionKey</code>
+is omitted from the manifest (it is provided at open time) so the key
+can be rotated or supplied from the Keychain without touching on-disk data.</p>
 
-<ul>
-<li>totalCollections: The total number of collections in the database.</li>
-<li>totalDocuments: The total number of documents across all collections.</li>
-<li>totalSizeInBytes: The total size of the database in bytes.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/GlobalStats.html" class="slightly-smaller">See more</a>
+                        <a href="Structs/DatabaseOptions.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">GlobalStats</span> <span class="p">:</span> <span class="kt">Codable</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">DatabaseOptions</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -616,9 +411,9 @@ the total number of collections, documents, and the total size in bytes.</p>
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB29IndexStatV"></a>
-                    <a name="//apple_ref/swift/Struct/IndexStat" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB29IndexStatV">IndexStat</a>
+                    <a name="/s:8NyaruDB29QueryPlanV"></a>
+                    <a name="//apple_ref/swift/Struct/QueryPlan" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29QueryPlanV">QueryPlan</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -626,31 +421,18 @@ the total number of collections, documents, and the total size in bytes.</p>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>A structure representing statistical information about an index.</p>
+                        <p>The query execution plan produced by <code><a href="Structs/QueryBuilder.html#/s:8NyaruDB212QueryBuilderV7explainAA0C4PlanVyYaF">QueryBuilder.explain()</a></code>.</p>
 
-<p>This structure provides details about the total number of entries, 
-the count of unique values, the distribution of values, 
-and access-related metadata for an index.</p>
+<p>A query plan describes the chosen access path and how many predicates
+can be pushed down to the index versus evaluated in memory.</p>
 
-<ul>
-<li>Properties:
-
-<ul>
-<li>totalCount: The total number of entries in the index.</li>
-<li>uniqueValuesCount: The number of unique values in the index.</li>
-<li>valueDistribution: A dictionary mapping each unique value to its occurrence count.</li>
-<li>accessCount: The number of times the index has been accessed.</li>
-<li>lastAccess: The date and time when the index was last accessed.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/IndexStat.html" class="slightly-smaller">See more</a>
+                        <a href="Structs/QueryPlan.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">IndexStat</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">QueryPlan</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -660,9 +442,9 @@ and access-related metadata for an index.</p>
                 <li class="item">
                   <div>
                     <code>
-                    <a name="/s:8NyaruDB29ShardStatV"></a>
-                    <a name="//apple_ref/swift/Struct/ShardStat" class="dashAnchor"></a>
-                    <a class="token" href="#/s:8NyaruDB29ShardStatV">ShardStat</a>
+                    <a name="/s:8NyaruDB29SafeRegexV"></a>
+                    <a name="//apple_ref/swift/Struct/SafeRegex" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB29SafeRegexV">SafeRegex</a>
                     </code>
                   </div>
                   <div class="height-container">
@@ -670,25 +452,16 @@ and access-related metadata for an index.</p>
                     <section class="section">
                       <div class="pointer"></div>
                       <div class="abstract">
-                        <p>Represents statistics for a shard in the database.</p>
+                        <p>A thread-safe wrapper around <code>NSRegularExpression</code> that makes regex
+instances compatible with <code>Sendable</code> requirements.</p>
 
-<ul>
-<li>Properties:
-
-<ul>
-<li>docCount: The total number of documents in the shard.</li>
-<li>fieldRanges: A dictionary mapping field names to their respective minimum and maximum values.
-         The values are represented as <code>AnyHashable</code> to allow for flexibility in data types.</li>
-</ul></li>
-</ul>
-
-                        <a href="Structs/ShardStat.html" class="slightly-smaller">See more</a>
+                        <a href="Structs/SafeRegex.html" class="slightly-smaller">See more</a>
                       </div>
                       <div class="declaration">
                         <h4>Declaration</h4>
                         <div class="language">
                           <p class="aside-title">Swift</p>
-                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">ShardStat</span></code></pre>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">SafeRegex</span> <span class="p">:</span> <span class="kd">@unchecked</span> <span class="kt">Sendable</span></code></pre>
 
                         </div>
                       </div>
@@ -697,13 +470,120 @@ and access-related metadata for an index.</p>
                 </li>
               </ul>
             </div>
-          </section>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/QueryBuilder"></a>
+                <a name="//apple_ref/swift/Section/QueryBuilder" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/QueryBuilder"></a>
+                  <h3 class="section-name"><span>QueryBuilder</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB212QueryBuilderV"></a>
+                    <a name="//apple_ref/swift/Struct/QueryBuilder" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB212QueryBuilderV">QueryBuilder</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>An immutable, fluent query builder for executing typed queries against a
+NyaruDB collection.</p>
+
+<p><code>QueryBuilder</code> is created by <code><a href="Structs/NyaruCollection.html#/s:8NyaruDB20A10CollectionV4findAA12QueryBuilderVyxGyF">NyaruCollection.find()</a></code> and provides a
+chainable API for adding predicates, sorting, pagination, and executing
+the query:</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">results</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"age"</span><span class="p">,</span> <span class="nv">isGreaterThan</span><span class="p">:</span> <span class="mi">18</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"status"</span><span class="p">,</span> <span class="nv">isEqualTo</span><span class="p">:</span> <span class="s">"active"</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">sort</span><span class="p">(</span><span class="nv">by</span><span class="p">:</span> <span class="s">"name"</span><span class="p">,</span> <span class="nv">ascending</span><span class="p">:</span> <span class="kc">true</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">offset</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+</code></pre>
+
+<p><strong>Query planning.</strong> The builder includes a simple cost-based planner that
+selects the most efficient access path:</p>
+
+<ol>
+<li>Index equality lookup (highest priority).</li>
+<li>Index <code>IN</code> set lookup.</li>
+<li>Index range/comparison lookup.</li>
+<li>Partition scan (if a partition key equality predicate exists).</li>
+<li>Full collection scan (fallback).</li>
+</ol>
+
+<p>Call <code>explain()</code> to inspect the plan without executing.</p>
+
+                        <a href="Structs/QueryBuilder.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">QueryBuilder</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="p">:</span> <span class="kt">Sendable</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB213RecordPointerV"></a>
+                    <a name="//apple_ref/swift/Struct/RecordPointer" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB213RecordPointerV">RecordPointer</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>A stable, hashable reference to a physical record stored in a shard file.</p>
+
+<p>Every index entry in NyaruDB is a <code>RecordPointer</code>. Storing bare offsets
+caused cross-shard lookup and delete corruption in the earlier engine
+because the same raw offset value is valid in every shard file — without
+the shard identifier, a pointer is ambiguous. By always coupling the shard
+ID with the offset, every index entry unambiguously identifies one record
+on disk, regardless of how many shards exist.</p>
+
+<p>Conforms to <code>Hashable</code> (so it can be stored in posting-list arrays and
+sets), <code>Codable</code> (so index snapshots are serialisable), and <code>Sendable</code>
+(for safe use across actor boundaries).</p>
+
+                        <a href="Structs/RecordPointer.html" class="slightly-smaller">See more</a>
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">RecordPointer</span> <span class="p">:</span> <span class="kt">Hashable</span><span class="p">,</span> <span class="kt">Codable</span><span class="p">,</span> <span class="kt">Sendable</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
         </section>
-        <section id="footer">
-          <p>&copy; 2025 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2025-04-25)</p>
-          <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.3</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
-        </section>
+
       </article>
     </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
   </body>
 </html>

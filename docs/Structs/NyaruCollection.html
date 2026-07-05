@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>NyaruCollection Structure Reference</title>
+    <link rel="stylesheet" type="text/css" href="../css/jazzy.css" />
+    <link rel="stylesheet" type="text/css" href="../css/highlight.css" />
+    <meta charset="utf-8">
+    <script src="../js/jquery.min.js" defer></script>
+    <script src="../js/jazzy.js" defer></script>
+    
+    <script src="../js/lunr.min.js" defer></script>
+    <script src="../js/typeahead.jquery.js" defer></script>
+    <script src="../js/jazzy.search.js" defer></script>
+  </head>
+  <body>
+
+    <a name="//apple_ref/swift/Struct/NyaruCollection" class="dashAnchor"></a>
+
+    <a title="NyaruCollection Structure Reference"></a>
+
+    <header class="header">
+      <p class="header-col header-col--primary">
+        <a class="header-link" href="../index.html">
+          NyaruDB2 0.2.0 Docs
+        </a>
+         (99% documented)
+      </p>
+    
+      <div class="header-col--secondary">
+        <form role="search" action="../search.json">
+          <input type="text" placeholder="Search documentation" data-typeahead>
+        </form>
+      </div>
+    
+        <p class="header-col header-col--secondary">
+          <a class="header-link" href="https://github.com/galileostudio/nyarudb2">
+            <img class="header-icon" src="../img/gh.png" alt="GitHub"/>
+            View on GitHub
+          </a>
+        </p>
+    
+    </header>
+
+    <p class="breadcrumbs">
+      <a class="breadcrumb" href="../index.html">NyaruDB2</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      <a class="breadcrumb" href="../Structs.html">Structures</a>
+      <img class="carat" src="../img/carat.png" alt=""/>
+      NyaruCollection Structure Reference
+    </p>
+
+    <div class="content-wrapper">
+      <nav class="navigation">
+        <ul class="nav-groups">
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Actors.html">Actors</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Actors/NyaruDB.html">NyaruDB</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Classes.html">Classes</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Classes/OrderedIndex.html">OrderedIndex</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Enums.html">Enumerations</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/CompressionMethod.html">CompressionMethod</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FieldValue.html">FieldValue</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/FileProtection.html">FileProtection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/KeyDerivationAlgorithm.html">KeyDerivationAlgorithm</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruCrypto.html">NyaruCrypto</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/NyaruError.html">NyaruError</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/Predicate.html">Predicate</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/QueryStrategy.html">QueryStrategy</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Enums/SerializationFormat.html">SerializationFormat</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Extensions.html">Extensions</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Bool.html">Bool</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Date.html">Date</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Double.html">Double</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int.html">Int</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Int64.html">Int64</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/Optional.html">Optional</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/String.html">String</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Extensions/UUID.html">UUID</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Protocols.html">Protocols</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-group-name">
+            <a class="nav-group-name-link" href="../Structs.html">Structures</a>
+            <ul class="nav-group-tasks">
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionOptions.html">CollectionOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/CollectionStats.html">CollectionStats</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/DatabaseOptions.html">DatabaseOptions</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruCollection.html">NyaruCollection</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/NyaruDocumentStream/Iterator.html">– Iterator</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryBuilder.html">QueryBuilder</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/QueryPlan.html">QueryPlan</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/RecordPointer.html">RecordPointer</a>
+              </li>
+              <li class="nav-group-task">
+                <a class="nav-group-task-link" href="../Structs/SafeRegex.html">SafeRegex</a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <article class="main-content">
+
+        <section class="section">
+          <div class="section-content top-matter">
+            <h1>NyaruCollection</h1>
+              <div class="declaration">
+                <div class="language">
+                  
+                  <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">struct</span> <span class="kt">NyaruCollection</span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span> <span class="p">:</span> <span class="kt">Sendable</span> <span class="k">where</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Decodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Encodable</span><span class="p">,</span> <span class="kt">T</span> <span class="p">:</span> <span class="kt">Sendable</span></code></pre>
+
+                </div>
+              </div>
+            <p>A typed, Sendable handle to one collection within a NyaruDB database.</p>
+
+<p><code>NyaruCollection</code> is a thin facade that encodes and decodes the generic
+document type <code>T</code> and delegates all storage operations to a shared
+<code>CollectionCore</code> actor. Handles are cheap value types — copy them freely.</p>
+
+<p><strong>Writing documents.</strong> Use <code>insert</code>, <code>update</code>, <code>upsert</code>, <code>patch</code>, and
+<code>delete</code>:</p>
+<pre class="highlight swift"><code><span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+<span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">patch</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="n">userId</span><span class="p">,</span> <span class="nv">changes</span><span class="p">:</span> <span class="p">[</span><span class="s">"name"</span><span class="p">:</span> <span class="s">"New Name"</span><span class="p">])</span>
+</code></pre>
+
+<p><strong>Reading documents.</strong> Use <code>get(id:)</code> for point lookups, <code>all()</code> for
+everything, <code>stream()</code> for bounded-memory iteration, and <code>find()</code> for
+fluent queries with predicates, sorting, and pagination.</p>
+
+<p><strong>Maintenance.</strong> Call <code>compact()</code> opportunistically (e.g. on app
+backgrounding) to reclaim space from tombstoned records.</p>
+
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-content">
+            <div class="task-group">
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV4nameSSvp"></a>
+                    <a name="//apple_ref/swift/Property/name" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV4nameSSvp">name</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>The collection name as passed to <code><a href="../Actors/NyaruDB.html#/s:8NyaruDB20A2DBC10collection_2of7optionsAA0A10CollectionVyxGSS_xmAA0G7OptionsVtYaKSeRzSERzs8SendableRzlF">NyaruDB.collection(_:of:options:)</a></code>.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="k">let</span> <span class="nv">name</span><span class="p">:</span> <span class="kt">String</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Writes"></a>
+                <a name="//apple_ref/swift/Section/Writes" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Writes"></a>
+                  <h3 class="section-name"><span>Writes</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6insertyyxYaKF"></a>
+                    <a name="//apple_ref/swift/Method/insert(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6insertyyxYaKF">insert(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts a new document into the collection.</p>
+
+<p>The document must contain the configured <code>idField</code>. If another document
+with the same id already exists, a <code>duplicateID</code> error is thrown.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.duplicateID</code> if the id already exists,
+<code>NyaruError.encodingFailed</code> if encoding fails.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">insert</span><span class="p">(</span><span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document to insert.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6insert10contentsOfySayxG_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/insert(contentsOf:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6insert10contentsOfySayxG_tYaKF">insert(contentsOf:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Inserts a batch of documents atomically.</p>
+
+<p>All ids are validated before anything is written — if any id already
+exists in the collection or is duplicated within the batch, <strong>no</strong>
+documents are inserted and <code>duplicateID</code> is thrown.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.duplicateID</code> if any id conflicts.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">insert</span><span class="p">(</span><span class="n">contentsOf</span> <span class="nv">documents</span><span class="p">:</span> <span class="p">[</span><span class="kt">T</span><span class="p">])</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>documents</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>An array of documents to insert.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV11insertBatchyyyAA0a6InsertE0CyxGYaKXEYaKF"></a>
+                    <a name="//apple_ref/swift/Method/insertBatch(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV11insertBatchyyyAA0a6InsertE0CyxGYaKXEYaKF">insertBatch(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Accumulates insert operations in memory and flushes them as a single
+batch when the body completes, producing one index merge pass instead of
+one per call.</p>
+
+<p>Insertions inside the body are synchronous — no <code>await</code> required:</p>
+<pre class="highlight swift"><code><span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="n">insertBatch</span> <span class="p">{</span> <span class="n">batch</span> <span class="k">in</span>
+  <span class="k">for</span> <span class="n">chunk</span> <span class="k">in</span> <span class="n">incomingChunks</span> <span class="p">{</span> <span class="n">batch</span><span class="o">.</span><span class="nf">insert</span><span class="p">(</span><span class="nv">contentsOf</span><span class="p">:</span> <span class="n">chunk</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+
+<p>If the body throws, nothing is written to disk. This is a write buffer,
+not a transaction: update, delete, and patch are not buffered or rolled
+back — call them outside the batch.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    Rethrows from <code>body</code> or from the final batch write.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">insertBatch</span><span class="p">(</span>
+  <span class="n">_</span> <span class="nv">body</span><span class="p">:</span> <span class="p">(</span><span class="kt"><a href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a></span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Void</span>
+<span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>body</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Closure receiving a <code><a href="../Classes/NyaruInsertBatch.html">NyaruInsertBatch</a></code> that accumulates
+documents via its synchronous <code>insert</code> methods.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6updateyyxYaKF"></a>
+                    <a name="//apple_ref/swift/Method/update(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6updateyyxYaKF">update(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Replaces the document with the same id.</p>
+
+<p>The full document is replaced (not merged). If no document with the given
+id exists, <code>documentNotFound</code> is thrown. To insert-or-replace, use
+<code>upsert</code> instead.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.documentNotFound</code> if the id does not exist.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">update</span><span class="p">(</span><span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The updated document.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6upsertyyxYaKF"></a>
+                    <a name="//apple_ref/swift/Method/upsert(_:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6upsertyyxYaKF">upsert(_:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Replaces the document with the same id, or inserts it if absent.</p>
+
+<p>Unlike <code>update</code>, this never throws <code>documentNotFound</code> — if no document
+exists for the id, the document is inserted.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">upsert</span><span class="p">(</span><span class="n">_</span> <span class="nv">document</span><span class="p">:</span> <span class="kt">T</span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>document</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document to upsert.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6delete2idSbAA21FieldValueConvertible_p_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/delete(id:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6delete2idSbAA21FieldValueConvertible_p_tYaKF">delete(id:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Deletes a document by its id.</p>
+
+<p>The record is tombstoned in the shard file (space is reclaimed during
+compaction). The index entries are also removed.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@discardableResult</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">delete</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>id</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document id (any <code><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></code> type).</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p><code>true</code> if a document was removed, <code>false</code> if no document
+with that id existed.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6delete3idsSiSayAA21FieldValueConvertible_pG_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/delete(ids:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6delete3idsSiSayAA21FieldValueConvertible_pG_tYaKF">delete(ids:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Deletes multiple documents by id in a single batched pass: one storage
+hop per shard and one index sweep per field, instead of a full
+read/remove cycle per document.</p>
+
+<p>Unknown ids are skipped (they do not count toward the result and do not
+throw).</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">@discardableResult</span>
+<span class="kd">public</span> <span class="kd">func</span> <span class="nf">delete</span><span class="p">(</span><span class="nv">ids</span><span class="p">:</span> <span class="p">[</span><span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">])</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>ids</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document ids to delete.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The number of documents actually deleted.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Partial%20Update"></a>
+                <a name="//apple_ref/swift/Section/Partial Update" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Partial%20Update"></a>
+                  <h3 class="section-name"><span>Partial Update</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV5patch2id7changesyAA21FieldValueConvertible_p_SDySSAA0gH0OGtYaKF"></a>
+                    <a name="//apple_ref/swift/Method/patch(id:changes:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV5patch2id7changesyAA21FieldValueConvertible_p_SDySSAA0gH0OGtYaKF">patch(id:<wbr>changes:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Partially updates a document by applying top-level field changes without
+decoding the full document type.</p>
+
+<p>This is useful when you want to change a few fields without fetching,
+decoding, modifying, re-encoding, and re-inserting the entire document.
+The merged document is validated against the type <code>T</code> before anything
+is written to disk.</p>
+
+<p><strong>Restrictions:</strong></p>
+
+<ul>
+<li>Only top-level fields can be patched (nested paths like <code>&quot;address.city&quot;</code>
+are rejected).</li>
+<li>The document id field cannot be changed through patch.</li>
+<li><p>The merged result must still decode as <code>T</code>, otherwise the patch is
+rejected and no data is written.</p></li>
+</ul><div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <p><code>NyaruError.documentNotFound</code> if the id does not exist,
+<code>NyaruError.decodingFailed</code> if the merged document no longer decodes
+as <code>T</code>, <code>NyaruError.unsupportedOperation</code> for nested paths or id changes.</p>
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">patch</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">,</span> <span class="nv">changes</span><span class="p">:</span> <span class="p">[</span><span class="kt">String</span> <span class="p">:</span> <span class="kt"><a href="../Enums/FieldValue.html">FieldValue</a></span><span class="p">])</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>id</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document id.</p>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>changes</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>A dictionary of field names to new <code><a href="../Enums/FieldValue.html">FieldValue</a></code>s.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Reads"></a>
+                <a name="//apple_ref/swift/Section/Reads" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Reads"></a>
+                  <h3 class="section-name"><span>Reads</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV3get2idxSgAA21FieldValueConvertible_p_tYaKF"></a>
+                    <a name="//apple_ref/swift/Method/get(id:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV3get2idxSgAA21FieldValueConvertible_p_tYaKF">get(id:<wbr>)</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Performs a point lookup by document id through the primary index.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">get</span><span class="p">(</span><span class="nv">id</span><span class="p">:</span> <span class="kt"><a href="../Protocols/FieldValueConvertible.html">FieldValueConvertible</a></span><span class="p">)</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">T</span><span class="p">?</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>id</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>The document id.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The decoded document, or <code>nil</code> if no document with that id
+exists.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV5countSiyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/count()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV5countSiyYaKF">count()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns the total number of live documents in the collection.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if the database was closed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">count</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Int</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>The live document count (excludes tombstoned records).</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV3allSayxGyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/all()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV3allSayxGyYaKF">all()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns every document in the collection.</p>
+
+<p>For large collections this materialises the entire dataset in memory.
+Consider using <code>stream()</code> for bounded-memory iteration.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code>NyaruError.decodingFailed</code> if any document fails to decode.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">all</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="kt">T</span><span class="p">]</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An array of all decoded documents.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV6stream9batchSizeAA0A14DocumentStreamVyxGSi_tF"></a>
+                    <a name="//apple_ref/swift/Method/stream(batchSize:)" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV6stream9batchSizeAA0A14DocumentStreamVyxGSi_tF">stream(batchSize:<wbr>)</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns a pull-based async sequence over all documents.</p>
+
+<p>Each <code>next()</code> call serves from an in-memory batch and only touches the
+collection actor when the batch is exhausted. Memory is bounded by one
+batch (<code>batchSize</code> elements), making this suitable for iterating large
+collections without materialising everything at once.</p>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">stream</span><span class="p">(</span><span class="nv">batchSize</span><span class="p">:</span> <span class="kt">Int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream</a></span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Parameters</h4>
+                        <table class="graybox">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <code>
+                                <em>batchSize</em>
+                                </code>
+                              </td>
+                              <td>
+                                <div>
+                                  <p>Maximum documents fetched per storage read
+(default 64).</p>
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>A <code><a href="../Structs/NyaruDocumentStream.html">NyaruDocumentStream&lt;T&gt;</a></code> (conforms to <code>AsyncSequence</code>).</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV4findAA12QueryBuilderVyxGyF"></a>
+                    <a name="//apple_ref/swift/Method/find()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV4findAA12QueryBuilderVyxGyF">find()</a>
+                    </code>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns a fluent query builder for this collection.</p>
+<pre class="highlight swift"><code><span class="k">let</span> <span class="nv">results</span> <span class="o">=</span> <span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">find</span><span class="p">()</span>
+    <span class="o">.</span><span class="nf">where</span><span class="p">(</span><span class="s">"age"</span><span class="p">,</span> <span class="nv">isGreaterThan</span><span class="p">:</span> <span class="mi">18</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">sort</span><span class="p">(</span><span class="nv">by</span><span class="p">:</span> <span class="s">"name"</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+    <span class="o">.</span><span class="nf">execute</span><span class="p">()</span>
+</code></pre>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">find</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Structs/QueryBuilder.html">QueryBuilder</a></span><span class="o">&lt;</span><span class="kt">T</span><span class="o">&gt;</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>An immutable <code><a href="../Structs/QueryBuilder.html">QueryBuilder&lt;T&gt;</a></code>.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div class="task-group">
+              <div class="task-name-container">
+                <a name="/Maintenance"></a>
+                <a name="//apple_ref/swift/Section/Maintenance" class="dashAnchor"></a>
+                <div class="section-name-container">
+                  <a class="section-name-link" href="#/Maintenance"></a>
+                  <h3 class="section-name"><span>Maintenance</span>
+</h3>
+                </div>
+              </div>
+              <ul class="item-container">
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV7compactyyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/compact()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV7compactyyYaKF">compact()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Rewrites every shard file to remove tombstoned records and rebuilds all
+indexes.</p>
+
+<p>Call this opportunistically, such as when the app transitions to the
+background or after a significant number of deletions. There is no
+automatic background timer — compaction is always explicit.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    I/O errors from shard or index operations.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">compact</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span></code></pre>
+
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV15needsCompactionSbyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/needsCompaction()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV15needsCompactionSbyYaKF">needsCompaction()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Whether any shard&rsquo;s tombstone ratio exceeds the configured
+<code><a href="../Structs/DatabaseOptions.html#/s:8NyaruDB215DatabaseOptionsV16maxFragmentationSdvp">DatabaseOptions.maxFragmentation</a></code> threshold.</p>
+
+<p>Use this to decide when to call <code><a href="../Structs/NyaruCollection.html#/s:8NyaruDB20A10CollectionV7compactyyYaKF">compact()</a></code> — for example, on app
+backgrounding:</p>
+<pre class="highlight swift"><code><span class="k">if</span> <span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">needsCompaction</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">try</span> <span class="k">await</span> <span class="n">collection</span><span class="o">.</span><span class="nf">compact</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if the database was closed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">needsCompaction</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt">Bool</span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p><code>true</code> if compaction would reclaim meaningful space.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+                <li class="item">
+                  <div>
+                    <code>
+                    <a name="/s:8NyaruDB20A10CollectionV5statsAA0C5StatsVyYaKF"></a>
+                    <a name="//apple_ref/swift/Method/stats()" class="dashAnchor"></a>
+                    <a class="token" href="#/s:8NyaruDB20A10CollectionV5statsAA0C5StatsVyYaKF">stats()</a>
+                    </code>
+                      <span class="declaration-note">
+                        Asynchronous
+                      </span>
+                  </div>
+                  <div class="height-container">
+                    <div class="pointer-container"></div>
+                    <section class="section">
+                      <div class="pointer"></div>
+                      <div class="abstract">
+                        <p>Returns a snapshot of collection statistics.</p>
+
+<p>The returned <code><a href="../Structs/CollectionStats.html">CollectionStats</a></code> includes the document count, shard count,
+total on-disk size, index entry counts, and the fragmentation ratio.</p>
+<div class="aside aside-throws">
+    <p class="aside-title">Throws</p>
+    <code><a href="../Enums/NyaruError.html#/s:8NyaruDB20A5ErrorO14databaseClosedyA2CmF">NyaruError.databaseClosed</a></code> if the database was closed.
+
+</div>
+
+                      </div>
+                      <div class="declaration">
+                        <h4>Declaration</h4>
+                        <div class="language">
+                          <p class="aside-title">Swift</p>
+                          <pre class="highlight swift"><code><span class="kd">public</span> <span class="kd">func</span> <span class="nf">stats</span><span class="p">()</span> <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="kt"><a href="../Structs/CollectionStats.html">CollectionStats</a></span></code></pre>
+
+                        </div>
+                      </div>
+                      <div>
+                        <h4>Return Value</h4>
+                        <p>Current collection statistics.</p>
+                      </div>
+                    </section>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </article>
+    </div>
+    <section class="footer">
+      <p>&copy; 2026 <a class="link" href="https://github.com/maltzsama" target="_blank" rel="external noopener">Demetrius Albuquerque</a>. All rights reserved. (Last updated: 2026-07-05)</p>
+      <p>Generated by <a class="link" href="https://github.com/realm/jazzy" target="_blank" rel="external noopener">jazzy ♪♫ v0.15.4</a>, a <a class="link" href="https://realm.io" target="_blank" rel="external noopener">Realm</a> project.</p>
+    </section>
+  </body>
+</html>
