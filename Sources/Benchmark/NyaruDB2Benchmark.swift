@@ -367,7 +367,7 @@ public final class NyaruDBBenchmark {
       let documents = generateDocuments(
         count: documentCount, partitioned: partitioned, startingID: 1)
       let start = CFAbsoluteTimeGetCurrent()
-      try await collection.insertBatch { batch in
+      try await collection.writeBatch { batch in
         for chunk in documents.chunked(into: batchSize) {
           batch.insert(contentsOf: chunk)
         }

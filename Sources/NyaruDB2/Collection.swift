@@ -60,28 +60,6 @@ public struct CollectionOptions: Sendable {
   }
 }
 
-/// A write buffer that accumulates document insertions for a single batch
-/// flush.
-///
-/// Obtain one via `NyaruCollection.insertBatch(_:)`. All insertions are
-/// synchronous — no `await` needed. Documents are not written to disk until
-/// the `insertBatch` body completes without throwing.
-///
-/// - Note: Deliberately **not** `Sendable` — the buffer is unsynchronised and
-///   must only be used from the `insertBatch` body that received it.
-public final class NyaruInsertBatch<T: Codable & Sendable> {
-  fileprivate var buffer: [T] = []
-  fileprivate init() {}
-
-  /// Adds a single document to the batch buffer.
-  public func insert(_ document: T) { buffer.append(document) }
-
-  /// Adds a collection of documents to the batch buffer.
-  public func insert(contentsOf documents: some Collection<T>) {
-    buffer.append(contentsOf: documents)
-  }
-}
-
 /// A write buffer that accumulates mixed operations — insert, update,
 /// upsert, delete — for a single all-or-nothing flush.
 ///
@@ -122,6 +100,11 @@ public final class NyaruWriteBatch<T: Codable & Sendable> {
     operations.append(.delete(id.fieldValue))
   }
 }
+
+/// The insert-only batch buffer was folded into `NyaruWriteBatch`, which
+/// accepts the same `insert` calls plus updates, upserts, and deletes.
+@available(*, deprecated, renamed: "NyaruWriteBatch")
+public typealias NyaruInsertBatch<T: Codable & Sendable> = NyaruWriteBatch<T>
 
 /// Remembers whether Mirror-based metadata extraction has been validated
 /// against the encoded payload for one collection handle's document type.
@@ -351,11 +334,17 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.insert(data: data, metadata: metadata)
   }
 
-  /// Inserts a batch of documents atomically.
+  /// Inserts a batch of documents atomically (against errors).
   ///
   /// All ids are validated before anything is written — if any id already
   /// exists in the collection or is duplicated within the batch, **no**
-  /// documents are inserted and `duplicateID` is thrown.
+  /// documents are inserted and `duplicateID` is thrown. Documents are
+  /// encoded in parallel and merged into each index in a single pass.
+  ///
+  /// This is the right call when you already hold the documents in an array.
+  /// To accumulate documents from multiple sources first, or to mix inserts
+  /// with updates and deletes, use `writeBatch(_:)` — insert-only batches
+  /// take exactly this code path, so there is no performance difference.
   ///
   /// - Parameter documents: An array of documents to insert.
   /// - Throws: `NyaruError.duplicateID` if any id conflicts.
@@ -366,34 +355,11 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.insertMany(batch: batch)
   }
 
-  /// Accumulates insert operations in memory and flushes them as a single
-  /// batch when the body completes, producing one index merge pass instead of
-  /// one per call.
-  ///
-  /// Insertions inside the body are synchronous — no `await` required:
-  /// ```swift
-  /// try await collection.insertBatch { batch in
-  ///   for chunk in incomingChunks { batch.insert(contentsOf: chunk) }
-  /// }
-  /// ```
-  /// If the body throws, nothing is written to disk. This buffer accepts
-  /// inserts only — for mixed insert/update/upsert/delete batches with the
-  /// same all-or-nothing behaviour, use `writeBatch(_:)`.
-  ///
-  /// - Parameter body: Closure receiving a `NyaruInsertBatch` that accumulates
-  ///   documents via its synchronous `insert` methods.
-  /// - Throws: Rethrows from `body` or from the final batch write.
-  public func insertBatch(
-    _ body: (NyaruInsertBatch<T>) async throws -> Void
-  ) async throws {
-    let batch = NyaruInsertBatch<T>()
-    try await body(batch)
-    guard !batch.buffer.isEmpty else { return }
-    try await insert(contentsOf: batch.buffer)
-  }
-
   /// Accumulates mixed operations — insert, update, upsert, delete — and
   /// applies them as one all-or-nothing batch when the body completes.
+  ///
+  /// Queuing inside the body is synchronous — no `await` — so operations can
+  /// be gathered from loops or multiple sources before anything is written:
   ///
   /// ```swift
   /// try await collection.writeBatch { batch in
@@ -402,6 +368,9 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   ///   batch.delete(id: retiredUserID)
   /// }
   /// ```
+  ///
+  /// A batch containing only inserts takes the same fast path as
+  /// `insert(contentsOf:)` — identical validation and performance.
   ///
   /// **Atomicity against errors, not crashes.** Every operation is validated
   /// before anything is written: a duplicate id, a missing update target, a
@@ -457,6 +426,15 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
       }
     }
     try await core.applyBatch(operations)
+  }
+
+  /// Deprecated alias of `writeBatch(_:)`. The buffer's `insert` methods are
+  /// unchanged, so existing call sites compile as-is.
+  @available(*, deprecated, renamed: "writeBatch")
+  public func insertBatch(
+    _ body: (NyaruWriteBatch<T>) async throws -> Void
+  ) async throws {
+    try await writeBatch(body)
   }
 
   /// Replaces the document with the same id.
