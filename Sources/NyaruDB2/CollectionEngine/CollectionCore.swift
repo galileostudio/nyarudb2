@@ -788,17 +788,10 @@ actor CollectionCore {
       try await oldShard.delete(at: pointer.offset)
     }
 
-    var newKeyByField: [String: FieldValue] = [:]
-    for field in allIndexedFields {
-      if let key = FieldExtractor.value(in: newDict, path: field) {
-        newKeyByField[field] = key
-      }
-    }
-
     for field in allIndexedFields {
       guard let index = indexes[field] else { continue }
-      let oldKey = FieldExtractor.value(in: old.dict, path: field)
-      let newKey = newKeyByField[field]
+      let oldKey = FieldExtractor.value(in: oldDict, path: field)
+      let newKey = FieldExtractor.value(in: newDict, path: field)
 
       if oldKey == newKey, let key = oldKey {
         index.replace(key: key, old: pointer, new: newPointer)
@@ -1081,8 +1074,12 @@ actor CollectionCore {
     case .equal(let key):
       return index.search(key)
     case .inSet(let keys):
+      // search() returns the posting array by reference (CoW), so gathering
+      // the lists first costs nothing and sizes the output exactly.
+      let lists = keys.map { index.search($0) }
       var out: [RecordPointer] = []
-      for key in keys { out.append(contentsOf: index.search(key)) }
+      out.reserveCapacity(lists.reduce(0) { $0 + $1.count })
+      for list in lists { out.append(contentsOf: list) }
       return out
     case .range(let lower, let lowerInclusive, let upper, let upperInclusive):
       return index.range(
