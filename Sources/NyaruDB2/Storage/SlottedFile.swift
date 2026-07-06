@@ -318,12 +318,29 @@ final class SlottedFile {
   /// Iterates over every live record and invokes the block with a `LiveRecord`.
   ///
   /// Tombstoned records are skipped. The file is walked sequentially by
-  /// advancing by `recordHeaderSize + slotCapacity` for every slot.
+  /// advancing by `recordHeaderSize + slotCapacity` for every slot. Payloads
+  /// are copied out of the scan buffer, so they are safe to retain.
   ///
   /// - Parameter block: A closure called with each live record.
   /// - Throws: `NyaruError.corruptedRecord` if a record header is invalid
   ///   or a payload is truncated. Re-throws errors from the block.
   func forEachLive(_ block: (LiveRecord) throws -> Void) throws {
+    try forEachLive(copyingPayloads: true, block)
+  }
+
+  /// Zero-copy variant of `forEachLive`: payloads are slices of the scan
+  /// buffer.
+  ///
+  /// **Retention trap.** A `Data` slice keeps its parent buffer alive, so
+  /// retaining ANY payload past the callback pins the entire data region of
+  /// the file in memory. Use this only when payloads are consumed (written
+  /// out, parsed) inside the iteration — compaction does — and use
+  /// `forEachLive` when payloads outlive it.
+  func forEachLiveSlice(_ block: (LiveRecord) throws -> Void) throws {
+    try forEachLive(copyingPayloads: false, block)
+  }
+
+  private func forEachLive(copyingPayloads: Bool, _ block: (LiveRecord) throws -> Void) throws {
     guard fileSize > SlottedFile.fileHeaderSize else { return }
     let dataSize = Int(fileSize - SlottedFile.fileHeaderSize)
 
@@ -353,7 +370,7 @@ final class SlottedFile {
         try block(
           LiveRecord(
             offset: SlottedFile.fileHeaderSize + UInt64(relPos),
-            payload: Data(payload),
+            payload: copyingPayloads ? Data(payload) : payload,
             compression: CompressionMethod(recordFlags: flags),
             crc: Binary.readUInt32(fileData, at: relPos + 12) ?? 0
           )

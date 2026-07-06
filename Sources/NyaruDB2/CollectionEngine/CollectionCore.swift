@@ -1138,6 +1138,11 @@ actor CollectionCore {
 
   /// Reads the payloads for already-resolved pointers. The caller must hold
   /// the compaction gate.
+  ///
+  /// Multi-shard reads run in parallel — each `ShardActor` is independent,
+  /// so latency is the slowest shard's read rather than the sum of all of
+  /// them. Output order is not defined (it never was: shards were visited
+  /// in dictionary order); queries that need an order sort in memory.
   private func readPointers(_ pointers: [RecordPointer]) async throws -> [Data] {
     if pointers.isEmpty { return [] }
 
@@ -1146,19 +1151,30 @@ actor CollectionCore {
       grouped[pointer.shardID, default: []].append(pointer.offset)
     }
 
-    var out: [Data] = []
-    out.reserveCapacity(pointers.count)
-
-    for (shardID, offsets) in grouped {
+    // Offsets are sorted to turn random disk seeks into sequential reads;
+    // one actor hop per shard reads all of its records.
+    if grouped.count == 1, let (shardID, offsets) = grouped.first {
       let shard = try existingShard(shardID)
-      // Sort offsets to turn random disk seeks into sequential reads
-      let sortedOffsets = offsets.sorted()
-      // Single actor hop per shard to read multiple records
-      let batch = try await shard.readBatch(offsets: sortedOffsets)
-      out.append(contentsOf: batch)
+      return try await shard.readBatch(offsets: offsets.sorted())
     }
 
-    return out
+    // Resolve the actors before the task group — existingShard is
+    // actor-isolated and cannot be called from inside the child tasks.
+    var work: [(shard: ShardActor, offsets: [UInt64])] = []
+    work.reserveCapacity(grouped.count)
+    for (shardID, offsets) in grouped {
+      work.append((shard: try existingShard(shardID), offsets: offsets.sorted()))
+    }
+
+    return try await withThrowingTaskGroup(of: [Data].self) { group in
+      for item in work {
+        group.addTask { try await item.shard.readBatch(offsets: item.offsets) }
+      }
+      var out: [Data] = []
+      out.reserveCapacity(pointers.count)
+      for try await batch in group { out.append(contentsOf: batch) }
+      return out
+    }
   }
 
   // MARK: - Maintenance

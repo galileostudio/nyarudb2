@@ -275,18 +275,36 @@ actor ShardActor {
 
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
-    // Collect all live records first, then write them with a single batch
-    // append (one buffer build + one write) instead of two syscalls per
-    // record. The stored CRCs travel along so nothing is re-checksummed.
+    // Stream live records into the temp file in bounded chunks. Payload
+    // slices alias the scan buffer (zero copy) and are flushed before the
+    // chunk grows past a few MiB, so peak memory stays at roughly the file
+    // size plus one chunk instead of three full copies of every payload.
+    // The stored CRCs travel along so nothing is re-checksummed.
+    let flushThreshold = 4 << 20
     var oldOffsets: [UInt64] = []
-    var payloads: [(data: Data, compression: CompressionMethod)] = []
-    var crcs: [UInt32] = []
-    try file.forEachLive { liveRecord in
+    var newOffsets: [UInt64] = []
+    var chunk: [(data: Data, compression: CompressionMethod)] = []
+    var chunkCRCs: [UInt32] = []
+    var chunkBytes = 0
+    try file.forEachLiveSlice { liveRecord in
       oldOffsets.append(liveRecord.offset)
-      payloads.append((data: liveRecord.payload, compression: liveRecord.compression))
-      crcs.append(liveRecord.crc)
+      chunk.append((data: liveRecord.payload, compression: liveRecord.compression))
+      chunkCRCs.append(liveRecord.crc)
+      chunkBytes += liveRecord.payload.count
+      if chunkBytes >= flushThreshold {
+        newOffsets.append(
+          contentsOf: try tempFile.appendBatch(payloads: chunk, precomputedCRCs: chunkCRCs))
+        chunk.removeAll(keepingCapacity: true)
+        chunkCRCs.removeAll(keepingCapacity: true)
+        chunkBytes = 0
+      }
     }
-    let newOffsets = try tempFile.appendBatch(payloads: payloads, precomputedCRCs: crcs)
+    if !chunk.isEmpty {
+      newOffsets.append(
+        contentsOf: try tempFile.appendBatch(payloads: chunk, precomputedCRCs: chunkCRCs))
+      chunk.removeAll()
+      chunkCRCs.removeAll()
+    }
     let mapping = Dictionary(uniqueKeysWithValues: zip(oldOffsets, newOffsets))
     let newSize = tempFile.sizeInBytes()
 
@@ -301,7 +319,7 @@ actor ShardActor {
 
     // The compacted file's state is fully known — adopt it without rescanning.
     self.file = try SlottedFile(
-      adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(payloads.count))
+      adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(oldOffsets.count))
     return mapping
   }
 
