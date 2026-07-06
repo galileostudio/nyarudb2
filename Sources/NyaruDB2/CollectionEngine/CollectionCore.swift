@@ -144,6 +144,15 @@ enum IndexProbe: Sendable {
     upper: FieldValue?, upperInclusive: Bool)
 }
 
+/// One operation inside a `writeBatch`, with the document payload and
+/// metadata already encoded by the typed facade.
+enum BatchOperation: Sendable {
+  case insert(data: Data, metadata: Serializer.DocumentMetadata)
+  case update(data: Data, metadata: Serializer.DocumentMetadata)
+  case upsert(data: Data, metadata: Serializer.DocumentMetadata)
+  case delete(id: FieldValue)
+}
+
 /// The type-erased engine behind one collection. This actor owns the shard
 /// files, indexes, and manifest for a single collection.
 ///
@@ -947,6 +956,181 @@ actor CollectionCore {
 
     applyBulkRemovals(removalsByField)
     return removed
+  }
+
+  // MARK: - Atomic write batches
+
+  /// Applies a mixed batch of operations with error-atomicity.
+  ///
+  /// **Guarantee.** Every operation is validated before anything is written:
+  /// duplicate ids, missing update targets, and conflicting in-batch
+  /// operations throw with NO side effects. After validation, new document
+  /// versions are appended first — never overwriting in place and never
+  /// reusing free slots, so a failed append is rolled back by tombstoning
+  /// what was written. Old versions are tombstoned next, and indexes are
+  /// updated in memory last.
+  ///
+  /// **Limits.** An I/O failure during the tombstone phase leaves the batch
+  /// partially applied — the same exposure as issuing the operations
+  /// individually; full crash-atomicity would require a write-ahead log,
+  /// which NyaruDB deliberately does not have. The batch is also not
+  /// isolated from concurrent writes to the same ids from other tasks, just
+  /// as individual operations are not isolated from each other.
+  ///
+  /// At most one operation may target a given document id per batch.
+  func applyBatch(_ operations: [BatchOperation]) async throws {
+    if operations.isEmpty { return }
+    try ensureOpen()
+    await beginPointerOp()
+    defer { endPointerOp() }
+
+    let primary = indexes[manifest.idField]
+    let fields = allIndexedFields
+    let capturedFormat = format
+
+    // ---- Phase 1: validate everything and resolve targets. Reads only —
+    // any throw here leaves the collection untouched.
+    struct PlannedAppend {
+      let data: Data
+      let metadata: Serializer.DocumentMetadata
+      let shardID: String
+    }
+    var appends: [PlannedAppend] = []
+    // Live old versions to tombstone, with index keys extracted from the
+    // payload read here so the index sweep needs no second read.
+    var removals: [(pointer: RecordPointer, keys: [String: FieldValue])] = []
+    // Pointers whose record was already dead — purged from every index.
+    var stalePointers: [RecordPointer] = []
+
+    var seenIDs = Set<FieldValue>()
+    var insertIDs = Set<FieldValue>()
+
+    func requireSingleOp(_ id: FieldValue, isInsert: Bool) throws {
+      guard seenIDs.insert(id).inserted else {
+        if isInsert && insertIDs.contains(id) {
+          throw NyaruError.duplicateID(id.description)
+        }
+        throw NyaruError.unsupportedOperation(
+          "Multiple operations on the same document id in one writeBatch "
+            + "(id: \(id.description)). Combine them into a single upsert/delete.")
+      }
+      if isInsert { insertIDs.insert(id) }
+    }
+
+    // Resolves the current version of a document: appends to `removals` when
+    // live, to `stalePointers` when the index entry is dead.
+    func resolveExisting(_ id: FieldValue) async throws {
+      guard let pointer = primary?.search(id).first else { return }
+      let shard = try existingShard(pointer.shardID)
+      if let oldData = try await shard.read(at: pointer.offset) {
+        let keys = Serializer.extractFieldValues(
+          from: oldData, fields: fields, format: capturedFormat)
+        removals.append((pointer: pointer, keys: keys))
+      } else {
+        stalePointers.append(pointer)
+      }
+    }
+
+    for operation in operations {
+      switch operation {
+      case .insert(let data, let metadata):
+        try requireSingleOp(metadata.id, isInsert: true)
+        if primary?.contains(metadata.id) == true {
+          throw NyaruError.duplicateID(metadata.id.description)
+        }
+        appends.append(
+          .init(
+            data: data, metadata: metadata,
+            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+
+      case .update(let data, let metadata):
+        try requireSingleOp(metadata.id, isInsert: false)
+        guard primary?.contains(metadata.id) == true else {
+          throw NyaruError.documentNotFound(id: metadata.id.description)
+        }
+        try await resolveExisting(metadata.id)
+        appends.append(
+          .init(
+            data: data, metadata: metadata,
+            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+
+      case .upsert(let data, let metadata):
+        try requireSingleOp(metadata.id, isInsert: false)
+        try await resolveExisting(metadata.id)
+        appends.append(
+          .init(
+            data: data, metadata: metadata,
+            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+
+      case .delete(let id):
+        try requireSingleOp(id, isInsert: false)
+        // Unknown ids are skipped, matching deleteMany.
+        try await resolveExisting(id)
+      }
+    }
+
+    // ---- Phase 2: append all new versions, one batched write per shard.
+    // insertMany routes through appendBatch, which never reuses free slots,
+    // so old versions stay intact until phase 3 and a rollback only has to
+    // tombstone what this batch wrote.
+    var newPointers = [RecordPointer?](repeating: nil, count: appends.count)
+    var appendedSoFar: [(shard: ShardActor, offsets: [UInt64])] = []
+    do {
+      var byShard: [String: [Int]] = [:]
+      for (i, append) in appends.enumerated() {
+        byShard[append.shardID, default: []].append(i)
+      }
+      for (shardID, indices) in byShard {
+        let shard = try shard(for: shardID)
+        let pointers = try await shard.insertMany(datas: indices.map { appends[$0].data })
+        for (j, i) in indices.enumerated() { newPointers[i] = pointers[j] }
+        appendedSoFar.append((shard: shard, offsets: pointers.map(\.offset)))
+      }
+    } catch {
+      for (shard, offsets) in appendedSoFar {
+        _ = try? await shard.tombstoneMany(offsets: offsets)
+      }
+      throw error
+    }
+
+    // ---- Phase 3: tombstone the old versions (updates, upserts, deletes).
+    var tombstonesByShard: [String: [Int]] = [:]
+    for (i, removal) in removals.enumerated() {
+      tombstonesByShard[removal.pointer.shardID, default: []].append(i)
+    }
+    var removedLive = [Bool](repeating: false, count: removals.count)
+    for (shardID, indices) in tombstonesByShard {
+      let shard = try existingShard(shardID)
+      let results = try await shard.tombstoneMany(
+        offsets: indices.map { removals[$0].pointer.offset })
+      for (j, wasLive) in results.enumerated() { removedLive[indices[j]] = wasLive }
+    }
+
+    // ---- Phase 4: index updates — pure in-memory, cannot fail.
+    var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+    for (i, removal) in removals.enumerated() {
+      if removedLive[i] {
+        for (field, key) in removal.keys {
+          removalsByField[field, default: []].append((key, removal.pointer))
+        }
+      } else {
+        stalePointers.append(removal.pointer)
+      }
+    }
+    applyBulkRemovals(removalsByField)
+    for pointer in stalePointers { removeFromAllIndexes(pointer: pointer) }
+
+    var indexUpdates: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+    for (i, append) in appends.enumerated() {
+      guard let pointer = newPointers[i] else { continue }
+      for entry in append.metadata.indexEntries {
+        indexUpdates[entry.field, default: []].append((entry.key, pointer))
+      }
+    }
+    let loads = indexUpdates.compactMap { field, entries in
+      indexes[field].map { (index: $0, entries: entries) }
+    }
+    _ = Parallel.map(loads, serialThreshold: 2) { $0.index.bulkLoad($0.entries) }
   }
 
   /// Removes a pointer from every index. Used when a record disappears

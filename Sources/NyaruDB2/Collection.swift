@@ -82,6 +82,47 @@ public final class NyaruInsertBatch<T: Codable & Sendable> {
   }
 }
 
+/// A write buffer that accumulates mixed operations — insert, update,
+/// upsert, delete — for a single all-or-nothing flush.
+///
+/// Obtain one via `NyaruCollection.writeBatch(_:)`. All calls are
+/// synchronous — no `await` needed. Nothing touches the collection until the
+/// `writeBatch` body completes without throwing.
+///
+/// At most one operation may target a given document id per batch.
+///
+/// - Note: Deliberately **not** `Sendable` — the buffer is unsynchronised and
+///   must only be used from the `writeBatch` body that received it.
+public final class NyaruWriteBatch<T: Codable & Sendable> {
+  fileprivate enum Operation {
+    case insert(T)
+    case update(T)
+    case upsert(T)
+    case delete(FieldValue)
+  }
+  fileprivate var operations: [Operation] = []
+  fileprivate init() {}
+
+  /// Queues a document insertion. Fails the batch if the id already exists.
+  public func insert(_ document: T) { operations.append(.insert(document)) }
+
+  /// Queues a collection of document insertions.
+  public func insert(contentsOf documents: some Collection<T>) {
+    for document in documents { operations.append(.insert(document)) }
+  }
+
+  /// Queues a full-document replacement. Fails the batch if the id is absent.
+  public func update(_ document: T) { operations.append(.update(document)) }
+
+  /// Queues a replace-or-insert of the document.
+  public func upsert(_ document: T) { operations.append(.upsert(document)) }
+
+  /// Queues a deletion by id. Unknown ids are skipped, not errors.
+  public func delete(id: FieldValueConvertible) {
+    operations.append(.delete(id.fieldValue))
+  }
+}
+
 /// Remembers whether Mirror-based metadata extraction has been validated
 /// against the encoded payload for one collection handle's document type.
 ///
@@ -335,9 +376,9 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   ///   for chunk in incomingChunks { batch.insert(contentsOf: chunk) }
   /// }
   /// ```
-  /// If the body throws, nothing is written to disk. This is a write buffer,
-  /// not a transaction: update, delete, and patch are not buffered or rolled
-  /// back — call them outside the batch.
+  /// If the body throws, nothing is written to disk. This buffer accepts
+  /// inserts only — for mixed insert/update/upsert/delete batches with the
+  /// same all-or-nothing behaviour, use `writeBatch(_:)`.
   ///
   /// - Parameter body: Closure receiving a `NyaruInsertBatch` that accumulates
   ///   documents via its synchronous `insert` methods.
@@ -349,6 +390,73 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await body(batch)
     guard !batch.buffer.isEmpty else { return }
     try await insert(contentsOf: batch.buffer)
+  }
+
+  /// Accumulates mixed operations — insert, update, upsert, delete — and
+  /// applies them as one all-or-nothing batch when the body completes.
+  ///
+  /// ```swift
+  /// try await collection.writeBatch { batch in
+  ///   batch.insert(newUser)
+  ///   batch.update(changedUser)
+  ///   batch.delete(id: retiredUserID)
+  /// }
+  /// ```
+  ///
+  /// **Atomicity against errors, not crashes.** Every operation is validated
+  /// before anything is written: a duplicate id, a missing update target, a
+  /// thrown body, or two operations on the same id abort the batch with no
+  /// side effects, and a failed write is rolled back. A process crash in the
+  /// middle of the flush is NOT covered — per-record CRC + dirty-flag
+  /// recovery still guarantees integrity, but some operations of the batch
+  /// may be durable while others are not.
+  ///
+  /// The batch is not isolated from concurrent writes to the same ids from
+  /// other tasks, just as individual operations are not isolated from each
+  /// other.
+  ///
+  /// - Parameter body: Closure receiving a `NyaruWriteBatch` that queues
+  ///   operations via its synchronous methods.
+  /// - Throws: `NyaruError.duplicateID`, `NyaruError.documentNotFound`,
+  ///   `NyaruError.unsupportedOperation` for conflicting operations, or
+  ///   rethrows from `body`.
+  public func writeBatch(
+    _ body: (NyaruWriteBatch<T>) async throws -> Void
+  ) async throws {
+    let batch = NyaruWriteBatch<T>()
+    try await body(batch)
+    guard !batch.operations.isEmpty else { return }
+
+    // Pure-insert batches take the bulk-insert fast path: same validation
+    // semantics, one index merge pass.
+    let allInserts = batch.operations.allSatisfy {
+      if case .insert = $0 { return true } else { return false }
+    }
+    if allInserts {
+      let documents: [T] = batch.operations.compactMap {
+        if case .insert(let document) = $0 { return document } else { return nil }
+      }
+      try await insert(contentsOf: documents)
+      return
+    }
+
+    // Encoding and metadata extraction are independent per operation.
+    let operations: [BatchOperation] = try Parallel.map(batch.operations) { operation in
+      switch operation {
+      case .insert(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .insert(data: data, metadata: metadata)
+      case .update(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .update(data: data, metadata: metadata)
+      case .upsert(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .upsert(data: data, metadata: metadata)
+      case .delete(let id):
+        return .delete(id: id)
+      }
+    }
+    try await core.applyBatch(operations)
   }
 
   /// Replaces the document with the same id.
