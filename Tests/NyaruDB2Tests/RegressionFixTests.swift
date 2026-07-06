@@ -171,6 +171,81 @@ final class RegressionFixTests: XCTestCase {
     try await db.close()
   }
 
+  // MARK: - Fix: index evolution must not race compaction
+
+  /// Adding an indexed field while `compact()` runs must produce a complete
+  /// index. Before the fix, `setIndexedFields` bypassed the compaction gate:
+  /// its rebuild could read post-compaction offsets that the subsequent
+  /// pointer remap silently dropped as "did not survive compaction".
+  func testIndexEvolutionDuringCompactKeepsIndexComplete() async throws {
+    let db = try NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self, options: CollectionOptions(idField: "id"))
+    try await users.insert(contentsOf: (1...400).map { user($0, age: $0) })
+    for id in stride(from: 1, through: 400, by: 2) {
+      _ = try await users.delete(id: id)
+    }
+
+    let compactTask = Task { try await users.compact() }
+    let evolveTask = Task {
+      try await db.collection(
+        "users", of: User.self,
+        options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    }
+    try await compactTask.value
+    let evolved = try await evolveTask.value
+
+    // A covered count is answered from the index alone — dropped entries
+    // make it fall short of the 200 survivors.
+    let indexCount = try await evolved.find()
+      .where("age", isGreaterThanOrEqualTo: 0).count()
+    XCTAssertEqual(indexCount, 200, "index rebuilt during compact lost entries")
+    let scanned = try await evolved.all().count
+    XCTAssertEqual(scanned, 200)
+    try await db.close()
+  }
+
+  // MARK: - Fix: queries must not hold pointers across a compact
+
+  /// Indexed queries running concurrently with delete+compact cycles must
+  /// always return exactly the matching documents. Before the fix, the query
+  /// engine resolved index pointers in one actor call and fetched them in
+  /// another; a compact() scheduled between the two rewrote the shard files
+  /// and the fetch read stale offsets.
+  func testIndexedQueriesDuringCompactStayConsistent() async throws {
+    let db = try NyaruDB(path: baseURL)
+    let users = try await db.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    try await users.insert(contentsOf: (1...300).map { user($0, age: $0) })
+    let expected = Array(100...200)
+
+    // Each round deletes documents BEFORE the queried range and compacts,
+    // shifting the surviving records' offsets while the expected result set
+    // stays constant.
+    let compactor = Task {
+      for batchStart in stride(from: 1, to: 99, by: 20) {
+        let victims = (batchStart..<min(batchStart + 20, 99)).filter { $0 % 2 == 1 }
+        _ = try await users.delete(ids: victims)
+        try await users.compact()
+      }
+    }
+
+    var consistent = true
+    for _ in 0..<40 {
+      let docs = try await users.find()
+        .where("age", isBetween: 100, and: 200).execute()
+      if docs.map(\.id).sorted() != expected { consistent = false }
+    }
+    try await compactor.value
+    XCTAssertTrue(consistent, "query saw stale or missing documents during compact")
+
+    let final = try await users.find()
+      .where("age", isBetween: 100, and: 200).execute()
+    XCTAssertEqual(final.map(\.id).sorted(), expected)
+    try await db.close()
+  }
+
   // MARK: - Fix 4: pull-based stream
 
   func testStreamDeliversAllWithSmallBatches() async throws {

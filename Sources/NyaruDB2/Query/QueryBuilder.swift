@@ -515,9 +515,17 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   // MARK: - Execution
 
-  /// Returns the sliced pointer list when the **entire** query — predicates,
-  /// sort, and pagination — is answered by the index alone, or `nil` when
-  /// in-memory work (residual predicates, unaligned sort) remains.
+  /// A query fully answered by one index lookup: the field, the resolved
+  /// probe, and the pagination to push down to the pointer list.
+  private struct CoveredQuery {
+    let field: String
+    let probe: IndexProbe
+    let slice: (offset: Int, limit: Int?)
+  }
+
+  /// Returns the covered-query description when the **entire** query —
+  /// predicates, sort, and pagination — is answered by the index alone, or
+  /// `nil` when in-memory work (residual predicates, unaligned sort) remains.
   ///
   /// Requirements:
   /// - The plan chose an index lookup and there is exactly one top-level
@@ -526,19 +534,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///   are produced in ascending key order, so offset/limit can be applied
   ///   directly to the pointer list. A **descending** sort cannot reuse that
   ///   order — slicing ascending pointers would page from the wrong end.
-  private func coveredPointers(for planResult: PlanResult) async -> [RecordPointer]? {
+  private func coveredQuery(for planResult: PlanResult) -> CoveredQuery? {
     guard case .indexLookup(let field) = planResult.strategy,
       topLevelPredicateCount() == 1,
-      sortField == nil || (sortField == field && sortAscending)
+      sortField == nil || (sortField == field && sortAscending),
+      let probe = probe(forField: field)
     else { return nil }
-
-    // Range scans can stop as soon as offset+limit pointers are collected —
-    // no need to materialise every match just to slice the head.
-    let needed = limitCount.map { offsetCount + $0 }
-    let pointers = await pointers(forIndexedField: field, maxCount: needed)
-    let start = min(offsetCount, pointers.count)
-    let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
-    return Array(pointers[start..<end])
+    return CoveredQuery(field: field, probe: probe, slice: (offsetCount, limitCount))
   }
 
   /// Fetches candidate documents from the most efficient access path.
@@ -548,14 +550,16 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private func candidates() async throws -> ([Data], Bool) {
     let planResult = await plan()
 
-    if let covered = await coveredPointers(for: planResult) {
-      let data = try await core.fetch(pointers: covered)
+    if let covered = coveredQuery(for: planResult) {
+      let data = try await core.fetch(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
       return (data, true)
     }
 
     switch planResult.strategy {
     case .indexLookup(let field):
-      let data = try await core.fetch(pointers: await pointers(forIndexedField: field))
+      guard let probe = probe(forField: field) else { return ([], false) }
+      let data = try await core.fetch(field: field, probe: probe, slice: nil)
       return (data, false)
 
     case .partitionScan:
@@ -573,14 +577,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     }
   }
 
-  /// Resolves index pointers for the indexed field used in the plan.
-  ///
-  /// - Parameter maxCount: When set, range scans stop after collecting this
-  ///   many pointers. Only pass it when the query is fully covered — residual
-  ///   predicates need every match.
-  private func pointers(forIndexedField field: String, maxCount: Int? = nil) async
-    -> [RecordPointer]
-  {
+  /// Builds the index lookup for the planner-selected field from the first
+  /// pushable top-level predicate on it. The core resolves the probe to
+  /// pointers and reads them inside one compaction-gated call — the query
+  /// layer never holds pointers across an actor hop.
+  private func probe(forField field: String) -> IndexProbe? {
     var topLevelPredicates: [Predicate] = []
     if case .and(let arr) = rootPredicate {
       topLevelPredicates = arr
@@ -591,45 +592,34 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     for predicate in topLevelPredicates where predicate.field == field {
       switch predicate {
       case .equal(_, let value):
-        return await core.indexSearch(field: field, key: value.fieldValue)
+        return .equal(value.fieldValue)
       case .inSet(_, let values):
-        return await core.indexSearchBatch(field: field, keys: values.map { $0.fieldValue })
+        return .inSet(values.map { $0.fieldValue })
       case .between(_, let lower, let upper):
-        return await core.indexRange(
-          field: field,
+        return .range(
           lower: lower.fieldValue, lowerInclusive: true,
-          upper: upper.fieldValue, upperInclusive: true,
-          maxCount: maxCount
-        )
+          upper: upper.fieldValue, upperInclusive: true)
       case .lessThan(_, let value):
-        return await core.indexRange(
-          field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: false,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: nil, lowerInclusive: true,
+          upper: value.fieldValue, upperInclusive: false)
       case .lessThanOrEqual(_, let value):
-        return await core.indexRange(
-          field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: nil, lowerInclusive: true,
+          upper: value.fieldValue, upperInclusive: true)
       case .greaterThan(_, let value):
-        return await core.indexRange(
-          field: field, lower: value.fieldValue, lowerInclusive: false,
-          upper: nil, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: value.fieldValue, lowerInclusive: false,
+          upper: nil, upperInclusive: true)
       case .greaterThanOrEqual(_, let value):
-        return await core.indexRange(
-          field: field, lower: value.fieldValue, lowerInclusive: true,
-          upper: nil, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: value.fieldValue, lowerInclusive: true,
+          upper: nil, upperInclusive: true)
       default:
         continue
       }
     }
-    return []
+    return nil
   }
 
   /// Executes the query and returns all matching documents, decoded.
@@ -643,9 +633,10 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     // matchedParsed, because fetch returns documents in disk order.)
     let raw: [Data]
     if sortField == nil, case let planResult = await plan(),
-      let covered = await coveredPointers(for: planResult)
+      let covered = coveredQuery(for: planResult)
     {
-      raw = try await core.fetch(pointers: covered)
+      raw = try await core.fetch(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
     } else {
       raw = try await matchingDocuments()
     }
@@ -671,8 +662,9 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// pointer list alone — no disk I/O at all.
   public func count() async throws -> Int {
     let planResult = await plan()
-    if let covered = await coveredPointers(for: planResult) {
-      return covered.count
+    if let covered = coveredQuery(for: planResult) {
+      return await core.coveredCount(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
     }
     return try await matchingDocuments().count
   }

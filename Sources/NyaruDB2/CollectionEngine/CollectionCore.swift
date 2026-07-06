@@ -130,6 +130,20 @@ public struct CollectionStats: Sendable {
   public let fragmentationRatio: Double
 }
 
+/// A resolved index lookup produced by the query planner: the single
+/// operation to run against one indexed field.
+///
+/// The query engine hands the core a probe instead of resolved
+/// `RecordPointer`s so that pointer resolution and the reads that
+/// dereference them happen inside one compaction-gated actor call.
+enum IndexProbe: Sendable {
+  case equal(FieldValue)
+  case inSet([FieldValue])
+  case range(
+    lower: FieldValue?, lowerInclusive: Bool,
+    upper: FieldValue?, upperInclusive: Bool)
+}
+
 /// The type-erased engine behind one collection. This actor owns the shard
 /// files, indexes, and manifest for a single collection.
 ///
@@ -943,6 +957,12 @@ actor CollectionCore {
   /// - Throws: I/O errors from manifest writes.
   func setIndexedFields(_ fields: [String]) async throws {
     try ensureOpen()
+    // Rebuilding reads live offsets from shards and installs them in fresh
+    // indexes — a pointer-based operation like any other. Without the gate,
+    // a rebuild racing a compact() indexes offsets that the subsequent
+    // remap silently drops as "did not survive compaction".
+    await beginPointerOp()
+    defer { endPointerOp() }
     let sorted = Array(Set(fields)).sorted()
     guard sorted != manifest.indexedFields else { return }
 
@@ -1063,40 +1083,77 @@ actor CollectionCore {
     Set(fields.filter { indexes[$0] != nil })
   }
 
-  /// Searches an index for all pointers matching the given key.
-  func indexSearch(field: String, key: FieldValue) -> [RecordPointer] {
-    indexes[field]?.search(key) ?? []
-  }
-
-  /// Searches an index for all pointers matching any of the given keys — single actor hop.
-  func indexSearchBatch(field: String, keys: [FieldValue]) -> [RecordPointer] {
+  /// Resolves an index probe to record pointers.
+  ///
+  /// - Parameter maxCount: For range probes, stop after collecting this many
+  ///   pointers (in ascending key order). Ignored by point/set probes.
+  private func resolvePointers(field: String, probe: IndexProbe, maxCount: Int?)
+    -> [RecordPointer]
+  {
     guard let index = indexes[field] else { return [] }
-    var out: [RecordPointer] = []
-    for key in keys { out.append(contentsOf: index.search(key)) }
-    return out
+    switch probe {
+    case .equal(let key):
+      return index.search(key)
+    case .inSet(let keys):
+      var out: [RecordPointer] = []
+      for key in keys { out.append(contentsOf: index.search(key)) }
+      return out
+    case .range(let lower, let lowerInclusive, let upper, let upperInclusive):
+      return index.range(
+        lower: lower, lowerInclusive: lowerInclusive,
+        upper: upper, upperInclusive: upperInclusive,
+        maxCount: maxCount)
+    }
   }
 
-  /// Performs a range lookup on an indexed field, optionally stopping after
-  /// `maxCount` pointers (in ascending key order).
-  func indexRange(
-    field: String,
-    lower: FieldValue?, lowerInclusive: Bool,
-    upper: FieldValue?, upperInclusive: Bool,
-    maxCount: Int? = nil
-  ) -> [RecordPointer] {
-    indexes[field]?.range(
-      lower: lower, lowerInclusive: lowerInclusive,
-      upper: upper, upperInclusive: upperInclusive,
-      maxCount: maxCount
-    ) ?? []
-  }
-
-  /// Fetches the encoded data for a list of pointers.
-  func fetch(pointers: [RecordPointer]) async throws -> [Data] {
+  /// Resolves an index probe and reads the matching documents inside one
+  /// gated section.
+  ///
+  /// Resolving pointers and dereferencing them MUST be atomic with respect
+  /// to compaction: a pointer held across an `await` goes stale when a
+  /// `compact()` rewrites the shard files in between, and the read then
+  /// lands on a tombstone or a different record. Callers therefore never
+  /// hold raw `RecordPointer`s — they describe the lookup and receive data.
+  ///
+  /// - Parameters:
+  ///   - field: The indexed field to probe.
+  ///   - probe: The lookup operation the planner selected.
+  ///   - slice: Optional pagination pushdown `(offset, limit)`. Pass it only
+  ///     when the query is fully covered by the index — residual predicates
+  ///     need every match.
+  func fetch(field: String, probe: IndexProbe, slice: (offset: Int, limit: Int?)?)
+    async throws -> [Data]
+  {
     try ensureOpen()
-    if pointers.isEmpty { return [] }
     await beginPointerOp()
     defer { endPointerOp() }
+
+    // Range scans can stop as soon as offset+limit pointers are collected —
+    // no need to materialise every match just to slice the head.
+    let needed = slice.flatMap { s in s.limit.map { s.offset + $0 } }
+    var pointers = resolvePointers(field: field, probe: probe, maxCount: needed)
+    if let slice {
+      let start = min(slice.offset, pointers.count)
+      let end = min(start + (slice.limit ?? (pointers.count - start)), pointers.count)
+      pointers = Array(pointers[start..<end])
+    }
+    return try await readPointers(pointers)
+  }
+
+  /// Counts the matches of a fully covered query from the index alone —
+  /// zero disk I/O. No gate is needed: nothing dereferences the pointers.
+  func coveredCount(field: String, probe: IndexProbe, slice: (offset: Int, limit: Int?)) -> Int {
+    let needed = slice.limit.map { slice.offset + $0 }
+    let pointers = resolvePointers(field: field, probe: probe, maxCount: needed)
+    let start = min(slice.offset, pointers.count)
+    let end = min(start + (slice.limit ?? (pointers.count - start)), pointers.count)
+    return end - start
+  }
+
+  /// Reads the payloads for already-resolved pointers. The caller must hold
+  /// the compaction gate.
+  private func readPointers(_ pointers: [RecordPointer]) async throws -> [Data] {
+    if pointers.isEmpty { return [] }
 
     var grouped: [String: [UInt64]] = [:]
     for pointer in pointers {
