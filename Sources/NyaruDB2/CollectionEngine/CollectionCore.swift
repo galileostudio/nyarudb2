@@ -308,20 +308,34 @@ actor CollectionCore {
   /// - Index snapshots are missing or failed to load.
   /// - Indexed fields have been added since the last open.
   private func rebuildAllIndexes() async throws {
-    // All shards are already open (opened in init or by prior ops); snapshot them
-    // into a plain array so the task closures can capture them without actor hops.
+    indexes = try await buildIndexes(for: allIndexedFields)
+  }
+
+  /// Scans every shard once and builds fresh indexes for the given fields.
+  ///
+  /// Shards are scanned in parallel — each `ShardActor` is independent — and
+  /// records are parsed across all cores within each shard. Every shard task
+  /// returns its entries already grouped by field, so the final merge is a
+  /// per-field array concatenation instead of a serial regrouping pass over
+  /// all entries.
+  private func buildIndexes(for fields: [String]) async throws -> [String: OrderedIndex] {
+    if fields.isEmpty { return [:] }
+    // All shards are already open (opened in init or by prior ops); snapshot
+    // them into a plain array so the task closures can capture them without
+    // actor hops.
     for shardID in shardURLs.keys { _ = try shard(for: shardID) }
     let allShards = Array(shards)
     let capturedFormat = format
-    let capturedFields = allIndexedFields
+    let capturedFields = fields
 
-    // Scan all shards in parallel — each ShardActor is independent — and
-    // parse records across all cores within each shard.
-    typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
-    let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
+    typealias Entries = [(key: FieldValue, pointer: RecordPointer)]
+    let byField: [String: Entries] = try await withThrowingTaskGroup(
+      of: [String: Entries].self
+    ) { group in
       for (shardID, shard) in allShards {
         group.addTask {
           let records = try await shard.readAllLive()
+          typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
           let perRecord = Parallel.map(records) { record -> [Entry] in
             let values = Serializer.extractFieldValues(
               from: record.data, fields: capturedFields, format: capturedFormat)
@@ -334,26 +348,34 @@ actor CollectionCore {
             }
             return entries
           }
-          return perRecord.flatMap { $0 }
+          var grouped: [String: Entries] = [:]
+          grouped.reserveCapacity(capturedFields.count)
+          for entries in perRecord {
+            for entry in entries {
+              grouped[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
+            }
+          }
+          return grouped
         }
       }
-      var all: [Entry] = []
-      for try await chunk in group { all.append(contentsOf: chunk) }
-      return all
+
+      var merged: [String: Entries] = [:]
+      for field in capturedFields { merged[field] = [] }
+      for try await chunk in group {
+        for (field, entries) in chunk {
+          merged[field, default: []].append(contentsOf: entries)
+        }
+      }
+      return merged
     }
 
-    // Group entries by field and bulk-load fresh indexes in parallel.
-    var byField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
-    for field in capturedFields { byField[field] = [] }
-    for entry in allEntries {
-      byField[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
-    }
-    let built = Parallel.map(Array(byField), serialThreshold: 2) { field, entries -> (String, OrderedIndex) in
+    let built = Parallel.map(Array(byField), serialThreshold: 2) {
+      field, entries -> (String, OrderedIndex) in
       let idx = OrderedIndex()
       idx.bulkLoad(entries)
       return (field, idx)
     }
-    indexes = Dictionary(uniqueKeysWithValues: built)
+    return Dictionary(uniqueKeysWithValues: built)
   }
 
   /// Persists all index snapshots and flushes all shard headers to disk.
@@ -976,44 +998,8 @@ actor CollectionCore {
 
     let missing = wanted.filter { indexes[$0] == nil }
     if !missing.isEmpty {
-      for shardID in shardURLs.keys { _ = try shard(for: shardID) }
-      let allShards = Array(shards)
-      let capturedFormat = format
-      let capturedMissing = Array(missing)
-
-      typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
-      let allEntries: [Entry] = try await withThrowingTaskGroup(of: [Entry].self) { group in
-        for (shardID, shard) in allShards {
-          group.addTask {
-            let records = try await shard.readAllLive()
-            let perRecord = Parallel.map(records) { record -> [Entry] in
-              let values = Serializer.extractFieldValues(
-                from: record.data, fields: capturedMissing, format: capturedFormat)
-              let pointer = RecordPointer(shardID: shardID, offset: record.offset)
-              var entries: [Entry] = []
-              for field in capturedMissing {
-                if let key = values[field] {
-                  entries.append((field: field, key: key, pointer: pointer))
-                }
-              }
-              return entries
-            }
-            return perRecord.flatMap { $0 }
-          }
-        }
-        var all: [Entry] = []
-        for try await chunk in group { all.append(contentsOf: chunk) }
-        return all
-      }
-
-      var byField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
-      for field in capturedMissing { byField[field] = [] }
-      for entry in allEntries { byField[entry.field, default: []].append((key: entry.key, pointer: entry.pointer)) }
-      for (field, entries) in byField {
-        let idx = OrderedIndex()
-        idx.bulkLoad(entries)
-        indexes[field] = idx
-      }
+      let built = try await buildIndexes(for: Array(missing))
+      for (field, idx) in built { indexes[field] = idx }
     }
 
     manifest.indexedFields = sorted

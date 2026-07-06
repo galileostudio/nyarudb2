@@ -277,10 +277,13 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   public func bulkRemove(_ entries: [(key: FieldValue, pointer: RecordPointer)]) {
     if entries.isEmpty { return }
 
-    var toRemove: [FieldValue: [RecordPointer]] = [:]
+    // Victims as a Set per key: membership checks make the sweep O(p) per
+    // posting list instead of O(p × v) with firstIndex per victim. A pointer
+    // is never live under the same key twice, so set semantics are exact.
+    var toRemove: [FieldValue: Set<RecordPointer>] = [:]
     toRemove.reserveCapacity(entries.count)
     for entry in entries {
-      toRemove[entry.key, default: []].append(entry.pointer)
+      toRemove[entry.key, default: []].insert(entry.pointer)
     }
 
     var newKeys: [FieldValue] = []
@@ -297,11 +300,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
         continue
       }
       var list = postings[i]
-      for victim in victims {
-        if let j = list.firstIndex(of: victim) {
-          list.remove(at: j)
-        }
-      }
+      list.removeAll { victims.contains($0) }
       if !list.isEmpty {
         newKeys.append(keys[i])
         newPostings.append(list)
