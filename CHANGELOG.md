@@ -8,6 +8,14 @@ in minor versions).
 ## [0.3.0] — Unreleased
 
 ### Added
+- **Structured logging** via [swift-log](https://github.com/apple/swift-log) —
+  the engine emits structured events at `info`, `debug`, and `warning` levels
+  for database lifecycle, collection open/close, index rebuilds (crash
+  recovery), compaction (start/finish with duration and before/after stats),
+  shard recovery from dirty state, and storage-level crash recovery.
+  Application controls the log level via `NyaruLogger.logLevel` (default
+  `.info`) and can inject a custom `LogHandler` (OSLog, file, telemetry)
+  through `LoggingSystem.bootstrap`. All log messages are in English.
 - `NyaruCollection.writeBatch(_:)` — mixed atomic batches: accumulate
   insert/update/upsert/delete operations and apply them all-or-nothing
   against errors. Every operation is validated before anything is written

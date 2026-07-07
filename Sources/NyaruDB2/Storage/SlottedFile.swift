@@ -249,10 +249,23 @@ final class SlottedFile {
 
     if wasDirty {
       // Crash recovery: never trust the sidecar — verify everything.
+      NyaruLogger.log.warning(
+        "Starting crash recovery for shard",
+        metadata: ["path": "\(url.path)"])
       try scan(verifyCRC: true, repair: true)
       recoveredFromDirty = true
       try sync()
+      NyaruLogger.log.info(
+        "Crash recovery complete",
+        metadata: [
+          "path": "\(url.path)",
+          "liveCount": "\(self.liveCount)",
+          "tombstoneCount": "\(tombstoneCount)",
+        ])
     } else if !loadStateSidecar() {
+      NyaruLogger.log.debug(
+        "Sidecar missing or invalid, scanning shard",
+        metadata: ["path": "\(url.path)"])
       try scan(verifyCRC: false, repair: false)
       // Persist the state so the next clean open skips the scan.
       writeStateSidecar()

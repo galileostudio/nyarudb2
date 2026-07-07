@@ -320,8 +320,20 @@ actor CollectionCore {
 
     let indexSnapshotsLoaded = try loadIndexSnapshots()
     if anyShardDirty || !indexSnapshotsLoaded {
+      NyaruLogger.log.warning(
+        "Rebuilding all indexes",
+        metadata: [
+          "collection": "\(manifest.name)",
+          "reason": "\(anyShardDirty ? "dirty_shards" : "missing_index_snapshots")",
+        ])
       try await rebuildAllIndexes()
     }
+    NyaruLogger.log.debug(
+      "Collection opened",
+      metadata: [
+        "collection": "\(manifest.name)",
+        "shardCount": "\(shardURLs.count)",
+      ])
   }
 
   /// Loads index snapshots from disk for all indexed fields.
@@ -525,6 +537,7 @@ actor CollectionCore {
       try await shard.close()
     }
     isClosed = true
+    NyaruLogger.log.debug("Collection closed", metadata: ["collection": "\(manifest.name)"])
   }
 
   private func ensureOpen() throws {
@@ -1622,9 +1635,19 @@ actor CollectionCore {
   func compact() async throws {
     try ensureOpen()
     let compactionStart = Date()
+    NyaruLogger.log.info(
+      "Compaction started",
+      metadata: ["collection": "\(manifest.name)", "shardCount": "\(shardURLs.count)"])
     defer {
       metricCompactionCount += 1
-      metricLastCompactionDuration = Date().timeIntervalSince(compactionStart)
+      let duration = Date().timeIntervalSince(compactionStart)
+      metricLastCompactionDuration = duration
+      NyaruLogger.log.info(
+        "Compaction finished",
+        metadata: [
+          "collection": "\(manifest.name)",
+          "duration_ms": "\(Int(duration * 1000))",
+        ])
     }
 
     let allShardIDs = Array(shardURLs.keys)
@@ -1633,9 +1656,6 @@ actor CollectionCore {
       await closeGate()
       do {
         let mapping = try await shard.compact()
-        // Remap even when the mapping is empty — it also purges any stale
-        // pointer into this (now empty) shard. Pointers into other shards
-        // pass through untouched.
         let remap = [shardID: mapping]
         let allIndexes = Array(indexes.values)
         _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(remap) }
@@ -1732,6 +1752,7 @@ actor CollectionCore {
   ///
   /// The core must not be used after this is called.
   func destroy() async throws {
+    NyaruLogger.log.info("Destroying collection", metadata: ["collection": "\(manifest.name)"])
     for shard in shards.values {
       try? await shard.close()
     }

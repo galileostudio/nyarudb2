@@ -57,6 +57,11 @@ actor ShardActor {
     let file = try SlottedFile(url: url, fileProtection: fileProtection)
     self.file = file
     self.recoveredFromDirtyAtOpen = file.recoveredFromDirty
+    if file.recoveredFromDirty {
+      NyaruLogger.log.warning(
+        "Shard recovered from dirty state",
+        metadata: ["shard": "\(id)", "path": "\(url.path)"])
+    }
   }
 
   /// The total number of bytes consumed by tombstoned slots.
@@ -311,6 +316,10 @@ actor ShardActor {
   ///   record, so callers can remap index pointers without re-reading or
   ///   re-parsing any document.
   func compact() throws -> [UInt64: UInt64] {
+    let oldFileSize = file.sizeInBytes()
+    let liveBefore = file.liveCount
+    let tombstonesBefore = file.tombstoneCount
+
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
 
@@ -364,6 +373,18 @@ actor ShardActor {
     // The compacted file's state is fully known — adopt it without rescanning.
     self.file = try SlottedFile(
       adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(oldOffsets.count))
+    let saved = oldFileSize > newSize ? Int64(oldFileSize) - Int64(newSize) : 0
+    NyaruLogger.log.debug(
+      "Shard compacted",
+      metadata: [
+        "shard": "\(id)",
+        "liveBefore": "\(liveBefore)",
+        "tombstonesBefore": "\(tombstonesBefore)",
+        "liveAfter": "\(file.liveCount)",
+        "sizeBefore": "\(oldFileSize)",
+        "sizeAfter": "\(newSize)",
+        "bytesSaved": "\(saved)",
+      ])
     return mapping
   }
 

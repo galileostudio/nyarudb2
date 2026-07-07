@@ -285,6 +285,33 @@ There are no background timers — an idle database never wakes up. The expensiv
 
 `collection.metrics()` returns cumulative counters — which access paths queries actually took (index lookups, covered queries, full/partition scans), shard I/O bytes, compaction activity, and whether any shard needed crash recovery at open. Use it to verify that the queries you expect to be index-served really are.
 
+### Logging
+
+NyaruDB2 uses [swift-log](https://github.com/apple/swift-log) to emit structured log events from the engine internals. By default, logs go to `stdout` at `.info` level.
+
+```swift
+// Control the log level
+NyaruLogger.logLevel = .debug   // see detailed compaction stats, sidecar negotiation
+NyaruLogger.logLevel = .trace   // every index probe and read
+
+// Route to OSLog, a file, or a telemetry backend
+import Logging
+import OSLog
+
+LoggingSystem.bootstrap { label in
+    var handler = StreamLogHandler.standardOutput(label: label)
+    handler.logLevel = .info
+    return handler
+}
+```
+
+| Level | Emitted when |
+|---|---|
+| `info` | Database/collection open/close, compaction start/finish with duration |
+| `warning` | Index rebuild (crash recovery), shard recovered from dirty state |
+| `debug` | Collection closed, sidecar-scan fallback, shard compaction stats (before/after) |
+| `trace` | Individual index probes and shard reads (off by default) |
+
 ---
 
 ## Serialization & Compression

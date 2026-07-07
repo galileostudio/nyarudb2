@@ -141,6 +141,7 @@ public actor NyaruDB {
     self.baseURL = path
     self.options = options
     try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+    NyaruLogger.log.info("Database opened", metadata: ["path": "\(path.path)"])
   }
 
   /// Opens or creates a database at the given filesystem path string.
@@ -349,6 +350,7 @@ public actor NyaruDB {
   ///   close operations.
   public func close() async throws {
     guard !isClosed else { return }
+    NyaruLogger.log.info("Closing database", metadata: ["path": "\(baseURL.path)"])
     var firstError: Error? = nil
 
     for core in cores.values {
@@ -363,5 +365,6 @@ public actor NyaruDB {
     isClosed = true
 
     if let error = firstError { throw error }
+    NyaruLogger.log.info("Database closed", metadata: ["path": "\(baseURL.path)"])
   }
 }
