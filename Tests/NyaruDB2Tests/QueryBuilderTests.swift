@@ -153,6 +153,46 @@ final class QueryAdvancedTests: XCTestCase {
     XCTAssertEqual(distinctCountries.count, 3)
   }
 
+  /// Distinct on an indexed field whose single predicate is the covered
+  /// lookup on that same field must be answered from the index keys —
+  /// values arrive in ascending index order.
+  func testDistinctValuesCoveredBySameFieldPredicate() async throws {
+    let ages = try await users.find()
+      .where("age", isBetween: 26, and: 70)
+      .distinctValues(on: "age")
+    var out = [Int64]()
+    for value in ages {
+      if case .int(let i) = value { out.append(i) }
+    }
+    XCTAssertEqual(out, [30, 65, 70])
+  }
+
+  /// Distinct on an unindexed field must fall back to the scan path.
+  func testDistinctValuesOnUnindexedFieldFallsBack() async throws {
+    let cities = try await users.find().distinctValues(on: "city")
+    XCTAssertEqual(
+      Set(cities),
+      Set(["Recife", "New York", "Lisboa", "Olinda", "Boston"].map { FieldValue.string($0) }))
+  }
+
+  /// exists/notExists must behave identically through the extracted-values
+  /// evaluation, including on the parallel path (300 docs > threshold).
+  func testExistsPredicatesOverExtractedValues() async throws {
+    struct Note: Codable, Sendable {
+      var id: Int
+      var note: String?
+    }
+    let notes = try await db.collection(
+      "notes", of: Note.self, options: CollectionOptions(idField: "id"))
+    try await notes.insert(
+      contentsOf: (1...300).map { Note(id: $0, note: $0 % 3 == 0 ? "n\($0)" : nil) })
+
+    let withNote = try await notes.find().whereExists("note").execute()
+    XCTAssertEqual(withNote.count, 100)
+    let withoutNote = try await notes.find().whereNotExists("note").count()
+    XCTAssertEqual(withoutNote, 200)
+  }
+
   // MARK: - 4. Memory Optimization (Limit & Offset without Sort)
 
   func testLimitStopsEarlyWithoutSort() async throws {

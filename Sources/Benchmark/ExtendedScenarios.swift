@@ -389,43 +389,47 @@ enum ExtendedScenarios {
 
   /// Queries whose predicates cannot be pushed to an index: every candidate
   /// is parsed and evaluated in memory. Exercises the parse+evaluate loop
-  /// and the sort+limit path over large candidate sets.
+  /// and the sort+limit path over large candidate sets, at two payload
+  /// sizes — small documents are the worst case for skip-scan extraction
+  /// (nothing to skip), large ones its motivation.
   static func residualPredicates(docs: Int) async throws {
-    print("\(ANSI.bold)📈 Residual-predicate queries over \(docs) candidates\(ANSI.reset)")
-    print("\(ANSI.FG.gray)compression none, msgpack, id index only — predicates evaluated in memory\(ANSI.reset)\n")
+    for (label, contentSize, count) in [("small (~64 B)", 64, docs), ("large (~1 KiB)", 1_024, docs / 4)] {
+      print("\(ANSI.bold)📈 Residual-predicate queries, \(count) docs, content \(label)\(ANSI.reset)")
+      print("\(ANSI.FG.gray)compression none, msgpack, id index only — predicates evaluated in memory\(ANSI.reset)\n")
 
-    let dir = tempDir("residual")
-    defer { try? FileManager.default.removeItem(at: dir) }
-    let db = try openDB(dir)
-    let collection = try await db.collection(
-      "test", of: TestDocument.self, options: CollectionOptions(idField: "id"))
-    try await bulkFill(collection, range: 1..<(docs + 1))
+      let dir = tempDir("residual")
+      defer { try? FileManager.default.removeItem(at: dir) }
+      let db = try openDB(dir)
+      let collection = try await db.collection(
+        "test", of: TestDocument.self, options: CollectionOptions(idField: "id"))
+      try await bulkFill(collection, range: 1..<(count + 1), contentSize: contentSize)
 
-    func time(_ label: String, _ body: () async throws -> Int) async rethrows {
-      let start = CFAbsoluteTimeGetCurrent()
-      let hits = try await body()
-      let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
-      print(
-        "  " + label.padding(toLength: 52, withPad: " ", startingAt: 0)
-          + String(format: "%8.1f ms  (%d hits)", ms, hits))
-    }
+      func time(_ label: String, _ body: () async throws -> Int) async rethrows {
+        let start = CFAbsoluteTimeGetCurrent()
+        let hits = try await body()
+        let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        print(
+          "  " + label.padding(toLength: 52, withPad: " ", startingAt: 0)
+            + String(format: "%8.1f ms  (%d hits)", ms, hits))
+      }
 
-    try await time("full scan + endsWith filter") {
-      try await collection.find().where("name", endsWith: "7").execute().count
+      try await time("full scan + endsWith filter") {
+        try await collection.find().where("name", endsWith: "7").execute().count
+      }
+      try await time("same filter + sort(id) + limit(10)") {
+        try await collection.find().where("name", endsWith: "7")
+          .sort(by: "id").limit(10).execute().count
+      }
+      try await time("same filter + sort(id) desc + offset(20) + limit(10)") {
+        try await collection.find().where("name", endsWith: "7")
+          .sort(by: "id", ascending: false).offset(20).limit(10).execute().count
+      }
+      try await time("count() with residual filter") {
+        try await collection.find().where("name", contains: "99").count()
+      }
+      try await db.close()
+      print("")
     }
-    try await time("same filter + sort(id) + limit(10)") {
-      try await collection.find().where("name", endsWith: "7")
-        .sort(by: "id").limit(10).execute().count
-    }
-    try await time("same filter + sort(id) desc + offset(20) + limit(10)") {
-      try await collection.find().where("name", endsWith: "7")
-        .sort(by: "id", ascending: false).offset(20).limit(10).execute().count
-    }
-    try await time("count() with residual filter") {
-      try await collection.find().where("name", contains: "99").count()
-    }
-    try await db.close()
-    print("")
   }
 
   // MARK: H4.4 — memory peaks on whole-shard scans (gates M1/M2)

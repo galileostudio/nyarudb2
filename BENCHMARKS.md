@@ -53,12 +53,33 @@ waited the full 57 ms. This is the head-of-line blocking C1 addresses.
 in memory over every candidate. Baseline recorded before the parallel
 parse+evaluate and top-K work:
 
-| query | baseline (ms) |
-|---|---|
-| full scan + endsWith filter (20k hits) | 289.3 |
-| same filter + sort(id) + limit(10) | 286.1 |
-| same + sort desc + offset(20) + limit(10) | 275.6 |
-| count() with residual filter | 322.8 |
+| query | baseline (ms) | after Q2/Q4 (ms) |
+|---|---|---|
+| full scan + endsWith filter (20k hits) | 289.3 | ~185 |
+| same filter + sort(id) + limit(10) | 286.1 | ~172 |
+| same + sort desc + offset(20) + limit(10) | 275.6 | ~175 |
+| count() with residual filter | 322.8 | ~150 |
+
+### Rejected: skip-scan evaluation for residual predicates (roadmap Q3)
+
+Measured and reverted. Replacing the per-candidate full parse with
+`extractTopLevelFields` + evaluation over `[String: FieldValue]` was
+consistently SLOWER, even after removing all per-document overhead
+(pre-computed UTF-8 key plan, memcmp key matching, no Set/String
+allocations per doc), and even in the motivating case of large unwanted
+payload fields:
+
+| query | full parse (ms) | skip-scan flat (ms) |
+|---|---|---|
+| small docs: filter / sort+limit / count | 182 / 169 / 150 | 189 / 226 / 165 |
+| 1 KiB docs: filter / sort+limit / count | 65 / 57 / 50 | 68 / 72 / 56 |
+
+Root cause: the native MsgPack `extractDictionary` is already fast enough
+that skipping values saves less than the extraction's own result-building
+costs in the query loop. Skip-scan remains the right tool where it
+already lives — single-pass metadata extraction on the write path
+(`extractMetadata`), where the alternative is parsing per indexed field.
+Do not reintroduce without a benchmark showing otherwise.
 
 ## memory — footprint peaks on whole-shard scans (gates M1/M2)
 

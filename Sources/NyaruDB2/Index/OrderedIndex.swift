@@ -133,6 +133,22 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     return out
   }
 
+  /// All distinct keys, in ascending order. Every key holds at least one
+  /// live posting (emptied keys are removed by every removal path).
+  var allKeys: [FieldValue] { keys }
+
+  /// The distinct keys within the given bounds, in ascending order —
+  /// `range(...)`'s bound semantics without materialising any postings.
+  func keysInRange(
+    lower: FieldValue?, lowerInclusive: Bool,
+    upper: FieldValue?, upperInclusive: Bool
+  ) -> [FieldValue] {
+    let start = lower.map { lowerInclusive ? lowerBound($0) : upperBound($0) } ?? 0
+    let end = upper.map { upperInclusive ? upperBound($0) : lowerBound($0) } ?? keys.count
+    guard start < end, start < keys.count else { return [] }
+    return Array(keys[start..<min(end, keys.count)])
+  }
+
   // MARK: - Mutation
 
   /// Inserts a pointer for the given key. If the key already exists, the

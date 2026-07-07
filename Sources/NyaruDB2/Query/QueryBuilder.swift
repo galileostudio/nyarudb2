@@ -673,7 +673,23 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Parameter field: The field to collect distinct values from.
   /// - Returns: An array of distinct `FieldValue` instances.
   public func distinctValues(on field: String) async throws -> [FieldValue] {
-    let (raw, _) = try await candidates(planResult: await plan())
+    let planResult = await plan()
+
+    // Covered fast path: when the field is indexed and either there are no
+    // predicates or the single predicate is the index lookup on this same
+    // field, the index enumerates the distinct values with zero disk I/O.
+    // Note: this path returns values in ascending (index) order rather than
+    // first-encounter order — the API makes no ordering promise.
+    if isEmptyPredicate {
+      if let keys = await core.distinctKeys(field: field, probe: nil) { return keys }
+    } else if case .indexLookup(let planField) = planResult.strategy,
+      planField == field, topLevelPredicateCount() == 1, let probe = planResult.probe,
+      let keys = await core.distinctKeys(field: field, probe: probe)
+    {
+      return keys
+    }
+
+    let (raw, _) = try await candidates(planResult: planResult)
     var seen = Set<FieldValue>()
     var result: [FieldValue] = []
 
@@ -687,6 +703,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       }
     }
     return result
+  }
+
+  /// Whether the query has no predicates at all (bare `find()`).
+  private var isEmptyPredicate: Bool {
+    if case .and(let predicates) = rootPredicate { return predicates.isEmpty }
+    return false
   }
 
   /// Deletes all matching documents and returns the number removed.

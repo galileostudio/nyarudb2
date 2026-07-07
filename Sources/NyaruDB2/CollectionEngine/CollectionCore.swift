@@ -1531,6 +1531,34 @@ actor CollectionCore {
     return try await readPointers(pointers)
   }
 
+  /// Answers a distinct-values query straight from an index — zero I/O.
+  ///
+  /// - Parameter probe: `nil` means "no predicate": every key qualifies.
+  /// - Returns: The distinct keys in ascending index order, or `nil` when
+  ///   the field has no index (the caller falls back to scanning).
+  func distinctKeys(field: String, probe: IndexProbe?) -> [FieldValue]? {
+    guard let index = indexes[field] else { return nil }
+    metricIndexLookups += 1
+    metricCoveredQueries += 1
+    switch probe {
+    case nil:
+      return index.allKeys
+    case .equal(let key):
+      return index.contains(key) ? [key] : []
+    case .inSet(let keys):
+      var seen = Set<FieldValue>()
+      var out: [FieldValue] = []
+      for key in keys where index.contains(key) && seen.insert(key).inserted {
+        out.append(key)
+      }
+      return out.sorted()
+    case .range(let lower, let lowerInclusive, let upper, let upperInclusive):
+      return index.keysInRange(
+        lower: lower, lowerInclusive: lowerInclusive,
+        upper: upper, upperInclusive: upperInclusive)
+    }
+  }
+
   /// Counts the matches of a fully covered query from the index alone —
   /// zero disk I/O. No gate is needed: nothing dereferences the pointers.
   func coveredCount(field: String, probe: IndexProbe, slice: (offset: Int, limit: Int?)) -> Int {
