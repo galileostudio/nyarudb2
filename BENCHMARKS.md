@@ -25,6 +25,25 @@ array's memmove), reaching ~0.26 ms p50 / ~1 ms p99 at 1M docs. Point reads
 stay flat (binary search). Bulk inserts are unaffected (`bulkLoad` merges).
 Sequential/ascending ids always append and stay at the 10k-size cost.
 
+### Decision E1: O(log n) index structure — NOT NOW
+
+The curve confirms the O(n) unit insert but also bounds its impact:
+
+- At 100k docs (a large mobile collection) a random-position unit insert
+  costs 35 µs p50 — irrelevant for any interactive workload.
+- At 1M docs it costs 262 µs p50 / ~1 ms p99, which still sustains
+  ~3 800 unit inserts/s. Reads never degrade.
+- Every batch write path (`insert(contentsOf:)`, `writeBatch`) uses the
+  O(n + m) merge and is unaffected at any size — 1M docs bulk-load in
+  2.8 s. Ascending ids (the most common id scheme) always append.
+
+A B-tree/skip-list buys something only for sustained high-frequency
+unitary writes on 500k+ document collections — a server workload, not
+this database's target. Revisit if that target changes; the swap stays
+contained behind `OrderedIndex`'s interface (final class, and the NYI1
+snapshot format serialises ordered entries, agnostic to the in-memory
+structure).
+
 ## concurrency — read latency under writes and compaction (gates C1)
 
 50k docs, 8 partition shards, `get(id:)` latencies.

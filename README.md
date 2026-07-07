@@ -35,7 +35,7 @@ NyaruDB2 is a good fit when:
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/galileostudio/NyaruDB2.git", from: "0.2.0")
+    .package(url: "https://github.com/galileostudio/NyaruDB2.git", from: "0.3.0")
 ],
 targets: [
     .target(name: "YourApp", dependencies: ["NyaruDB2"])
@@ -80,11 +80,13 @@ try await articles.insert(Article(id: 1, title: "Hello", author: "Ana", publishe
 // Bulk insert — validates all documents before writing any
 try await articles.insert(contentsOf: moreArticles)
 
-// Buffered bulk insert — accumulate from multiple sources, flush once
-try await articles.insertBatch { batch in
-    for chunk in incomingChunks {
-        batch.insert(contentsOf: chunk)   // synchronous, no await
-    }
+// Write batch — accumulate mixed operations (synchronously, no await),
+// validated up front and applied all-or-nothing against errors
+try await articles.writeBatch { batch in
+    batch.insert(newArticle)
+    batch.update(editedArticle)
+    batch.upsert(maybeNewArticle)
+    batch.delete(id: 42)
 }
 
 // Query
@@ -183,6 +185,30 @@ users.find()
 let plan = await users.find().where("score", isGreaterThan: 50).explain()
 ```
 
+### Atomic write batches
+
+`writeBatch` accumulates mixed operations and applies them as one all-or-nothing unit:
+
+```swift
+try await users.writeBatch { batch in
+    batch.insert(newUser)
+    batch.update(changedUser)
+    batch.delete(id: retiredUserID)
+}
+```
+
+Every operation is validated **before** anything is written: a duplicate id, a missing update target, a thrown body, or two operations on the same id abort the batch with zero side effects, and a failed write is rolled back. This is atomicity against *errors*, not crashes — NyaruDB2 has no write-ahead log by design, so a process crash mid-flush can persist part of the batch (per-record CRC + dirty-flag recovery still guarantees integrity of what was written). At most one operation may target a given document id per batch.
+
+There are exactly three ways to write, each with a distinct purpose and the same all-or-nothing validation:
+
+| | Use when |
+|---|---|
+| `insert(_:)` / `update(_:)` / `upsert(_:)` / `delete(id:)` | One document at a time |
+| `insert(contentsOf:)` | You already hold an array of new documents |
+| `writeBatch(_:)` | Accumulating from multiple sources, or mixing inserts with updates/deletes |
+
+An insert-only `writeBatch` takes the same fast path as `insert(contentsOf:)` — pick by ergonomics, not performance.
+
 ### Partitioning
 
 When documents share a partition key (e.g. `region`, `category`), route them to dedicated shard files:
@@ -237,7 +263,27 @@ if try await articles.needsCompaction() {
 }
 ```
 
-Compaction preserves encryption and compression, runs up to 3 shards concurrently, and never re-reads documents: each shard reports its old→new offset map and index pointers are remapped in place. A compaction gate suspends concurrent reads/writes while shard files are being swapped, so there is no stale-pointer window — and reused payload checksums mean nothing is re-hashed.
+Compaction preserves encryption and compression and never re-reads documents: each shard reports its old→new offset map and index pointers are remapped in place, with payload checksums reused so nothing is re-hashed. It runs **incrementally, one shard at a time** — concurrent reads and writes interleave between shard cycles, so the worst-case stall is a single shard's rewrite, not the whole compaction (on an 8-shard benchmark, `get()` p99 during compaction is ~4 µs).
+
+### Durability
+
+Records are durable as they are written; *recovery-free* opens additionally require a `sync()`, which persists index snapshots, flushes shard state, and clears the dirty flags:
+
+```swift
+// Explicit — e.g. on scenePhase == .background
+try await articles.sync()      // one collection
+try await db.sync()            // every open collection
+
+// Or automatic, via DatabaseOptions:
+DatabaseOptions(autoSync: .afterWrites(500))     // every 500 written documents
+DatabaseOptions(autoSync: .interval(30))         // first write ≥30 s after the last sync
+```
+
+There are no background timers — an idle database never wakes up. The expensive part of a sync (encoding and compressing index snapshots) runs off the collection's actor over copy-on-write captures, so reads and writes keep flowing while it happens. Without any sync, a crash simply pays the recovery scan on the next open.
+
+### Metrics
+
+`collection.metrics()` returns cumulative counters — which access paths queries actually took (index lookups, covered queries, full/partition scans), shard I/O bytes, compaction activity, and whether any shard needed crash recovery at open. Use it to verify that the queries you expect to be index-served really are.
 
 ---
 
@@ -261,9 +307,9 @@ Measured with the bundled benchmark (10,000 documents, batch size 1,000, Apple S
 
 | | InsertMany | InsertBatch | Delete (1k) | Compact | File size |
 |---|---|---|---|---|---|
-| NyaruDB2 (gzip + msgpack) | 97 | 93 | 7.6 | **17.7** | **1.1 MB** |
-| NyaruDB2 (none + msgpack) | 41 | 38 | 7.5 | 29.7 | 11.4 MB |
-| SQLite (WAL) | 34 | 33 | 0.7 | 23.0 | 11.8 MB |
+| NyaruDB2 (gzip + msgpack) | 97 | 91 | 5.3 | **19.0** | **1.1 MB** |
+| NyaruDB2 (none + msgpack) | 41 | 39 | 5.3 | 31.6 | 11.4 MB |
+| SQLite (WAL) | 36 | 31 | 0.8 | 24.4 | 11.8 MB |
 
 Highlights:
 - **Uncompressed inserts run within ~15% of SQLite** — with gzip enabled, the extra time buys a file ~10× smaller.
@@ -283,7 +329,13 @@ swift run -c release NyaruDB2Benchmark --compression none --format msgpack -d 10
 - **Parallel CPU pipeline** — compression, encryption, encoding, decoding, checksums, and index merges all fan out across cores for batch operations.
 - **Skip-scan extraction** — MsgPack index keys are extracted by skipping over unwanted fields via length prefixes; large content fields are never decoded just to index a document.
 - **Binary index snapshots** — hand-rolled snapshot format with interned shard IDs, an order of magnitude faster than Codable to persist and load.
+- **Streaming incremental compaction** — live records flow into the compacted file in bounded zero-copy chunks (peak memory near the shard size instead of ~3× it), one shard at a time so reads never queue behind the whole compaction.
+- **Chunked scans** — whole-file walks (scans, rebuilds, recovery) use a 4 MiB sliding window: a 764 MB shard rebuild peaks at +139 MB instead of +780 MB.
+- **Parallel multi-shard reads** — pointer fetches and full scans read independent shards concurrently, so latency tracks the slowest shard, not the sum.
+- **Parallel residual queries** — non-indexed predicates are evaluated across all cores, and `sort + limit` selects through a bounded top-K heap instead of sorting every match.
 - **O(1) clean opens** — see [Crash Recovery & Fast Opens](#crash-recovery--fast-opens).
+
+Extended scenarios (unit-insert scaling curve, read latency under compaction, memory peaks, residual predicates) and their recorded baselines live in [BENCHMARKS.md](BENCHMARKS.md).
 
 ---
 
