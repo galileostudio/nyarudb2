@@ -269,10 +269,15 @@ final class SlottedFile {
 
   /// Best-effort write of the sidecar — failure just means the next open
   /// falls back to scanning.
+  ///
+  /// Format v2 ends with a CRC-32 of everything before it. The structural
+  /// checks (magic, version, file size, exact byte count) catch truncation
+  /// and staleness but not bit rot — and a corrupt slot list is not a
+  /// statistics bug: it would hand a live record's slot to best-fit reuse.
   private func writeStateSidecar() {
     var out = Data()
     out.append(contentsOf: Self.stateMagic)
-    Binary.append(UInt16(1), to: &out)  // version
+    Binary.append(UInt16(2), to: &out)  // version
     Binary.append(fileSize, to: &out)
     Binary.append(liveCount, to: &out)
     Binary.append(UInt32(freeSlots.count), to: &out)
@@ -280,22 +285,26 @@ final class SlottedFile {
       Binary.append(slot.offset, to: &out)
       Binary.append(slot.capacity, to: &out)
     }
+    Binary.append(Compressor.crc32Checksum(out), to: &out)
     try? out.write(to: stateURL, options: .atomic)
   }
 
   /// Attempts to adopt the sidecar state. Returns `false` (caller must scan)
-  /// when the sidecar is missing, malformed, from another version, or does
-  /// not match the current file size.
+  /// when the sidecar is missing, malformed, from another version, fails its
+  /// content CRC, or does not match the current file size. Version 1
+  /// sidecars (no CRC) are rejected — the open scans once and rewrites v2.
   private func loadStateSidecar() -> Bool {
     guard let data = try? Data(contentsOf: stateURL) else { return false }
     let slotsStart = 22
-    guard data.count >= slotsStart,
+    guard data.count >= slotsStart + 4,
       [UInt8](data.prefix(4)) == Self.stateMagic,
-      Binary.readUInt16(data, at: 4) == 1,
+      Binary.readUInt16(data, at: 4) == 2,
       Binary.readUInt64(data, at: 6) == fileSize,
       let live = Binary.readUInt32(data, at: 14),
       let slotCount = Binary.readUInt32(data, at: 18),
-      data.count == slotsStart + Int(slotCount) * 12
+      data.count == slotsStart + Int(slotCount) * 12 + 4,
+      let storedCRC = Binary.readUInt32(data, at: data.count - 4),
+      Compressor.crc32Checksum(data.prefix(data.count - 4)) == storedCRC
     else { return false }
 
     var slots: [(offset: UInt64, capacity: UInt32)] = []
@@ -522,9 +531,15 @@ final class SlottedFile {
     try markDirtyIfNeeded()
     let length = UInt32(payload.count)
 
-    if let index = bestFitFreeSlot(for: length) {
+    while let index = bestFitFreeSlot(for: length) {
       let slot = freeSlots.remove(at: index)
-      _deadBytes -= UInt64(slot.capacity)
+      _deadBytes -= min(_deadBytes, UInt64(slot.capacity))
+      guard isReusableSlot(slot) else {
+        // The on-disk header disagrees with the free list (corrupt or stale
+        // state) — never overwrite. The slot is forgotten; if it really was
+        // dead, the next compaction reclaims it.
+        continue
+      }
       try writeRecord(
         at: slot.offset, capacity: slot.capacity,
         payload: payload, compression: compression
@@ -550,6 +565,21 @@ final class SlottedFile {
     let g = slotGranularity
     if length == 0 { return g }
     return ((length + g - 1) / g) * g
+  }
+
+  /// Defence in depth for free-slot reuse: a corrupt sidecar (or any bug in
+  /// free-list bookkeeping) could list a LIVE record's slot as free, and
+  /// best-fit would silently overwrite it — data loss, not a statistics
+  /// error. One 16-byte pread confirms the on-disk header agrees with the
+  /// free list — tombstoned, same capacity — before the slot is written over.
+  private func isReusableSlot(_ slot: (offset: UInt64, capacity: UInt32)) -> Bool {
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    guard let header = try? handle.read(count: headerSize, at: slot.offset),
+      header.count == headerSize,
+      Binary.readUInt32(header, at: 0) == slot.capacity,
+      header[header.startIndex + 8] & RecordFlags.tombstone != 0
+    else { return false }
+    return true
   }
 
   /// Finds the index of the smallest free slot that fits the given length
