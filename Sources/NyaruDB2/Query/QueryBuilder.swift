@@ -737,46 +737,90 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
     let requiresFullEvaluation = sortField != nil
 
+    // Parse + evaluate is independent per document — fan it out when the
+    // candidate set is large enough to amortise threads AND the serial
+    // loop's early exit would not skip most of the work anyway (with a
+    // small limit and no sort, the serial loop stops after ~offset+limit
+    // matches; parallelising would parse everything just to discard it).
+    let neededHead = limitCount.map { offsetCount + $0 }
+    let parallel =
+      raw.count >= 256
+      && (requiresFullEvaluation || neededHead == nil || raw.count > 4 * neededHead!)
+
     var matched: [(dict: [String: Any], json: Data)] = []
-    var skipped = 0
 
-    for json in raw {
-      guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
-
-      // A fully covered query has no residual predicates — the index already
-      // guaranteed the match, so re-evaluating the tree is redundant.
-      if alreadyPaginated || Self.evaluate(rootPredicate, in: dict) {
-        if requiresFullEvaluation || alreadyPaginated {
-          // Pagination was either pushed down to the pointer list or is
-          // applied after the in-memory sort below.
-          matched.append((dict, json))
-        } else {
-          if skipped < offsetCount {
-            skipped += 1
-            continue
-          }
-          matched.append((dict, json))
-          if let limitCount, matched.count >= limitCount {
-            break
+    if parallel {
+      let format = self.format
+      let rootPredicate = self.rootPredicate
+      let processed = Parallel.map(raw) { json -> (dict: [String: Any], json: Data)? in
+        guard let dict = try? FieldExtractor.parse(json, using: format) else { return nil }
+        // A fully covered query has no residual predicates — the index
+        // already guaranteed the match.
+        guard alreadyPaginated || Self.evaluate(rootPredicate, in: dict) else { return nil }
+        return (dict: dict, json: json)
+      }
+      matched = processed.compactMap { $0 }
+      if !requiresFullEvaluation, !alreadyPaginated, let limitCount, matched.count > limitCount {
+        // Parallel.map preserves order, so the head matches the serial loop.
+        matched = Array(matched.prefix(limitCount))
+      }
+    } else {
+      var skipped = 0
+      for json in raw {
+        guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
+        if alreadyPaginated || Self.evaluate(rootPredicate, in: dict) {
+          if requiresFullEvaluation || alreadyPaginated {
+            // Pagination was either pushed down to the pointer list or is
+            // applied after the in-memory sort below.
+            matched.append((dict, json))
+          } else {
+            if skipped < offsetCount {
+              skipped += 1
+              continue
+            }
+            matched.append((dict, json))
+            if let limitCount, matched.count >= limitCount {
+              break
+            }
           }
         }
       }
     }
 
     if requiresFullEvaluation, let sortField {
-      matched.sort { lhs, rhs in
-        let a = FieldExtractor.value(in: lhs.dict, path: sortField) ?? .null
-        let b = FieldExtractor.value(in: rhs.dict, path: sortField) ?? .null
-        return sortAscending ? a < b : b < a
-      }
-
-      // Offset/limit only apply here when they were not pushed down.
-      if !alreadyPaginated {
-        if offsetCount > 0 {
-          matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
+      if !alreadyPaginated, let limitCount {
+        // Top-K selection: only offset+limit rows survive the slice, so a
+        // bounded heap does O(n log k) comparisons and retains k elements
+        // instead of sorting every match. The sort key is extracted once
+        // per element, not once per comparison.
+        var top = BoundedTopK<(key: FieldValue, dict: [String: Any], json: Data)>(
+          k: offsetCount + limitCount
+        ) { sortAscending ? $0.key < $1.key : $1.key < $0.key }
+        for item in matched {
+          top.insert(
+            (
+              key: FieldExtractor.value(in: item.dict, path: sortField) ?? .null,
+              dict: item.dict, json: item.json
+            ))
         }
-        if let limitCount, matched.count > limitCount {
-          matched = Array(matched.prefix(limitCount))
+        let selected = top.sorted()
+        let start = min(offsetCount, selected.count)
+        matched = selected[start...].map { (dict: $0.dict, json: $0.json) }
+      } else {
+        matched.sort { lhs, rhs in
+          let a = FieldExtractor.value(in: lhs.dict, path: sortField) ?? .null
+          let b = FieldExtractor.value(in: rhs.dict, path: sortField) ?? .null
+          return sortAscending ? a < b : b < a
+        }
+
+        // Offset/limit only apply here when they were not pushed down.
+        if !alreadyPaginated {
+          if offsetCount > 0 {
+            matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
+          }
+          if let limitCount, matched.count > limitCount {
+            matched = Array(matched.prefix(limitCount))
+          }
         }
       }
     }

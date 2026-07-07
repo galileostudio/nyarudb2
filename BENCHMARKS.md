@@ -47,6 +47,19 @@ waited the full 57 ms. This is the head-of-line blocking C1 addresses.
 - 30k docs across 150 partition shards: insert 0.16 s, partition query
   (200 hits) 0.7 ms, full scan 20.6 ms (peak +2.7 MB), compact 118 ms.
 
+## residual — residual-predicate queries (gates Q2/Q4)
+
+200k docs, compression none, msgpack, id index only — predicates evaluated
+in memory over every candidate. Baseline recorded before the parallel
+parse+evaluate and top-K work:
+
+| query | baseline (ms) |
+|---|---|
+| full scan + endsWith filter (20k hits) | 289.3 |
+| same filter + sort(id) + limit(10) | 286.1 |
+| same + sort desc + offset(20) + limit(10) | 275.6 |
+| count() with residual filter | 322.8 |
+
 ## memory — footprint peaks on whole-shard scans (gates M1/M2)
 
 64k docs × ~8 KiB, compression none, single 764 MB shard.

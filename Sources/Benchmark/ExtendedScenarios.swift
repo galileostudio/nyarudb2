@@ -138,8 +138,11 @@ enum ExtendedScenarios {
         try await bigDocsAndManyShards()
       case "memory":
         try await memoryPeaks(docs: explicitCount ? documentCount : 64_000)
+      case "residual":
+        try await residualPredicates(docs: explicitCount ? documentCount : 200_000)
       default:
-        print("Unknown scenario '\(name)'. Available: curve, concurrency, bigdocs, memory")
+        print(
+          "Unknown scenario '\(name)'. Available: curve, concurrency, bigdocs, memory, residual")
         Foundation.exit(1)
       }
     } catch {
@@ -379,6 +382,49 @@ enum ExtendedScenarios {
           mb(scanPeak > baseline ? scanPeak - baseline : 0), stats.shardCount, compactTime))
       try await db.close()
     }
+    print("")
+  }
+
+  // MARK: — residual-predicate queries (gates Q2/Q4)
+
+  /// Queries whose predicates cannot be pushed to an index: every candidate
+  /// is parsed and evaluated in memory. Exercises the parse+evaluate loop
+  /// and the sort+limit path over large candidate sets.
+  static func residualPredicates(docs: Int) async throws {
+    print("\(ANSI.bold)📈 Residual-predicate queries over \(docs) candidates\(ANSI.reset)")
+    print("\(ANSI.FG.gray)compression none, msgpack, id index only — predicates evaluated in memory\(ANSI.reset)\n")
+
+    let dir = tempDir("residual")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let db = try openDB(dir)
+    let collection = try await db.collection(
+      "test", of: TestDocument.self, options: CollectionOptions(idField: "id"))
+    try await bulkFill(collection, range: 1..<(docs + 1))
+
+    func time(_ label: String, _ body: () async throws -> Int) async rethrows {
+      let start = CFAbsoluteTimeGetCurrent()
+      let hits = try await body()
+      let ms = (CFAbsoluteTimeGetCurrent() - start) * 1000
+      print(
+        "  " + label.padding(toLength: 52, withPad: " ", startingAt: 0)
+          + String(format: "%8.1f ms  (%d hits)", ms, hits))
+    }
+
+    try await time("full scan + endsWith filter") {
+      try await collection.find().where("name", endsWith: "7").execute().count
+    }
+    try await time("same filter + sort(id) + limit(10)") {
+      try await collection.find().where("name", endsWith: "7")
+        .sort(by: "id").limit(10).execute().count
+    }
+    try await time("same filter + sort(id) desc + offset(20) + limit(10)") {
+      try await collection.find().where("name", endsWith: "7")
+        .sort(by: "id", ascending: false).offset(20).limit(10).execute().count
+    }
+    try await time("count() with residual filter") {
+      try await collection.find().where("name", contains: "99").count()
+    }
+    try await db.close()
     print("")
   }
 
