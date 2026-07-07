@@ -590,6 +590,23 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
 
   // MARK: - Maintenance
 
+  /// Persists this collection's index snapshots, flushes shard data, and
+  /// clears the dirty flags — after it returns, a crash costs no recovery
+  /// work for this collection on the next open.
+  ///
+  /// The expensive part (encoding and compressing the index snapshots) runs
+  /// off the collection's actor, so concurrent reads and writes keep
+  /// flowing; only the final fsync barrier briefly excludes writers.
+  ///
+  /// Call it at meaningful moments — app backgrounding, after an import —
+  /// or let `DatabaseOptions.autoSync` schedule it. `NyaruDB.sync()` syncs
+  /// every open collection.
+  ///
+  /// - Throws: `NyaruError.databaseClosed` or the first I/O error.
+  public func sync() async throws {
+    try await core.sync()
+  }
+
   /// Rewrites every shard file to remove tombstoned records and rebuilds all
   /// indexes.
   ///

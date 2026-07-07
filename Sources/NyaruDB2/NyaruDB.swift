@@ -14,6 +14,23 @@ import Foundation
 /// is omitted from the manifest (it is provided at open time) so the key
 /// can be rotated or supplied from the Keychain without touching on-disk data.
 public struct DatabaseOptions: Sendable {
+  /// When the engine synchronises durability state on its own.
+  ///
+  /// A `sync()` persists index snapshots, flushes shard data, and clears
+  /// the dirty flags — after it, a crash costs no recovery work on the next
+  /// open. Without one, a long session that never reaches `close()` leaves
+  /// every shard dirty, and a crash forces a full index rebuild at open.
+  public enum AutoSyncPolicy: Sendable, Equatable {
+    /// Never sync automatically — the app calls `sync()`/`close()` itself
+    /// (e.g. on `scenePhase == .background`). The default.
+    case off
+    /// Sync after every `n` written documents.
+    case afterWrites(Int)
+    /// Sync on the first write that happens at least `seconds` after the
+    /// previous sync. There is no timer: an idle database never wakes up.
+    case interval(TimeInterval)
+  }
+
   /// The compression method applied to record payloads in every shard file.
   ///
   /// Default: `.none`. Consider `.gzip` for portable compression that works
@@ -49,6 +66,10 @@ public struct DatabaseOptions: Sendable {
   /// Default: `0.2` (20%).
   public var maxFragmentation: Double
 
+  /// Automatic durability policy. Default: `.off` — the app calls `sync()`
+  /// at meaningful moments (backgrounding, checkpoints).
+  public var autoSync: AutoSyncPolicy
+
   /// Creates database options with sensible defaults.
   ///
   /// - Parameters:
@@ -57,18 +78,21 @@ public struct DatabaseOptions: Sendable {
   ///   - format: Document serialization format (`.json` or `.msgpack`).
   ///   - encryptionKey: Optional AES-256-GCM key for encrypting data at rest.
   ///   - maxFragmentation: Tombstone ratio that triggers compaction hints.
+  ///   - autoSync: Automatic durability policy (default `.off`).
   public init(
     compression: CompressionMethod = .none,
     fileProtection: FileProtection = .none,
     format: SerializationFormat = .json,
     encryptionKey: SymmetricKey? = nil,
-    maxFragmentation: Double = 0.2
+    maxFragmentation: Double = 0.2,
+    autoSync: AutoSyncPolicy = .off
   ) {
     self.compression = compression
     self.fileProtection = fileProtection
     self.format = format
     self.encryptionKey = encryptionKey
     self.maxFragmentation = maxFragmentation
+    self.autoSync = autoSync
   }
 }
 
@@ -233,7 +257,8 @@ public actor NyaruDB {
       directory: directory,
       manifest: manifest,
       format: options.format,
-      encryptionKey: options.encryptionKey
+      encryptionKey: options.encryptionKey,
+      autoSync: options.autoSync
     )
     try await core.setIndexedFields(requested.indexedFields)
     cores[name] = core

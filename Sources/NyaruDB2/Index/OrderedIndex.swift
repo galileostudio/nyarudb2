@@ -477,7 +477,29 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   ///   - encryptionKey: Optional AES-256-GCM key.
   /// - Throws: `NyaruError.encryptionFailed` if sealing fails.
   public func persist(to url: URL, encryptionKey: SymmetricKey?) throws {
-    let data = encodeBinary()
+    try Self.persist(snapshot(), to: url, encryptionKey: encryptionKey)
+  }
+
+  /// An O(1) copy-on-write capture of the index contents. The arrays are
+  /// value types sharing storage with the live index — encoding a snapshot
+  /// off the owning actor is safe, and concurrent mutations simply pay the
+  /// CoW copy.
+  struct Snapshot: Sendable {
+    let keys: [FieldValue]
+    let postings: [[RecordPointer]]
+    let entryCount: Int
+  }
+
+  /// Captures the current contents for out-of-actor persistence.
+  func snapshot() -> Snapshot {
+    Snapshot(keys: keys, postings: postings, entryCount: _entryCount)
+  }
+
+  /// Encodes, compresses, optionally seals, and atomically writes a
+  /// snapshot. Static so the expensive part can run detached from the
+  /// actor that owns the index.
+  static func persist(_ snapshot: Snapshot, to url: URL, encryptionKey: SymmetricKey?) throws {
+    let data = encodeBinary(snapshot)
     let compressed = try Compressor.compress(data, method: .gzip)
 
     let finalData: Data
@@ -535,7 +557,10 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
   // MARK: - Binary snapshot codec
 
-  private func encodeBinary() -> Data {
+  private static func encodeBinary(_ snapshot: Snapshot) -> Data {
+    let keys = snapshot.keys
+    let postings = snapshot.postings
+
     // Intern shard IDs.
     var shardTable: [String] = []
     var shardIndexByID: [String: UInt16] = [:]
@@ -547,7 +572,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     }
 
     // Rough size estimate: 10 bytes per posting + ~16 per key.
-    var out = Data(capacity: 64 + _entryCount * 10 + keys.count * 16)
+    var out = Data(capacity: 64 + snapshot.entryCount * 10 + keys.count * 16)
     out.append(contentsOf: Self.snapshotMagic)
     Binary.append(UInt16(1), to: &out)  // version
     Binary.append(UInt32(shardTable.count), to: &out)

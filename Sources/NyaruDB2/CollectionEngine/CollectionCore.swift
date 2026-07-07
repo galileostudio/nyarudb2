@@ -175,10 +175,21 @@ actor CollectionCore {
   private let directory: URL
   private let format: SerializationFormat
   private let encryptionKey: SymmetricKey?
+  private let autoSync: DatabaseOptions.AutoSyncPolicy
   private var shards: [String: ShardActor] = [:]
   private var shardURLs: [String: URL] = [:]
   private var indexes: [String: OrderedIndex] = [:]
   private var isClosed = false
+
+  // MARK: - Durability bookkeeping
+  //
+  // `totalWrites` is monotonic (never reset); auto-sync compares it against
+  // `writesAtLastSync`, and sync() uses it as a generation stamp to detect
+  // writes racing the off-actor snapshot persistence.
+  private var totalWrites: UInt64 = 0
+  private var writesAtLastSync: UInt64 = 0
+  private var lastSyncDate = Date()
+  private var autoSyncScheduled = false
 
   // MARK: - Compaction exclusion
   //
@@ -222,6 +233,26 @@ actor CollectionCore {
     }
   }
 
+  /// Closes the gate exclusively: waits for any other exclusive holder,
+  /// then drains in-flight pointer operations. Pair with `openGate()`.
+  private func closeGate() async {
+    while isCompacting {
+      await withCheckedContinuation { compactionWaiters.append($0) }
+    }
+    isCompacting = true
+    while activePointerOps > 0 {
+      await withCheckedContinuation { drainWaiter = $0 }
+    }
+  }
+
+  /// Reopens the gate and wakes every operation that queued behind it.
+  private func openGate() {
+    isCompacting = false
+    let waiters = compactionWaiters
+    compactionWaiters = []
+    for waiter in waiters { waiter.resume() }
+  }
+
   /// The configured document id field name.
   var idField: String { manifest.idField }
 
@@ -261,12 +292,13 @@ actor CollectionCore {
   ///   - encryptionKey: Optional AES-256-GCM key.
   init(
     directory: URL, manifest: CollectionManifest, format: SerializationFormat,
-    encryptionKey: SymmetricKey?
+    encryptionKey: SymmetricKey?, autoSync: DatabaseOptions.AutoSyncPolicy = .off
   ) async throws {
     self.directory = directory
     self.manifest = manifest
     self.format = format
     self.encryptionKey = encryptionKey
+    self.autoSync = autoSync
     let fm = FileManager.default
     try fm.createDirectory(at: shardsDirectory, withIntermediateDirectories: true)
     try fm.createDirectory(at: indexesDirectory, withIntermediateDirectories: true)
@@ -409,19 +441,91 @@ actor CollectionCore {
 
   /// Persists all index snapshots and flushes all shard headers to disk.
   ///
-  /// Snapshots are persisted in parallel — each is an independent
-  /// encode + compress + atomic write, and the encode/compress cost
-  /// dominates for large indexes.
+  /// The expensive part — encode + gzip + seal of every index — runs OFF
+  /// the actor over O(1) copy-on-write snapshots, so reads and writes keep
+  /// flowing while it happens (concurrent mutations pay the CoW copy).
+  ///
+  /// **Snapshot/flag ordering.** An index snapshot is only trusted at open
+  /// when the shards are clean, so the snapshots on disk must never be
+  /// OLDER than the state the clean flags vouch for. The gate closes only
+  /// for the final fsync barrier; if writes landed while the snapshots were
+  /// being encoded, the capture is redone (bounded — the last attempt
+  /// re-persists while holding the gate, trading a short write stall for
+  /// correctness under sustained write pressure).
   func sync() async throws {
     try ensureOpen()
-    let snapshots = indexes.map { (index: $0.value, url: snapshotURL(for: $0.key)) }
-    let key = encryptionKey
-    _ = try Parallel.map(snapshots, serialThreshold: 2) { item in
-      try item.index.persist(to: item.url, encryptionKey: key)
+    var attempts = 0
+    while true {
+      let generation = totalWrites
+      try await persistIndexSnapshots()
+      attempts += 1
+
+      await closeGate()
+      defer { openGate() }
+
+      if totalWrites == generation || attempts >= 3 {
+        if totalWrites != generation {
+          try await persistIndexSnapshots()
+        }
+        for shard in shards.values {
+          try await shard.sync()
+        }
+        writesAtLastSync = totalWrites
+        lastSyncDate = Date()
+        return
+      }
+      // Writes raced the off-actor persist: loop and re-capture.
     }
+  }
+
+  /// Sync body without gate manipulation — the caller must already hold the
+  /// gate exclusively (`compact()` does).
+  private func syncHoldingGate() async throws {
+    try await persistIndexSnapshots()
     for shard in shards.values {
       try await shard.sync()
     }
+    writesAtLastSync = totalWrites
+    lastSyncDate = Date()
+  }
+
+  /// Captures CoW snapshots of every index on the actor (O(1)), then
+  /// encodes, compresses, seals, and atomically writes them off the actor,
+  /// in parallel across indexes.
+  private func persistIndexSnapshots() async throws {
+    let work = indexes.map { (snapshot: $0.value.snapshot(), url: snapshotURL(for: $0.key)) }
+    guard !work.isEmpty else { return }
+    let key = encryptionKey
+    try await Task.detached(priority: .utility) {
+      _ = try Parallel.map(work, serialThreshold: 2) { item in
+        try OrderedIndex.persist(item.snapshot, to: item.url, encryptionKey: key)
+      }
+    }.value
+  }
+
+  /// Registers `count` written documents and schedules an auto-sync when
+  /// the policy says one is due. The sync runs as a follow-up task — never
+  /// inside the write that triggered it, which still holds a pointer op —
+  /// and is best-effort: its failure must not fail an already-applied write.
+  private func noteWrites(_ count: Int) {
+    totalWrites += UInt64(count)
+    let due: Bool
+    switch autoSync {
+    case .off:
+      due = false
+    case .afterWrites(let threshold):
+      due = totalWrites - writesAtLastSync >= UInt64(max(1, threshold))
+    case .interval(let seconds):
+      due = totalWrites > writesAtLastSync && Date().timeIntervalSince(lastSyncDate) >= seconds
+    }
+    guard due, !autoSyncScheduled else { return }
+    autoSyncScheduled = true
+    Task { await self.runScheduledAutoSync() }
+  }
+
+  private func runScheduledAutoSync() async {
+    autoSyncScheduled = false
+    try? await sync()
   }
 
   /// Syncs and shuts down the core.
@@ -595,6 +699,7 @@ actor CollectionCore {
       throw NyaruError.duplicateID(metadata.id.description)
     }
     try await performInsert(data: data, metadata: metadata)
+    noteWrites(1)
   }
 
   /// Performs a bulk insert of multiple documents with optimized index loading.
@@ -639,6 +744,7 @@ actor CollectionCore {
       indexes[field].map { (index: $0, entries: entries) }
     }
     _ = Parallel.map(loads, serialThreshold: 2) { $0.index.bulkLoad($0.entries) }
+    noteWrites(batch.count)
   }
 
   private func shardID(forPartitionValue value: FieldValue?) throws -> String {
@@ -702,6 +808,7 @@ actor CollectionCore {
         for entry in metadata.indexEntries {
           indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
         }
+        noteWrites(1)
         return
       }
       throw NyaruError.documentNotFound(id: id.description)
@@ -716,6 +823,7 @@ actor CollectionCore {
       for entry in metadata.indexEntries {
         indexes[entry.field]?.insert(key: entry.key, pointer: pointer)
       }
+      noteWrites(1)
       return
     }
 
@@ -750,6 +858,7 @@ actor CollectionCore {
         if let newKey { index.insert(key: newKey, pointer: newPointer) }
       }
     }
+    noteWrites(1)
   }
 
   // MARK: - Partial Update (Patch)
@@ -829,6 +938,7 @@ actor CollectionCore {
         if let newKey { index.insert(key: newKey, pointer: newPointer) }
       }
     }
+    noteWrites(1)
     return newData
   }
 
@@ -857,6 +967,7 @@ actor CollectionCore {
         }
       }
     }
+    noteWrites(1)
     return true
   }
 
@@ -901,6 +1012,7 @@ actor CollectionCore {
     }
 
     applyBulkRemovals(removalsByField)
+    noteWrites(removed)
     return removed
   }
 
@@ -975,6 +1087,7 @@ actor CollectionCore {
     }
 
     applyBulkRemovals(removalsByField)
+    noteWrites(removed)
     return removed
   }
 
@@ -1222,6 +1335,7 @@ actor CollectionCore {
       indexes[field].map { (index: $0, entries: entries) }
     }
     _ = Parallel.map(loads, serialThreshold: 2) { $0.index.bulkLoad($0.entries) }
+    noteWrites(operations.count)
   }
 
   /// Removes a pointer from every index. Used when a record disappears
@@ -1494,19 +1608,8 @@ actor CollectionCore {
     // Close the gate: new pointer-based operations suspend until compaction
     // finishes, and compaction waits for in-flight ones to drain so no stale
     // offset is ever read against a rewritten file.
-    while isCompacting {
-      await withCheckedContinuation { compactionWaiters.append($0) }
-    }
-    isCompacting = true
-    defer {
-      isCompacting = false
-      let waiters = compactionWaiters
-      compactionWaiters = []
-      for waiter in waiters { waiter.resume() }
-    }
-    while activePointerOps > 0 {
-      await withCheckedContinuation { drainWaiter = $0 }
-    }
+    await closeGate()
+    defer { openGate() }
 
     let allShardIDs = Array(shardURLs.keys)
 
@@ -1537,7 +1640,8 @@ actor CollectionCore {
 
     let allIndexes = Array(indexes.values)
     _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(mappings) }
-    try await sync()
+    // The public sync() closes the gate itself — this one already holds it.
+    try await syncHoldingGate()
   }
 
   /// Whether any shard's tombstone ratio exceeds the configured
