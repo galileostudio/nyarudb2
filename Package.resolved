@@ -39,10 +39,10 @@
     {
       "identity" : "swift-msgpack",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/nnabeyang/swift-msgpack",
+      "location" : "https://github.com/galileostd/swift-msgpack",
       "state" : {
-        "revision" : "4a057692bb31adda0e77afaf82e6d34ef66b0e80",
-        "version" : "1.2.0"
+        "branch" : "develop",
+        "revision" : "00ac2a9259dc7084006846583495c5b65ea1470a"
       }
     }
   ],
