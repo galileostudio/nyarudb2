@@ -297,6 +297,15 @@ public final class NyaruDBBenchmark {
 
     let memory = measureMemoryUsage()
 
+    if let metrics = try? await collection.metrics() {
+      print(
+        "\n\(ANSI.FG.gray)📈 metrics[\(scenarioName)]: indexLookups=\(metrics.indexLookups) "
+          + "covered=\(metrics.coveredQueries) fullScans=\(metrics.fullScans) "
+          + "partitionScans=\(metrics.partitionScans) "
+          + "read=\(metrics.bytesRead / 1_000_000)MB written=\(metrics.bytesWritten / 1_000_000)MB "
+          + "compactions=\(metrics.compactionCount)\(ANSI.reset)")
+    }
+
     try? await db.close()
 
     return BenchmarkResult(
@@ -843,12 +852,14 @@ struct BenchmarkRunner {
     print("\n🚀 NyaruDB2 vs SQLite Benchmark\n")
 
     var documentCount = 50_000
+    var explicitCount = false
     var batchSize = 1_000
     var quick = false
     var encryption = false
     var partitioning = false
     var compression: String? = nil
     var format: String? = nil
+    var scenario: String? = nil
 
     let args = CommandLine.arguments.dropFirst()
     var i = args.startIndex
@@ -858,9 +869,17 @@ struct BenchmarkRunner {
       case "--quick", "-q": quick = true
       case "--encryption", "-e": encryption = true
       case "--partitioning", "-p": partitioning = true
+      case "--scenario", "-s":
+        if i + 1 < args.endIndex {
+          scenario = args[i + 1]
+          i += 1
+        }
       case "--document-count", "-d":
         if i + 1 < args.endIndex {
-          documentCount = Int(args[i + 1]) ?? documentCount
+          if let parsed = Int(args[i + 1]) {
+            documentCount = parsed
+            explicitCount = true
+          }
           i += 1
         }
       case "--batch-size", "-b":
@@ -891,12 +910,25 @@ struct BenchmarkRunner {
             -b, --batch-size N       Batch size (default: 1000)
             -c, --compression M      Compression: none, gzip, lzfse, lz4
             -f, --format F           Format: json, msgpack
+            -s, --scenario NAME      Run an extended scenario instead of the
+                                     standard suite: curve (unit-insert latency
+                                     vs collection size), concurrency (read
+                                     latency under writes/compaction), bigdocs
+                                     (large payloads + many shards), memory
+                                     (footprint peaks on whole-shard scans).
+                                     -d overrides each scenario's default size.
             -h, --help               Show this help
           """)
         Foundation.exit(0)
       default: break
       }
       i += 1
+    }
+
+    if let scenario {
+      await ExtendedScenarios.run(
+        scenario, documentCount: documentCount, explicitCount: explicitCount)
+      Foundation.exit(0)
     }
 
     print("📄 Documents: \(documentCount)")

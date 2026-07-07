@@ -629,6 +629,20 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   public func stats() async throws -> CollectionStats {
     try await core.stats()
   }
+
+  /// Returns a snapshot of the collection's internal counters — which access
+  /// paths queries took, cumulative shard I/O, compaction activity, and
+  /// whether any shard needed crash recovery at open.
+  ///
+  /// Counters accumulate from open and are not persisted. Use them to verify
+  /// that the queries you expect to be index-served actually are, or to
+  /// size compaction policies from real workloads.
+  ///
+  /// - Returns: Current metrics snapshot.
+  /// - Throws: `NyaruError.databaseClosed` if the database was closed.
+  public func metrics() async throws -> CollectionMetrics {
+    try await core.metrics()
+  }
 }
 
 // MARK: - Pull-based document stream

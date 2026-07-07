@@ -29,6 +29,21 @@ actor ShardActor {
   /// avoiding `Data([UInt8])` allocation on every read/write.
   private static let _authData: [Data] = (0...3).map { Data([UInt8($0)]) }
 
+  /// Whether the open of this shard found the dirty flag set and ran crash
+  /// recovery. Captured at init — the backing file is swapped on compaction.
+  let recoveredFromDirtyAtOpen: Bool
+
+  /// I/O accumulated by files this actor has already retired (compaction
+  /// swaps the backing `SlottedFile`).
+  private var retiredBytesRead: UInt64 = 0
+  private var retiredBytesWritten: UInt64 = 0
+
+  /// Cumulative bytes read/written by this shard since open, including
+  /// compaction rewrites.
+  var ioBytes: (read: UInt64, written: UInt64) {
+    (retiredBytesRead + file.ioBytesRead, retiredBytesWritten + file.ioBytesWritten)
+  }
+
   init(
     id: String, url: URL, compression: CompressionMethod, fileProtection: FileProtection,
     encryptionKey: SymmetricKey?, maxFragmentation: Double = 0.2
@@ -39,7 +54,9 @@ actor ShardActor {
     self.fileProtection = fileProtection
     self.encryptionKey = encryptionKey
     self.maxFragmentation = maxFragmentation
-    self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+    let file = try SlottedFile(url: url, fileProtection: fileProtection)
+    self.file = file
+    self.recoveredFromDirtyAtOpen = file.recoveredFromDirty
   }
 
   /// The total number of bytes consumed by tombstoned slots.
@@ -333,6 +350,9 @@ actor ShardActor {
     let newSize = tempFile.sizeInBytes()
 
     try tempFile.sync()
+    // Both files retire here — bank their I/O counters before the swap.
+    retiredBytesRead += file.ioBytesRead + tempFile.ioBytesRead
+    retiredBytesWritten += file.ioBytesWritten + tempFile.ioBytesWritten
     try tempFile.close()
     try file.close()
 

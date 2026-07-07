@@ -28,6 +28,11 @@ final class RawFile {
   private let fd: Int32
   private var isOpen = true
 
+  /// Cumulative bytes read/written through this descriptor, for
+  /// `CollectionMetrics`. Owned by a single actor, so plain vars are safe.
+  private(set) var bytesRead: UInt64 = 0
+  private(set) var bytesWritten: UInt64 = 0
+
   /// Opens an existing file.
   ///
   /// - Parameters:
@@ -65,6 +70,7 @@ final class RawFile {
       }
       return total
     }
+    bytesRead += UInt64(total)
     if total < count { data.removeSubrange(total..<count) }
     return data
   }
@@ -86,6 +92,7 @@ final class RawFile {
         total += n
       }
     }
+    bytesWritten += UInt64(data.count)
   }
 
   /// Returns the current file size in bytes.

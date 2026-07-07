@@ -133,6 +133,10 @@ final class SlottedFile {
   /// Whether this open found the dirty flag set and ran crash recovery.
   /// Callers use this to decide whether index snapshots need rebuilding.
   private(set) var recoveredFromDirty = false
+
+  /// Cumulative I/O through this file's descriptor, for `CollectionMetrics`.
+  var ioBytesRead: UInt64 { handle.bytesRead }
+  var ioBytesWritten: UInt64 { handle.bytesWritten }
   private var isDirty = false
   /// Tombstoned slots available for reuse, sorted by capacity ascending.
   /// Each entry stores the offset and the immutable slot capacity.

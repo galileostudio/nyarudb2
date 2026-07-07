@@ -190,6 +190,14 @@ actor CollectionCore {
   // entries with new-file offsets that the remap would then drop as stale.
   // Pointer-based operations therefore wait while compaction is in flight,
   // and compaction drains in-flight operations before touching any file.
+  // MARK: - Metrics counters (see CollectionMetrics)
+  private var metricIndexLookups = 0
+  private var metricCoveredQueries = 0
+  private var metricFullScans = 0
+  private var metricPartitionScans = 0
+  private var metricCompactionCount = 0
+  private var metricLastCompactionDuration: TimeInterval?
+
   private var isCompacting = false
   private var activePointerOps = 0
   private var compactionWaiters: [CheckedContinuation<Void, Never>] = []
@@ -1276,6 +1284,7 @@ actor CollectionCore {
   /// sum of all shard sizes in memory instead of a small window.
   func scanAll() async throws -> [Data] {
     try ensureOpen()
+    metricFullScans += 1
     for shardID in shardURLs.keys {
       _ = try shard(for: shardID)
     }
@@ -1310,6 +1319,7 @@ actor CollectionCore {
   /// - Returns: All live document data from the matching shard.
   func scanPartition(value: FieldValue) async throws -> [Data] {
     try ensureOpen()
+    metricPartitionScans += 1
     guard let shard = try? shard(for: physicalShardID(for: value)) else { return [] }
     return try await shard.readAllLive().map(\.data)
   }
@@ -1390,6 +1400,8 @@ actor CollectionCore {
     async throws -> [Data]
   {
     try ensureOpen()
+    metricIndexLookups += 1
+    if slice != nil { metricCoveredQueries += 1 }
     await beginPointerOp()
     defer { endPointerOp() }
 
@@ -1408,6 +1420,8 @@ actor CollectionCore {
   /// Counts the matches of a fully covered query from the index alone —
   /// zero disk I/O. No gate is needed: nothing dereferences the pointers.
   func coveredCount(field: String, probe: IndexProbe, slice: (offset: Int, limit: Int?)) -> Int {
+    metricIndexLookups += 1
+    metricCoveredQueries += 1
     let needed = slice.limit.map { slice.offset + $0 }
     let pointers = resolvePointers(field: field, probe: probe, maxCount: needed)
     let start = min(slice.offset, pointers.count)
@@ -1471,6 +1485,11 @@ actor CollectionCore {
   /// in place — no document is re-read or re-parsed.
   func compact() async throws {
     try ensureOpen()
+    let compactionStart = Date()
+    defer {
+      metricCompactionCount += 1
+      metricLastCompactionDuration = Date().timeIntervalSince(compactionStart)
+    }
 
     // Close the gate: new pointer-based operations suspend until compaction
     // finishes, and compaction waits for in-flight ones to drain so no stale
@@ -1531,6 +1550,34 @@ actor CollectionCore {
       if await shard.needsCompaction { return true }
     }
     return false
+  }
+
+  /// Returns a snapshot of the collection's internal counters.
+  ///
+  /// I/O counters cover the shards opened so far (shards open lazily on
+  /// first touch).
+  func metrics() async throws -> CollectionMetrics {
+    try ensureOpen()
+    var bytesRead: UInt64 = 0
+    var bytesWritten: UInt64 = 0
+    var recovered = 0
+    for shard in shards.values {
+      let io = await shard.ioBytes
+      bytesRead += io.read
+      bytesWritten += io.written
+      if shard.recoveredFromDirtyAtOpen { recovered += 1 }
+    }
+    return CollectionMetrics(
+      indexLookups: metricIndexLookups,
+      coveredQueries: metricCoveredQueries,
+      fullScans: metricFullScans,
+      partitionScans: metricPartitionScans,
+      bytesRead: bytesRead,
+      bytesWritten: bytesWritten,
+      compactionCount: metricCompactionCount,
+      lastCompactionDuration: metricLastCompactionDuration,
+      shardsRecoveredFromDirty: recovered
+    )
   }
 
   /// Returns a snapshot of collection statistics.
