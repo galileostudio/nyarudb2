@@ -39,6 +39,17 @@ compact() total: 57.6 ms. Reading: the compaction gate blocks reads for the
 entire multi-shard compaction — only 4 gets completed and the worst one
 waited the full 57 ms. This is the head-of-line blocking C1 addresses.
 
+After C1 (incremental per-shard compaction):
+
+| phase | gets | p50 µs | p99 µs | max µs |
+|---|---|---|---|---|
+| during compact | 10 781 | 2.5 | 4.0 | 66 002 |
+
+compact() total: 94.6 ms. Reads flow between shard cycles; the max is one
+get that queued behind a single shard's rewrite — the designed worst case.
+The wall-clock increase (57 → 95 ms) is the accepted price: cross-shard
+parallelism traded for read availability.
+
 ## bigdocs — large payloads and many shards
 
 - 150 docs × ~1.2 MB, compression none: insert 0.94 s, get 716 µs,

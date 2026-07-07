@@ -478,17 +478,6 @@ actor CollectionCore {
     }
   }
 
-  /// Sync body without gate manipulation — the caller must already hold the
-  /// gate exclusively (`compact()` does).
-  private func syncHoldingGate() async throws {
-    try await persistIndexSnapshots()
-    for shard in shards.values {
-      try await shard.sync()
-    }
-    writesAtLastSync = totalWrites
-    lastSyncDate = Date()
-  }
-
   /// Captures CoW snapshots of every index on the actor (O(1)), then
   /// encodes, compresses, seals, and atomically writes them off the actor,
   /// in parallel across indexes.
@@ -1614,17 +1603,22 @@ actor CollectionCore {
 
   // MARK: - Maintenance
 
-  /// Rewrites every shard without tombstones (or padding waste), then remaps
-  /// index pointers using the offset maps returned by each shard.
+  /// Rewrites every shard without tombstones (or padding waste), remapping
+  /// index pointers via the offset map each shard reports — no document is
+  /// re-read or re-parsed.
   ///
   /// This is the manual replacement for the old engine's 60-second background
   /// auto-merge task, which was removed by design: background timers in a
   /// mobile embedded database burn battery and raced with concurrent writes.
   ///
-  /// Shards are compacted concurrently (up to 3 at a time) to minimise
-  /// latency on multi-shard collections. Because each shard reports its
-  /// old-offset → new-offset map, indexes are updated by rewriting pointers
-  /// in place — no document is re-read or re-parsed.
+  /// **Incremental, one shard at a time.** The gate closes only around one
+  /// shard's rewrite + pointer remap, so concurrent reads and writes
+  /// interleave between shards instead of queueing behind the whole
+  /// compaction — the worst-case stall is one shard's rewrite, not the sum
+  /// of all of them. (The all-at-once version blocked reads for its entire
+  /// duration: get() p99 equalled the compact wall time.) Each remap runs
+  /// with the gate closed, preserving the exclusion the parallel index
+  /// mutation relies on; the price is cross-shard compaction parallelism.
   func compact() async throws {
     try ensureOpen()
     let compactionStart = Date()
@@ -1633,43 +1627,25 @@ actor CollectionCore {
       metricLastCompactionDuration = Date().timeIntervalSince(compactionStart)
     }
 
-    // Close the gate: new pointer-based operations suspend until compaction
-    // finishes, and compaction waits for in-flight ones to drain so no stale
-    // offset is ever read against a rewritten file.
-    await closeGate()
-    defer { openGate() }
-
     let allShardIDs = Array(shardURLs.keys)
-
-    let maxConcurrent = Self.maxConcurrentShardScans
-    var iterator = allShardIDs.makeIterator()
-
-    var mappings: [String: [UInt64: UInt64]] = [:]
-    try await withThrowingTaskGroup(of: (String, [UInt64: UInt64]).self) { group in
-      for _ in 0..<min(maxConcurrent, allShardIDs.count) {
-        if let shardID = iterator.next() {
-          group.addTask {
-            let shard = try await self.shard(for: shardID)
-            return (shardID, try await shard.compact())
-          }
-        }
-      }
-
-      while let (shardID, mapping) = try await group.next() {
-        mappings[shardID] = mapping
-        if let nextID = iterator.next() {
-          group.addTask {
-            let shard = try await self.shard(for: nextID)
-            return (nextID, try await shard.compact())
-          }
-        }
+    for shardID in allShardIDs {
+      let shard = try shard(for: shardID)
+      await closeGate()
+      do {
+        let mapping = try await shard.compact()
+        // Remap even when the mapping is empty — it also purges any stale
+        // pointer into this (now empty) shard. Pointers into other shards
+        // pass through untouched.
+        let remap = [shardID: mapping]
+        let allIndexes = Array(indexes.values)
+        _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(remap) }
+        openGate()
+      } catch {
+        openGate()
+        throw error
       }
     }
-
-    let allIndexes = Array(indexes.values)
-    _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(mappings) }
-    // The public sync() closes the gate itself — this one already holds it.
-    try await syncHoldingGate()
+    try await sync()
   }
 
   /// Whether any shard's tombstone ratio exceeds the configured
