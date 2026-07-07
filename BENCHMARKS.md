@@ -44,6 +44,42 @@ contained behind `OrderedIndex`'s interface (final class, and the NYI1
 snapshot format serialises ordered entries, agnostic to the in-memory
 structure).
 
+## unitdelete — unit-delete latency vs collection size
+
+One-by-one `delete(id:)`, compression none, msgpack, id index only.
+FIFO deletes the oldest ids (position 0 of the sorted key array — the worst
+case for the O(n) key shift, and the typical mobile eviction pattern);
+random deletes uniformly random ids.
+
+Baseline (before lazy empty key slots):
+
+| size | fifo µs p50/p99 | random µs p50/p99 |
+|---|---|---|
+| 10 000 | 8.5 / 12.9 | 6.7 / 11.5 |
+| 50 000 | 33.4 / 45.3 | 17.5 / 42.7 |
+| 100 000 | 58.8 / 85.2 | 32.2 / 67.7 |
+| 250 000 | 142.9 / 272.0 | 69.2 / 158.9 |
+| 500 000 | 279.3 / 662.6 | 142.4 / 312.2 |
+| 1 000 000 | 561.0 / 1322.8 | 283.7 / 723.3 |
+
+Reading: linear in collection size, dominated by `keys.remove(at:)` in the
+primary index — every deleted id empties its key and shifts the whole key
+array (FIFO ≈ 2× random: full-array shift vs half on average). Batch
+deletes (`delete(ids:)`, `find().delete()`) are immune (single-sweep
+`bulkRemove`).
+
+After dead key slots (emptied keys stay as semantically absent slots,
+swept in one pass once they exceed 25% of the keys):
+
+| size | fifo µs p50/p99 | random µs p50/p99 |
+|---|---|---|
+| 10 000 | 3.3 / 6.2 | 3.5 / 4.8 |
+| 1 000 000 | 4.7 / 7.4 | 5.7 / 8.8 |
+
+Flat across sizes — unit-delete cost no longer depends on collection size
+(120× faster at 1M docs, FIFO). The pure index removal is ~0.09 µs; the
+rest is the tombstone write and payload read.
+
 ## concurrency — read latency under writes and compaction (gates C1)
 
 50k docs, 8 partition shards, `get(id:)` latencies.

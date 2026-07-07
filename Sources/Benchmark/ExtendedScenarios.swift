@@ -140,9 +140,12 @@ enum ExtendedScenarios {
         try await memoryPeaks(docs: explicitCount ? documentCount : 64_000)
       case "residual":
         try await residualPredicates(docs: explicitCount ? documentCount : 200_000)
+      case "unitdelete":
+        try await unitDeleteCurve(maxDocs: explicitCount ? documentCount : 1_000_000)
       default:
         print(
-          "Unknown scenario '\(name)'. Available: curve, concurrency, bigdocs, memory, residual")
+          "Unknown scenario '\(name)'. Available: "
+            + "curve, concurrency, bigdocs, memory, residual, unitdelete")
         Foundation.exit(1)
       }
     } catch {
@@ -209,6 +212,62 @@ enum ExtendedScenarios {
           size, buildTime, insertTotal,
           percentile(insertLatencies, 0.5), percentile(insertLatencies, 0.99), getTotal))
       try await db.close()
+    }
+    print("")
+  }
+
+  // MARK: — unit-delete latency vs collection size
+
+  /// Measures one-by-one `delete(id:)` latency at increasing collection
+  /// sizes, in two patterns: FIFO (oldest ids first — every removal lands at
+  /// position 0 of the sorted id-index key array, the worst case for the
+  /// O(n) `keys.remove(at:)` shift) and uniformly random ids. Only the id
+  /// index exists, isolating the key-array cost from posting-list work.
+  static func unitDeleteCurve(maxDocs: Int) async throws {
+    print("\(ANSI.bold)📈 Unit-delete latency vs collection size\(ANSI.reset)")
+    print("\(ANSI.FG.gray)compression none, msgpack, id index only, 1k unit deletes per size/pattern\(ANSI.reset)\n")
+    let sizes = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000].filter { $0 <= maxDocs }
+    print("      size │ pattern │ 1k deletes (ms) │ delete µs p50/p99")
+    print("───────────┼─────────┼─────────────────┼──────────────────")
+
+    for size in sizes {
+      for pattern in ["fifo", "random"] {
+        let dir = tempDir("unitdelete")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let db = try openDB(dir)
+        let collection = try await db.collection(
+          "test", of: TestDocument.self, options: CollectionOptions(idField: "id"))
+        try await bulkFill(collection, range: 1..<(size + 1))
+
+        var victims: [Int]
+        if pattern == "fifo" {
+          victims = Array(1...1_000)
+        } else {
+          var seed: UInt64 = 0xFACE_FEED
+          var set = Set<Int>()
+          while set.count < 1_000 {
+            seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            set.insert(Int(seed % UInt64(size)) + 1)
+          }
+          victims = Array(set)
+        }
+
+        var latencies: [Double] = []
+        latencies.reserveCapacity(victims.count)
+        let start = CFAbsoluteTimeGetCurrent()
+        for id in victims {
+          latencies.append(try await measureMicros { _ = try await collection.delete(id: id) })
+        }
+        let total = (CFAbsoluteTimeGetCurrent() - start) * 1000
+        latencies.sort()
+
+        print(
+          String(
+            format: "%10d │ %@ │ %15.1f │ %8.1f / %6.1f",
+            size, pattern.padding(toLength: 7, withPad: " ", startingAt: 0),
+            total, percentile(latencies, 0.5), percentile(latencies, 0.99)))
+        try await db.close()
+      }
     }
     print("")
   }
