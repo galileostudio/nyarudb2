@@ -970,12 +970,16 @@ actor CollectionCore {
   /// what was written. Old versions are tombstoned next, and indexes are
   /// updated in memory last.
   ///
-  /// **Limits.** An I/O failure during the tombstone phase leaves the batch
-  /// partially applied — the same exposure as issuing the operations
-  /// individually; full crash-atomicity would require a write-ahead log,
-  /// which NyaruDB deliberately does not have. The batch is also not
-  /// isolated from concurrent writes to the same ids from other tasks, just
-  /// as individual operations are not isolated from each other.
+  /// **Limits.** An I/O failure during the tombstone phase triggers a
+  /// best-effort per-operation resolution: operations whose old version was
+  /// already superseded are committed (their new version is indexed —
+  /// rolling it back would lose the document), everything else is rolled
+  /// back by tombstoning its append. Nothing is ever left on disk outside
+  /// the indexes, so a later rebuild cannot resurrect ghosts. Full
+  /// crash-atomicity would require a write-ahead log, which NyaruDB
+  /// deliberately does not have. The batch is also not isolated from
+  /// concurrent writes to the same ids from other tasks, just as individual
+  /// operations are not isolated from each other.
   ///
   /// At most one operation may target a given document id per batch.
   func applyBatch(_ operations: [BatchOperation]) async throws {
@@ -994,6 +998,11 @@ actor CollectionCore {
       let data: Data
       let metadata: Serializer.DocumentMetadata
       let shardID: String
+      /// Index into `removals` of the old version this append supersedes
+      /// (updates/upserts), or `nil` for plain inserts. Links the two so a
+      /// phase-3 failure can decide per append whether to roll back or
+      /// partially commit.
+      let removalIndex: Int?
     }
     var appends: [PlannedAppend] = []
     // Live old versions to tombstone, with index keys extracted from the
@@ -1017,17 +1026,20 @@ actor CollectionCore {
       if isInsert { insertIDs.insert(id) }
     }
 
-    // Resolves the current version of a document: appends to `removals` when
-    // live, to `stalePointers` when the index entry is dead.
-    func resolveExisting(_ id: FieldValue) async throws {
-      guard let pointer = primary?.search(id).first else { return }
+    // Resolves the current version of a document. Returns the index of the
+    // removal added to `removals` when the record is live, or `nil` when it
+    // does not exist (dead index entries go to `stalePointers`).
+    func resolveExisting(_ id: FieldValue) async throws -> Int? {
+      guard let pointer = primary?.search(id).first else { return nil }
       let shard = try existingShard(pointer.shardID)
       if let oldData = try await shard.read(at: pointer.offset) {
         let keys = Serializer.extractFieldValues(
           from: oldData, fields: fields, format: capturedFormat)
         removals.append((pointer: pointer, keys: keys))
+        return removals.count - 1
       } else {
         stalePointers.append(pointer)
+        return nil
       }
     }
 
@@ -1041,31 +1053,34 @@ actor CollectionCore {
         appends.append(
           .init(
             data: data, metadata: metadata,
-            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+            shardID: try shardID(forPartitionValue: metadata.partitionValue),
+            removalIndex: nil))
 
       case .update(let data, let metadata):
         try requireSingleOp(metadata.id, isInsert: false)
         guard primary?.contains(metadata.id) == true else {
           throw NyaruError.documentNotFound(id: metadata.id.description)
         }
-        try await resolveExisting(metadata.id)
+        let removalIndex = try await resolveExisting(metadata.id)
         appends.append(
           .init(
             data: data, metadata: metadata,
-            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+            shardID: try shardID(forPartitionValue: metadata.partitionValue),
+            removalIndex: removalIndex))
 
       case .upsert(let data, let metadata):
         try requireSingleOp(metadata.id, isInsert: false)
-        try await resolveExisting(metadata.id)
+        let removalIndex = try await resolveExisting(metadata.id)
         appends.append(
           .init(
             data: data, metadata: metadata,
-            shardID: try shardID(forPartitionValue: metadata.partitionValue)))
+            shardID: try shardID(forPartitionValue: metadata.partitionValue),
+            removalIndex: removalIndex))
 
       case .delete(let id):
         try requireSingleOp(id, isInsert: false)
         // Unknown ids are skipped, matching deleteMany.
-        try await resolveExisting(id)
+        _ = try await resolveExisting(id)
       }
     }
 
@@ -1094,22 +1109,78 @@ actor CollectionCore {
     }
 
     // ---- Phase 3: tombstone the old versions (updates, upserts, deletes).
+    // `nil` = outcome unknown (the shard's tombstoneMany failed or never ran).
     var tombstonesByShard: [String: [Int]] = [:]
     for (i, removal) in removals.enumerated() {
       tombstonesByShard[removal.pointer.shardID, default: []].append(i)
     }
-    var removedLive = [Bool](repeating: false, count: removals.count)
-    for (shardID, indices) in tombstonesByShard {
-      let shard = try existingShard(shardID)
-      let results = try await shard.tombstoneMany(
-        offsets: indices.map { removals[$0].pointer.offset })
-      for (j, wasLive) in results.enumerated() { removedLive[indices[j]] = wasLive }
+    var removedLive = [Bool?](repeating: nil, count: removals.count)
+    do {
+      for (shardID, indices) in tombstonesByShard {
+        let shard = try existingShard(shardID)
+        let results = try await shard.tombstoneMany(
+          offsets: indices.map { removals[$0].pointer.offset })
+        for (j, wasLive) in results.enumerated() { removedLive[indices[j]] = wasLive }
+      }
+    } catch {
+      // Best-effort rollback so the failure leaves nothing invisible: an
+      // append left on disk unindexed resurfaces as a ghost (or duplicate)
+      // on the next dirty rebuild. Per operation:
+      // - old version already tombstoned → the new version is the only
+      //   copy; rolling it back would LOSE the document. Keep it and make
+      //   it visible (partial commit of that operation).
+      // - old version still live, or a plain insert → tombstone the append;
+      //   the pre-batch state stays authoritative.
+      // Probes and tombstones are best-effort (`try?`) — a tombstone
+      // failure usually means the disk is dying, and the goal is to not
+      // leave things worse than the original error.
+      for (i, removal) in removals.enumerated() where removedLive[i] == nil {
+        let stillLive =
+          (try? await existingShard(removal.pointer.shardID).read(at: removal.pointer.offset))
+          .flatMap { $0 } != nil
+        // A failed probe counts as tombstoned: preferring the new version
+        // risks a duplicate after rebuild, but assuming "live" would
+        // tombstone the only surviving copy.
+        removedLive[i] = !stillLive
+      }
+
+      var commitAdds: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+      var commitRemovals: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
+      for (i, append) in appends.enumerated() {
+        guard let pointer = newPointers[i] else { continue }
+        let oldIsGone = append.removalIndex.map { removedLive[$0] == true } ?? false
+        if oldIsGone, let removalIndex = append.removalIndex {
+          let removal = removals[removalIndex]
+          for (field, key) in removal.keys {
+            commitRemovals[field, default: []].append((key, removal.pointer))
+          }
+          for entry in append.metadata.indexEntries {
+            commitAdds[entry.field, default: []].append((entry.key, pointer))
+          }
+        } else {
+          _ = try? await existingShard(pointer.shardID).delete(at: pointer.offset)
+        }
+      }
+      // Deletes whose tombstone landed also commit their index removal.
+      let supersededRemovals = Set(appends.compactMap(\.removalIndex))
+      for (i, removal) in removals.enumerated()
+      where removedLive[i] == true && !supersededRemovals.contains(i) {
+        for (field, key) in removal.keys {
+          commitRemovals[field, default: []].append((key, removal.pointer))
+        }
+      }
+      applyBulkRemovals(commitRemovals)
+      let commits = commitAdds.compactMap { field, entries in
+        indexes[field].map { (index: $0, entries: entries) }
+      }
+      _ = Parallel.map(commits, serialThreshold: 2) { $0.index.bulkLoad($0.entries) }
+      throw error
     }
 
     // ---- Phase 4: index updates — pure in-memory, cannot fail.
     var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
     for (i, removal) in removals.enumerated() {
-      if removedLive[i] {
+      if removedLive[i] == true {
         for (field, key) in removal.keys {
           removalsByField[field, default: []].append((key, removal.pointer))
         }
@@ -1469,6 +1540,11 @@ actor CollectionCore {
       fragmentationRatio: fragRatio
     )
   }
+
+  #if DEBUG
+    /// Test-only access to a shard actor, for fault injection.
+    func shardForTesting(_ id: String) -> ShardActor? { shards[id] }
+  #endif
 
   /// Deletes the entire collection directory from disk.
   ///

@@ -171,6 +171,90 @@ final class WriteBatchTests: XCTestCase {
     XCTAssertEqual(after, 100)
   }
 
+  /// Phase-3 failure before any tombstone lands: every append must be
+  /// rolled back, the pre-batch state stays authoritative, and a dirty
+  /// rebuild on reopen must not resurrect the rolled-back writes.
+  func testTombstoneFailureBeforeWorkRollsBackAppends() async throws {
+    try await users.insert(contentsOf: [user(1, age: 10), user(2, age: 20)])
+    let shard = await users.core.shardForTesting("default")
+    let unwrappedShard = try XCTUnwrap(shard)
+    await unwrappedShard.injectTombstoneManyFault(.beforeWork)
+
+    do {
+      try await users.writeBatch { batch in
+        batch.update(User(id: 1, name: "user1", age: 99, city: "BR"))
+        batch.insert(user(3, age: 30))
+      }
+      XCTFail("expected injected ioError")
+    } catch NyaruError.ioError {
+      // expected
+    }
+
+    let u1 = try await users.get(id: 1)
+    XCTAssertEqual(u1?.age, 10, "old version must stay authoritative")
+    let u3 = try await users.get(id: 3)
+    XCTAssertNil(u3, "insert must be rolled back")
+    let count = try await users.count()
+    XCTAssertEqual(count, 2)
+
+    // Reopen dirty (no clean close): the rebuild must see the same state —
+    // no ghost documents from the rolled-back appends.
+    let reopenedDB = try NyaruDB(path: baseURL)
+    let reopened = try await reopenedDB.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    let reopenedCount = try await reopened.count()
+    XCTAssertEqual(reopenedCount, 2, "rolled-back appends resurfaced after rebuild")
+    let reopened1 = try await reopened.get(id: 1)
+    XCTAssertEqual(reopened1?.age, 10)
+    try await reopenedDB.close()
+    db = nil
+  }
+
+  /// Phase-3 failure after the tombstones landed: the old versions are
+  /// gone, so the new versions must be committed (kept and indexed) —
+  /// rolling them back would lose the documents. Inserts still roll back.
+  func testTombstoneFailureAfterWorkCommitsSupersededUpdates() async throws {
+    try await users.insert(contentsOf: [user(1, age: 10), user(2, age: 20)])
+    let shard = await users.core.shardForTesting("default")
+    let unwrappedShard = try XCTUnwrap(shard)
+    await unwrappedShard.injectTombstoneManyFault(.afterWork)
+
+    do {
+      try await users.writeBatch { batch in
+        batch.update(User(id: 1, name: "renamed", age: 99, city: "BR"))
+        batch.insert(user(3, age: 30))
+      }
+      XCTFail("expected injected ioError")
+    } catch NyaruError.ioError {
+      // expected
+    }
+
+    let u1 = try await users.get(id: 1)
+    XCTAssertEqual(u1?.age, 99, "superseded update must be committed, not lost")
+    XCTAssertEqual(u1?.name, "renamed")
+    let u3 = try await users.get(id: 3)
+    XCTAssertNil(u3, "insert must be rolled back")
+    let count = try await users.count()
+    XCTAssertEqual(count, 2)
+    // The secondary index must reflect the committed new version.
+    let age99 = try await users.find().where("age", isEqualTo: 99).execute()
+    XCTAssertEqual(age99.map(\.id), [1])
+    let age10 = try await users.find().where("age", isEqualTo: 10).count()
+    XCTAssertEqual(age10, 0)
+
+    let reopenedDB = try NyaruDB(path: baseURL)
+    let reopened = try await reopenedDB.collection(
+      "users", of: User.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    let reopenedCount = try await reopened.count()
+    XCTAssertEqual(reopenedCount, 2)
+    let reopened1 = try await reopened.get(id: 1)
+    XCTAssertEqual(reopened1?.age, 99)
+    try await reopenedDB.close()
+    db = nil
+  }
+
   func testBatchWithPartitionMoveSurvivesReopen() async throws {
     let parted = try await db.collection(
       "orders", of: User.self,

@@ -188,6 +188,18 @@ actor ShardActor {
     }
   }
 
+  #if DEBUG
+    /// Test-only fault injection for `tombstoneMany`. `.beforeWork` throws
+    /// before touching the file (no tombstones land); `.afterWork` performs
+    /// all tombstones and then throws (the work landed but the caller sees
+    /// a failure). One-shot: the fault clears when it fires.
+    enum InjectedTombstoneFault { case none, beforeWork, afterWork }
+    private var injectedTombstoneFault: InjectedTombstoneFault = .none
+    func injectTombstoneManyFault(_ fault: InjectedTombstoneFault) {
+      injectedTombstoneFault = fault
+    }
+  #endif
+
   /// Tombstones multiple records in a single actor hop without reading their
   /// payloads. Used when the caller already knows each document's index keys.
   ///
@@ -195,11 +207,23 @@ actor ShardActor {
   /// - Returns: Whether each record was live and is now tombstoned, in
   ///   input order.
   func tombstoneMany(offsets: [UInt64]) throws -> [Bool] {
+    #if DEBUG
+      if injectedTombstoneFault == .beforeWork {
+        injectedTombstoneFault = .none
+        throw NyaruError.ioError("injected tombstoneMany fault (before work)")
+      }
+    #endif
     var out: [Bool] = []
     out.reserveCapacity(offsets.count)
     for offset in offsets {
       out.append(try file.tombstone(at: offset))
     }
+    #if DEBUG
+      if injectedTombstoneFault == .afterWork {
+        injectedTombstoneFault = .none
+        throw NyaruError.ioError("injected tombstoneMany fault (after work)")
+      }
+    #endif
     return out
   }
 
