@@ -322,11 +322,12 @@ actor CollectionCore {
 
   /// Scans every shard once and builds fresh indexes for the given fields.
   ///
-  /// Shards are scanned in parallel — each `ShardActor` is independent — and
-  /// records are parsed across all cores within each shard. Every shard task
-  /// returns its entries already grouped by field, so the final merge is a
-  /// per-field array concatenation instead of a serial regrouping pass over
-  /// all entries.
+  /// Shards are scanned in a bounded window (`maxConcurrentShardScans`) —
+  /// each task materialises its whole shard, so unbounded fan-out would peak
+  /// at the sum of all shard sizes. Records are parsed across all cores
+  /// within each shard, and every shard task returns its entries already
+  /// grouped by field, so the final merge is a per-field array concatenation
+  /// instead of a serial regrouping pass over all entries.
   private func buildIndexes(for fields: [String]) async throws -> [String: OrderedIndex] {
     if fields.isEmpty { return [:] }
     // All shards are already open (opened in init or by prior ops); snapshot
@@ -338,41 +339,52 @@ actor CollectionCore {
     let capturedFields = fields
 
     typealias Entries = [(key: FieldValue, pointer: RecordPointer)]
+
+    @Sendable func scanShard(_ shardID: String, _ shard: ShardActor) async throws
+      -> [String: Entries]
+    {
+      let records = try await shard.readAllLive()
+      typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
+      let perRecord = Parallel.map(records) { record -> [Entry] in
+        let values = Serializer.extractFieldValues(
+          from: record.data, fields: capturedFields, format: capturedFormat)
+        let pointer = RecordPointer(shardID: shardID, offset: record.offset)
+        var entries: [Entry] = []
+        for field in capturedFields {
+          if let key = values[field] {
+            entries.append((field: field, key: key, pointer: pointer))
+          }
+        }
+        return entries
+      }
+      var grouped: [String: Entries] = [:]
+      grouped.reserveCapacity(capturedFields.count)
+      for entries in perRecord {
+        for entry in entries {
+          grouped[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
+        }
+      }
+      return grouped
+    }
+
+    var iterator = allShards.makeIterator()
     let byField: [String: Entries] = try await withThrowingTaskGroup(
       of: [String: Entries].self
     ) { group in
-      for (shardID, shard) in allShards {
-        group.addTask {
-          let records = try await shard.readAllLive()
-          typealias Entry = (field: String, key: FieldValue, pointer: RecordPointer)
-          let perRecord = Parallel.map(records) { record -> [Entry] in
-            let values = Serializer.extractFieldValues(
-              from: record.data, fields: capturedFields, format: capturedFormat)
-            let pointer = RecordPointer(shardID: shardID, offset: record.offset)
-            var entries: [Entry] = []
-            for field in capturedFields {
-              if let key = values[field] {
-                entries.append((field: field, key: key, pointer: pointer))
-              }
-            }
-            return entries
-          }
-          var grouped: [String: Entries] = [:]
-          grouped.reserveCapacity(capturedFields.count)
-          for entries in perRecord {
-            for entry in entries {
-              grouped[entry.field, default: []].append((key: entry.key, pointer: entry.pointer))
-            }
-          }
-          return grouped
+      for _ in 0..<min(Self.maxConcurrentShardScans, allShards.count) {
+        if let (shardID, shard) = iterator.next() {
+          group.addTask { try await scanShard(shardID, shard) }
         }
       }
 
       var merged: [String: Entries] = [:]
       for field in capturedFields { merged[field] = [] }
-      for try await chunk in group {
+      while let chunk = try await group.next() {
         for (field, entries) in chunk {
           merged[field, default: []].append(contentsOf: entries)
+        }
+        if let (shardID, shard) = iterator.next() {
+          group.addTask { try await scanShard(shardID, shard) }
         }
       }
       return merged
@@ -1256,8 +1268,12 @@ actor CollectionCore {
 
   // MARK: - Reads for queries / scans
 
-  /// Performs a full scan of all shards in parallel, returning every live
-  /// document's encoded data.
+  /// Performs a full scan of all shards, returning every live document's
+  /// encoded data.
+  ///
+  /// At most `maxConcurrentShardScans` shards are read at a time: each task
+  /// materialises its whole shard, so an unbounded fan-out would peak at the
+  /// sum of all shard sizes in memory instead of a small window.
   func scanAll() async throws -> [Data] {
     try ensureOpen()
     for shardID in shardURLs.keys {
@@ -1265,17 +1281,28 @@ actor CollectionCore {
     }
 
     let allShards = Array(shards.values)
+    var iterator = allShards.makeIterator()
     return try await withThrowingTaskGroup(of: [Data].self) { group in
-      for shard in allShards {
-        group.addTask {
-          try await shard.readAllLive().map(\.data)
+      for _ in 0..<min(Self.maxConcurrentShardScans, allShards.count) {
+        if let shard = iterator.next() {
+          group.addTask { try await shard.readAllLive().map(\.data) }
         }
       }
       var out: [Data] = []
-      for try await chunk in group { out.append(contentsOf: chunk) }
+      while let chunk = try await group.next() {
+        out.append(contentsOf: chunk)
+        if let shard = iterator.next() {
+          group.addTask { try await shard.readAllLive().map(\.data) }
+        }
+      }
       return out
     }
   }
+
+  /// The window size for concurrent whole-shard operations (scans, index
+  /// builds, compaction) — enough to overlap I/O with parsing without
+  /// letting memory grow with the shard count.
+  static let maxConcurrentShardScans = 3
 
   /// Scans a single partition shard identified by the partition key value.
   ///
@@ -1464,7 +1491,7 @@ actor CollectionCore {
 
     let allShardIDs = Array(shardURLs.keys)
 
-    let maxConcurrent = 3
+    let maxConcurrent = Self.maxConcurrentShardScans
     var iterator = allShardIDs.makeIterator()
 
     var mappings: [String: [UInt64: UInt64]] = [:]

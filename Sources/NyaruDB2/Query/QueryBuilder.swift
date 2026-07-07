@@ -434,11 +434,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///    a single shard file instead of all shards.
   /// 5. **Full scan** — reads every shard. Used when no index or partition
   ///    pruning applies. All predicates are evaluated in memory.
-  // planResult carries a cached partitionValue so candidates() doesn't re-scan predicates.
+  // PlanResult carries the cached partition value and the resolved probe so
+  // downstream stages never re-scan the predicates, and each public entry
+  // point calls plan() exactly once (one actor hop for the indexed-field
+  // set, total).
   private struct PlanResult {
     let strategy: QueryStrategy
     let pushedDown: Int
     let cachedPartitionValue: FieldValue?
+    let probe: IndexProbe?
   }
 
   private func plan() async -> PlanResult {
@@ -449,7 +453,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       topLevelPredicates = [rootPredicate]
     }
     guard !topLevelPredicates.isEmpty else {
-      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
+      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
     }
 
     // Single actor hop: gather all indexed fields at once instead of one hop per predicate.
@@ -478,19 +482,17 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       }
     }
 
-    if let field = bestEquality {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
-    }
-    if let field = bestInSet {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
-    }
-    if let field = bestRange {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
+    if let field = bestEquality ?? bestInSet ?? bestRange {
+      return PlanResult(
+        strategy: .indexLookup(field: field), pushedDown: 1,
+        cachedPartitionValue: nil, probe: probe(forField: field))
     }
     if let pv = partitionValue {
-      return PlanResult(strategy: .partitionScan(value: pv.description), pushedDown: 0, cachedPartitionValue: pv)
+      return PlanResult(
+        strategy: .partitionScan(value: pv.description), pushedDown: 0,
+        cachedPartitionValue: pv, probe: nil)
     }
-    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
+    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
   }
 
   /// Returns the query execution plan without running the query.
@@ -538,7 +540,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     guard case .indexLookup(let field) = planResult.strategy,
       topLevelPredicateCount() == 1,
       sortField == nil || (sortField == field && sortAscending),
-      let probe = probe(forField: field)
+      let probe = planResult.probe
     else { return nil }
     return CoveredQuery(field: field, probe: probe, slice: (offsetCount, limitCount))
   }
@@ -547,9 +549,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///
   /// The returned flag is `true` when the query was fully covered by the
   /// index: pagination is already applied and no residual predicates remain.
-  private func candidates() async throws -> ([Data], Bool) {
-    let planResult = await plan()
-
+  private func candidates(planResult: PlanResult) async throws -> ([Data], Bool) {
     if let covered = coveredQuery(for: planResult) {
       let data = try await core.fetch(
         field: covered.field, probe: covered.probe, slice: covered.slice)
@@ -558,7 +558,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
     switch planResult.strategy {
     case .indexLookup(let field):
-      guard let probe = probe(forField: field) else { return ([], false) }
+      guard let probe = planResult.probe else { return ([], false) }
       let data = try await core.fetch(field: field, probe: probe, slice: nil)
       return (data, false)
 
@@ -631,14 +631,13 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     // requested — fetch and decode without parsing or re-evaluating anything.
     // (With a sort field, results must flow through the in-memory sort in
     // matchedParsed, because fetch returns documents in disk order.)
+    let planResult = await plan()
     let raw: [Data]
-    if sortField == nil, case let planResult = await plan(),
-      let covered = coveredQuery(for: planResult)
-    {
+    if sortField == nil, let covered = coveredQuery(for: planResult) {
       raw = try await core.fetch(
         field: covered.field, probe: covered.probe, slice: covered.slice)
     } else {
-      raw = try await matchingDocuments()
+      raw = try await matchingDocuments(planResult: planResult)
     }
 
     do {
@@ -666,7 +665,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       return await core.coveredCount(
         field: covered.field, probe: covered.probe, slice: covered.slice)
     }
-    return try await matchingDocuments().count
+    return try await matchingDocuments(planResult: planResult).count
   }
 
   /// Returns all distinct values of a field among the matching documents.
@@ -674,7 +673,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Parameter field: The field to collect distinct values from.
   /// - Returns: An array of distinct `FieldValue` instances.
   public func distinctValues(on field: String) async throws -> [FieldValue] {
-    let (raw, _) = try await candidates()
+    let (raw, _) = try await candidates(planResult: await plan())
     var seen = Set<FieldValue>()
     var result: [FieldValue] = []
 
@@ -700,7 +699,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Throws: Errors from the underlying delete operation.
   @discardableResult
   public func delete() async throws -> Int {
-    let matched = try await matchedParsed()
+    let matched = try await matchedParsed(planResult: await plan())
     let idField = await core.idField
     let fields = await core.indexedFieldList
 
@@ -720,13 +719,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   /// Returns matching documents as raw data (for counting).
-  private func matchingDocuments() async throws -> [Data] {
-    try await matchedParsed().map(\.json)
+  private func matchingDocuments(planResult: PlanResult) async throws -> [Data] {
+    try await matchedParsed(planResult: planResult).map(\.json)
   }
 
   /// Returns matching documents as parsed dictionaries with their raw data.
-  private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
-    let (raw, alreadyPaginated) = try await candidates()
+  private func matchedParsed(planResult: PlanResult) async throws
+    -> [(dict: [String: Any], json: Data)]
+  {
+    let (raw, alreadyPaginated) = try await candidates(planResult: planResult)
 
     if !alreadyPaginated && offsetCount > 0 && sortField == nil {
       throw NyaruError.unsupportedOperation(
