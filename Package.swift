@@ -33,7 +33,10 @@ let package = Package(
     ),
     .executableTarget(
       name: "NyaruDB2Benchmark",
-      dependencies: ["NyaruDB2"],
+      dependencies: [
+        "NyaruDB2",
+        .product(name: "SwiftMsgpack", package: "swift-msgpack"),
+      ],
       path: "Sources/Benchmark",
       linkerSettings: [
         .linkedLibrary("z"),

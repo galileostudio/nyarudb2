@@ -1,5 +1,67 @@
 # Benchmark Baselines
 
+## decompose — P0.3 cost attribution (2026-07-08)
+
+`--scenario decompose`, 100k docs, harness `User` shape (Date + [String]),
+partitionKey city (10 values), indexes [age, city], msgpack, release build,
+engine commit of this entry. Coder numbers measured against the swift-msgpack
+fork v1.3.0 directly.
+
+**A. Coders standalone (10k docs):**
+
+| op | per doc |
+|---|---|
+| encode serial (tree encoder) | 4.96 µs |
+| encode parallel | 1.44 µs |
+| decode parallel (lazyScan) | 2.47 µs |
+| decode serial | 3.26 µs |
+| `Date` field marginal | +0.88 µs encode / +0.44 µs decode |
+
+**B. Covered query (`city == X`, limit 1000, avg 50 runs):**
+
+| component | none | gzip |
+|---|---|---|
+| query total | 3.29 ms | 3.23 ms |
+| plan+probe+actor (covered count) | ~0.00 ms | ~0.00 ms |
+| decode 1k (standalone) | 2.56 ms (78%) | 2.56 ms |
+| io+crc+restore (residual) | 0.73 ms (22%) | 0.67 ms |
+
+**Insert 100k (one batched flow):** 5.22 µs/doc (none), 10.68 µs/doc (gzip —
+compression itself doubles it).
+
+**C. Batch delete, 90k in one `delete(ids:)` call:**
+
+| configuration | total | per doc |
+|---|---|---|
+| with secondary indexes [age, city] | 389 ms | 4.33 µs |
+| id index only | 372 ms | 4.13 µs |
+
+Secondary-index extraction + sweeps cost only ~0.2 µs/doc; the bulk is the
+per-record payload read + tombstone write loop.
+
+### Conclusions vs the external harness v2 (its numbers in parentheses)
+
+- Covered query: **3.3 ms** engine-side (harness: 23.2 ms) — already under
+  the 6.8 ms target. ~20 ms of the harness number is not engine time.
+- Insert: **5.2 µs/doc** uncompressed (harness: 17.1) — already under the
+  13.4 µs target; even gzip (10.7) is under it.
+- BatchDelete: **4.3 µs/doc** (harness: 13.6) — still above CoreData's
+  honest 1.4 µs/doc, but 3× better than the harness reports.
+
+Every "losing" op is 3–7× faster when measured at the engine than through
+the harness. Before any engine phase lands, the harness needs a v3 audit —
+prime suspects: NyaruDB2 built in **debug** inside the harness (SwiftPM's
+default), per-op adapter overhead, or measurement including setup. The
+v1→v2 lesson repeats at smaller scale.
+
+Engine facts that survive and reorder the plan:
+- Decode is 78% of the covered query → the fork's cursor decoder (P2.2) is
+  the top engine lever; coalesced preads (P1.1) can win at most ~0.7 ms.
+- The tree encoder costs ~5 µs/doc serial → P2.1 justified.
+- One `Date` field costs +0.88/+0.44 µs — the fork's §3 probe is justified.
+- P3.2/P3.3 ceilings are small (~0.2 µs/doc); `clear()` (P3.1) remains the
+  real lever for deleteAll-class operations.
+
 Extended-scenario baselines recorded before the v0.3.0 memory/latency/index
 tracks (M1, C1, E1). Reproduce with
 `swift run -c release NyaruDB2Benchmark --scenario <name>` on Apple Silicon,

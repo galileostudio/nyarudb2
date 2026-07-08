@@ -1,5 +1,6 @@
 import Foundation
 import NyaruDB2
+import SwiftMsgpack
 
 // MARK: - Memory peak sampling
 
@@ -142,10 +143,12 @@ enum ExtendedScenarios {
         try await residualPredicates(docs: explicitCount ? documentCount : 200_000)
       case "unitdelete":
         try await unitDeleteCurve(maxDocs: explicitCount ? documentCount : 1_000_000)
+      case "decompose":
+        try await costDecomposition(docs: explicitCount ? documentCount : 100_000)
       default:
         print(
           "Unknown scenario '\(name)'. Available: "
-            + "curve, concurrency, bigdocs, memory, residual, unitdelete")
+            + "curve, concurrency, bigdocs, memory, residual, unitdelete, decompose")
         Foundation.exit(1)
       }
     } catch {
@@ -268,6 +271,227 @@ enum ExtendedScenarios {
             total, percentile(latencies, 0.5), percentile(latencies, 0.99)))
         try await db.close()
       }
+    }
+    print("")
+  }
+
+  // MARK: — P0.3: cost decomposition for Query / Insert / BatchDelete
+
+  /// A document shaped like the external multi-database harness's User:
+  /// flat struct with strings, ints, a Date, and a small string array.
+  struct HarnessUser: Codable, Sendable {
+    let id: Int
+    let name: String
+    let email: String
+    let age: Int
+    let city: String
+    let createdAt: Date
+    let tags: [String]
+  }
+
+  private static func harnessUser(_ id: Int) -> HarnessUser {
+    HarnessUser(
+      id: id,
+      name: "User Name \(id % 997)",
+      email: "user\(id)@example.com",
+      age: 18 + (id % 60),
+      city: "city-\(id % 10)",
+      createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(id)),
+      tags: id % 3 == 0 ? [] : ["tag\(id % 7)", "tag\(id % 13)"]
+    )
+  }
+
+  /// Chunk-free parallel map for the coder microbenchmarks — mirrors the
+  /// engine's decodeBatch shape (fresh coder instance per element).
+  private static func parallelMap<T, R>(
+    _ items: [T], _ transform: @escaping (T) throws -> R
+  ) throws -> [R] {
+    let count = items.count
+    var results = [R?](repeating: nil, count: count)
+    let lock = NSLock()
+    nonisolated(unsafe) var firstError: Error?
+    results.withUnsafeMutableBufferPointer { buffer in
+      nonisolated(unsafe) let out = buffer
+      items.withUnsafeBufferPointer { source in
+        nonisolated(unsafe) let input = source
+        DispatchQueue.concurrentPerform(iterations: count) { i in
+          do {
+            out[i] = try transform(input[i])
+          } catch {
+            lock.lock()
+            if firstError == nil { firstError = error }
+            lock.unlock()
+          }
+        }
+      }
+    }
+    if let error = firstError { throw error }
+    return results.map { $0! }
+  }
+
+  /// Attributes the wall time of the three losing harness operations to
+  /// engine components using only public API: standalone coder costs
+  /// (via SwiftMsgpack directly, exactly what Serializer does), covered
+  /// count (planner+probe+actor overhead, zero I/O), covered query
+  /// (everything), and a with/without-secondary-indexes delete ablation.
+  static func costDecomposition(docs: Int) async throws {
+    let queryLimit = 1_000
+    print("\(ANSI.bold)📈 P0.3 cost decomposition — \(docs) docs, msgpack\(ANSI.reset)")
+    print("\(ANSI.FG.gray)harness User shape (Date + [String]), partitionKey city (10), indexes [age, city]\(ANSI.reset)\n")
+
+    func ms(_ s: Double) -> String { String(format: "%8.2f ms", s * 1000) }
+    func perDoc(_ s: Double, _ n: Int) -> String {
+      String(format: "%6.2f µs/doc", s * 1_000_000 / Double(n))
+    }
+
+    // ---- A. Coder micro (no engine) --------------------------------------
+    print("\(ANSI.bold)A. Coders standalone (10k docs)\(ANSI.reset)")
+    let coderDocs = (0..<10_000).map { harnessUser($0) }
+
+    let sharedEncoder = MsgPackEncoder()
+    var t0 = CFAbsoluteTimeGetCurrent()
+    let encodedSerial = try coderDocs.map { try sharedEncoder.encode($0) }
+    let tEncodeSerial = CFAbsoluteTimeGetCurrent() - t0
+    print("  encode serial          \(ms(tEncodeSerial))  \(perDoc(tEncodeSerial, coderDocs.count))")
+
+    t0 = CFAbsoluteTimeGetCurrent()
+    _ = try parallelMap(coderDocs) { try MsgPackEncoder().encode($0) }
+    let tEncodePar = CFAbsoluteTimeGetCurrent() - t0
+    print("  encode parallel        \(ms(tEncodePar))  \(perDoc(tEncodePar, coderDocs.count))")
+
+    t0 = CFAbsoluteTimeGetCurrent()
+    _ = try parallelMap(encodedSerial) {
+      try MsgPackDecoder(options: .lazyScan).decode(HarnessUser.self, from: $0)
+    }
+    let tDecodePar = CFAbsoluteTimeGetCurrent() - t0
+    print("  decode parallel        \(ms(tDecodePar))  \(perDoc(tDecodePar, coderDocs.count))")
+
+    t0 = CFAbsoluteTimeGetCurrent()
+    for data in encodedSerial.prefix(2_000) {
+      _ = try MsgPackDecoder(options: .lazyScan).decode(HarnessUser.self, from: data)
+    }
+    let tDecodeSerial = CFAbsoluteTimeGetCurrent() - t0
+    print("  decode serial (2k)     \(ms(tDecodeSerial))  \(perDoc(tDecodeSerial, 2_000))")
+
+    // Date-cost probe: identical struct with and without a Date field.
+    struct NoDate: Codable, Sendable { let id: Int; let age: Int; let name: String }
+    struct WithDate: Codable, Sendable {
+      let id: Int
+      let age: Int
+      let name: String
+      let createdAt: Date
+    }
+    let noDate = (0..<10_000).map { NoDate(id: $0, age: $0 % 60, name: "User \($0 % 997)") }
+    let withDate = (0..<10_000).map {
+      WithDate(
+        id: $0, age: $0 % 60, name: "User \($0 % 997)",
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double($0)))
+    }
+    t0 = CFAbsoluteTimeGetCurrent()
+    let encNoDate = try noDate.map { try sharedEncoder.encode($0) }
+    let tEncNoDate = CFAbsoluteTimeGetCurrent() - t0
+    t0 = CFAbsoluteTimeGetCurrent()
+    let encWithDate = try withDate.map { try sharedEncoder.encode($0) }
+    let tEncWithDate = CFAbsoluteTimeGetCurrent() - t0
+    t0 = CFAbsoluteTimeGetCurrent()
+    for data in encNoDate {
+      _ = try MsgPackDecoder(options: .lazyScan).decode(NoDate.self, from: data)
+    }
+    let tDecNoDate = CFAbsoluteTimeGetCurrent() - t0
+    t0 = CFAbsoluteTimeGetCurrent()
+    for data in encWithDate {
+      _ = try MsgPackDecoder(options: .lazyScan).decode(WithDate.self, from: data)
+    }
+    let tDecWithDate = CFAbsoluteTimeGetCurrent() - t0
+    print(
+      "  Date field marginal    encode +\(perDoc(tEncWithDate - tEncNoDate, 10_000))"
+        + "  decode +\(perDoc(tDecWithDate - tDecNoDate, 10_000))")
+
+    // ---- B. Query decomposition (covered, engine) -------------------------
+    print("\n\(ANSI.bold)B. Covered query (city == X, limit \(queryLimit))\(ANSI.reset)")
+    for compression in [CompressionMethod.none, .gzip] {
+      let dir = tempDir("decompose-\(compression.rawValue)")
+      defer { try? FileManager.default.removeItem(at: dir) }
+      let db = try NyaruDB(
+        path: dir.path,
+        options: DatabaseOptions(compression: compression, format: .msgpack))
+      let collection = try await db.collection(
+        "users", of: HarnessUser.self,
+        options: CollectionOptions(
+          idField: "id", partitionKey: "city", indexedFields: ["age", "city"]))
+
+      let insertStart = CFAbsoluteTimeGetCurrent()
+      for chunk in stride(from: 0, to: docs, by: 25_000) {
+        let end = min(chunk + 25_000, docs)
+        try await collection.insert(contentsOf: (chunk..<end).map { harnessUser($0) })
+      }
+      let tInsert = CFAbsoluteTimeGetCurrent() - insertStart
+
+      // Warmup, then averages.
+      _ = try await collection.find().where("city", isEqualTo: "city-3")
+        .limit(queryLimit).execute()
+
+      var tCount = 0.0
+      var tQuery = 0.0
+      let runs = 50
+      for _ in 0..<runs {
+        t0 = CFAbsoluteTimeGetCurrent()
+        _ = try await collection.find().where("city", isEqualTo: "city-3")
+          .limit(queryLimit).count()
+        tCount += CFAbsoluteTimeGetCurrent() - t0
+
+        t0 = CFAbsoluteTimeGetCurrent()
+        _ = try await collection.find().where("city", isEqualTo: "city-3")
+          .limit(queryLimit).execute()
+        tQuery += CFAbsoluteTimeGetCurrent() - t0
+      }
+      tCount /= Double(runs)
+      tQuery /= Double(runs)
+
+      // Standalone decode of the same 1k payload shape.
+      let sample = (0..<queryLimit).map { harnessUser($0 * 10 + 3) }
+      let samplePayloads = try sample.map { try MsgPackEncoder().encode($0) }
+      t0 = CFAbsoluteTimeGetCurrent()
+      for _ in 0..<runs {
+        _ = try parallelMap(samplePayloads) {
+          try MsgPackDecoder(options: .lazyScan).decode(HarnessUser.self, from: $0)
+        }
+      }
+      let tDecode1k = (CFAbsoluteTimeGetCurrent() - t0) / Double(runs)
+
+      let residual = tQuery - tCount - tDecode1k
+      print("  [\(compression.rawValue)] insert \(docs): \(ms(tInsert)) (\(perDoc(tInsert, docs)))")
+      print("  [\(compression.rawValue)] query total        \(ms(tQuery))")
+      print("  [\(compression.rawValue)]   plan+probe+actor \(ms(tCount))   (covered count)")
+      print("  [\(compression.rawValue)]   decode (1k)      \(ms(tDecode1k))   (standalone)")
+      print("  [\(compression.rawValue)]   io+crc+restore   \(ms(residual))   (residual)")
+      try await db.close()
+    }
+
+    // ---- C. Batch delete ablation -----------------------------------------
+    print("\n\(ANSI.bold)C. Batch delete (\(docs - docs / 10) docs in one call)\(ANSI.reset)")
+    for (label, fields) in [("with secondary idx", ["age", "city"]), ("id index only", [])] {
+      let dir = tempDir("decompose-del")
+      defer { try? FileManager.default.removeItem(at: dir) }
+      let db = try NyaruDB(
+        path: dir.path, options: DatabaseOptions(compression: .none, format: .msgpack))
+      let collection = try await db.collection(
+        "users", of: HarnessUser.self,
+        options: CollectionOptions(
+          idField: "id", partitionKey: "city", indexedFields: fields))
+      for chunk in stride(from: 0, to: docs, by: 25_000) {
+        let end = min(chunk + 25_000, docs)
+        try await collection.insert(contentsOf: (chunk..<end).map { harnessUser($0) })
+      }
+
+      let victims = Array(0..<(docs - docs / 10))
+      t0 = CFAbsoluteTimeGetCurrent()
+      let removed = try await collection.delete(ids: victims)
+      let tDelete = CFAbsoluteTimeGetCurrent() - t0
+      print(
+        "  \(label.padding(toLength: 20, withPad: " ", startingAt: 0)) "
+          + "\(ms(tDelete))  \(perDoc(tDelete, removed))  (\(removed) removed)")
+      try await db.close()
     }
     print("")
   }
