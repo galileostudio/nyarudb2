@@ -216,7 +216,7 @@ public final class NyaruDBBenchmark {
     let path = tempDir.appendingPathComponent(scenarioName).path
 
     let encryptionKey: SymmetricKey? = encrypted ? NyaruCrypto.generateRandomKey() : nil
-
+    NyaruLogger.logLevel = .critical
     let db: NyaruDB
     do {
       db = try NyaruDB(
@@ -709,32 +709,42 @@ public final class SQLiteBenchmark {
     return CFAbsoluteTimeGetCurrent() - start
   }
 
-  private func measureQuery() -> Double {
-    let start = CFAbsoluteTimeGetCurrent()
-    var stmt: OpaquePointer?
-    if sqlite3_prepare_v2(db, "SELECT * FROM test WHERE id > 100 LIMIT 100;", -1, &stmt, nil)
-      == SQLITE_OK
-    {
-      while sqlite3_step(stmt) == SQLITE_ROW {}
-      sqlite3_finalize(stmt)
-    }
-    return CFAbsoluteTimeGetCurrent() - start
-  }
+    private func measureQuery() -> Double {
+        let start = CFAbsoluteTimeGetCurrent()
+        var stmt: OpaquePointer?
+        
+        for _ in 0..<5 {
+          if sqlite3_prepare_v2(db, "SELECT * FROM test WHERE id > 100 LIMIT 100;", -1, &stmt, nil)
+            == SQLITE_OK
+          {
+            while sqlite3_step(stmt) == SQLITE_ROW {}
+            sqlite3_finalize(stmt)
+          }
+        }
+        return CFAbsoluteTimeGetCurrent() - start
+      }
 
-  private func measureUpdate() -> Double {
-    let start = CFAbsoluteTimeGetCurrent()
-    execute(
-      "UPDATE test SET name = name || ' - Updated', content = content || ' (modified)' WHERE id = 1;"
-    )
-    return CFAbsoluteTimeGetCurrent() - start
-  }
+    private func measureUpdate() -> Double {
+        let start = CFAbsoluteTimeGetCurrent()
+        
+        for id in 1...100 {
+          let sql = "UPDATE test SET name = name || ' - Updated', content = content || ' (modified)' WHERE id = \(id);"
+          execute(sql)
+        }
+        
+        return CFAbsoluteTimeGetCurrent() - start
+      }
 
-  private func measurePatch() -> Double {
-    let start = CFAbsoluteTimeGetCurrent()
-    execute("UPDATE test SET name = 'Patched Document', category = 'Patched' WHERE id = 2;")
-    return CFAbsoluteTimeGetCurrent() - start
-  }
-
+    private func measurePatch() -> Double {
+        let start = CFAbsoluteTimeGetCurrent()
+        
+        for id in 1...100 {
+          let sql = "UPDATE test SET name = 'Patched Document', category = 'Patched' WHERE id = \(id);"
+          execute(sql)
+        }
+        
+        return CFAbsoluteTimeGetCurrent() - start
+      }
   private func measureDelete() -> Double {
     let start = CFAbsoluteTimeGetCurrent()
     execute("DELETE FROM test WHERE id > \(documentCount - 1000);")
