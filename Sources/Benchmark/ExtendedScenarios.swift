@@ -145,10 +145,12 @@ enum ExtendedScenarios {
         try await unitDeleteCurve(maxDocs: explicitCount ? documentCount : 1_000_000)
       case "decompose":
         try await costDecomposition(docs: explicitCount ? documentCount : 100_000)
+      case "querycost":
+        try await queryCost(docs: explicitCount ? documentCount : 100_000)
       default:
         print(
           "Unknown scenario '\(name)'. Available: "
-            + "curve, concurrency, bigdocs, memory, residual, unitdelete, decompose")
+            + "curve, concurrency, bigdocs, memory, residual, unitdelete, decompose, querycost")
         Foundation.exit(1)
       }
     } catch {
@@ -494,6 +496,70 @@ enum ExtendedScenarios {
       try await db.close()
     }
     print("")
+  }
+
+  // MARK: Query cost breakdown — which query shape is the headline?
+
+  /// Times the three query shapes of the cross-DB benchmark separately so we
+  /// can see which one drives the aggregate "Query" number. TestDocument
+  /// shape, non-partitioned, indexes [category, name, id] — matching the main
+  /// suite. The covered shapes (id-range+limit, name-eq) skip `matchedParsed`;
+  /// only the unaligned `sort` shape hits the parse-then-decode path.
+  static func queryCost(docs: Int) async throws {
+    print("\(ANSI.bold)📈 Query cost breakdown — \(docs) docs, msgpack\(ANSI.reset)")
+    print("\(ANSI.FG.gray)TestDocument shape, non-partitioned, indexes [category, name, id]\(ANSI.reset)\n")
+
+    func ms(_ s: Double) -> String { String(format: "%7.3f ms/exec", s * 1000) }
+
+    let dir = tempDir("querycost")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let db = try NyaruDB(path: dir.path, options: DatabaseOptions(compression: .none, format: .msgpack))
+    let collection = try await db.collection(
+      "test", of: TestDocument.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["category", "name", "id"]))
+
+    let filler = String(repeating: "Lorem ipsum dolor sit amet. ", count: 3)
+    for chunk in stride(from: 1, to: docs + 1, by: 25_000) {
+      let end = min(chunk + 25_000, docs + 1)
+      try await collection.insert(
+        contentsOf: (chunk..<end).map {
+          TestDocument(id: $0, name: "Document \($0)", category: "Test", content: filler)
+        })
+    }
+
+    // Warmup each shape.
+    _ = try await collection.find().where("id", isGreaterThan: 100).limit(100).execute()
+    _ = try await collection.find().where("name", isEqualTo: "Document 42").execute()
+    _ = try await collection.find().where("id", isBetween: 1000, and: 2000).sort(by: "name").execute()
+
+    let runs = 200
+    func time(_ label: String, rows: String, _ body: () async throws -> Int) async rethrows {
+      let t0 = CFAbsoluteTimeGetCurrent()
+      var n = 0
+      for _ in 0..<runs { n = try await body() }
+      let dt = (CFAbsoluteTimeGetCurrent() - t0) / Double(runs)
+      print("  \(label.padding(toLength: 34, withPad: " ", startingAt: 0))\(ms(dt))   \(rows) rows: \(n)")
+    }
+
+    print("\(ANSI.bold)Per-shape execute() cost (avg of \(runs))\(ANSI.reset)")
+    try await time("covered: id>100 limit 100", rows: "→") {
+      try await collection.find().where("id", isGreaterThan: 100).limit(100).execute().count
+    }
+    try await time("covered: name == \"Document 42\"", rows: "→") {
+      try await collection.find().where("name", isEqualTo: "Document 42").execute().count
+    }
+    try await time("sort: id in 1000..2000 by name", rows: "→") {
+      try await collection.find().where("id", isBetween: 1000, and: 2000).sort(by: "name").execute().count
+    }
+    // Same range, NO sort → covered path, decode-only floor. The gap to the
+    // sorted row above is what the sort path's redundant full-parse costs.
+    try await time("range: id in 1000..2000 (no sort)", rows: "→") {
+      try await collection.find().where("id", isBetween: 1000, and: 2000).execute().count
+    }
+    print("")
+    print("\(ANSI.FG.gray)The cross-DB headline is ~0.21 ms/exec; the shape landing there is\(ANSI.reset)")
+    print("\(ANSI.FG.gray)what any engine fix must move.\(ANSI.reset)")
+    try await db.close()
   }
 
   // MARK: H4.2 — read latency under concurrent writes and compaction (gates C1)

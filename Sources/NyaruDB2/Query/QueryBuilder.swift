@@ -636,6 +636,20 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     if sortField == nil, let covered = coveredQuery(for: planResult) {
       raw = try await core.fetch(
         field: covered.field, probe: covered.probe, slice: covered.slice)
+    } else if let sortField, isPredicateFullyIndexed(planResult),
+      coveredQuery(for: planResult) == nil
+    {
+      // Sort with no residual predicate (an unaligned sort over an
+      // index-answered predicate). The `coveredQuery == nil` guard excludes an
+      // aligned ascending sort, where `candidates()` already returns the
+      // offset/limit-sliced page — re-slicing it here would drop rows. The
+      // index already guarantees the match, so extracting only the sort key —
+      // instead of parsing every field of every candidate, which boxes large
+      // payload fields we never sort on — orders the payloads and then decodes
+      // only the surviving page. Avoids the full parse AND the redundant
+      // re-evaluation the general path would do.
+      let (candidates, _) = try await self.candidates(planResult: planResult)
+      raw = sortedByKeyOnly(candidates, sortField: sortField)
     } else {
       raw = try await matchingDocuments(planResult: planResult)
     }
@@ -645,6 +659,43 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     } catch {
       throw NyaruError.decodingFailed(String(describing: error))
     }
+  }
+
+  /// Whether the index lookup fully answers the predicate, so candidates need
+  /// no in-memory re-evaluation (only sort-key extraction, when sorting).
+  private func isPredicateFullyIndexed(_ planResult: PlanResult) -> Bool {
+    let count = topLevelPredicateCount()
+    return count > 0 && planResult.pushedDown == count
+  }
+
+  /// Orders index-matched payloads by a single sort key without parsing the
+  /// rest of each document. Applies offset/limit with the same semantics as
+  /// the general sort path (bounded top-K when a limit is present).
+  private func sortedByKeyOnly(_ raw: [Data], sortField: String) -> [Data] {
+    let format = self.format
+    let plan = Serializer.FieldPlan(fields: [sortField])
+    let keyed: [(key: FieldValue, json: Data)] = Parallel.map(raw) { json in
+      let key = Serializer.extractFieldValues(from: json, plan: plan, format: format)[sortField]
+      return (key ?? .null, json)
+    }
+
+    let less: ((key: FieldValue, json: Data), (key: FieldValue, json: Data)) -> Bool = {
+      [sortAscending] a, b in sortAscending ? a.key < b.key : b.key < a.key
+    }
+
+    if let limitCount {
+      var top = BoundedTopK<(key: FieldValue, json: Data)>(k: offsetCount + limitCount, areInIncreasingOrder: less)
+      for item in keyed { top.insert(item) }
+      let selected = top.sorted()
+      let start = min(offsetCount, selected.count)
+      return selected[start...].map(\.json)
+    }
+
+    var sorted = keyed.sorted(by: less)
+    if offsetCount > 0 {
+      sorted = offsetCount < sorted.count ? Array(sorted[offsetCount...]) : []
+    }
+    return sorted.map(\.json)
   }
 
   /// Returns the first matching document, or `nil` if none match.

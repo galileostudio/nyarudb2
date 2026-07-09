@@ -106,6 +106,48 @@ final class QueryAdvancedTests: XCTestCase {
     XCTAssertEqual(results.map(\.id), [1, 4])
   }
 
+  // MARK: - Covered predicate + unaligned sort (sort-key-only fast path)
+
+  /// A fully index-covered predicate combined with a sort on a DIFFERENT field
+  /// takes the sort-key-only path (no full per-document parse, no residual
+  /// re-evaluation). Results must match a plain reference ordering in every
+  /// direction and page.
+  func testCoveredPredicateUnalignedSortParity() async throws {
+    // age == 25 is index-covered; sorting by id is unaligned → fast path.
+    let asc = try await users.find().where("age", isEqualTo: 25).sort(by: "id").execute()
+    XCTAssertEqual(asc.map(\.id), [1, 5])
+
+    let desc = try await users.find().where("age", isEqualTo: 25)
+      .sort(by: "id", ascending: false).execute()
+    XCTAssertEqual(desc.map(\.id), [5, 1])
+
+    // Range predicate on age (still index-covered), sort by unindexed name.
+    let byName = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "name").execute()
+    XCTAssertEqual(byName.map(\.name), ["Alice", "Bob", "Charlie", "David", "Eve", "Frank"])
+
+    // Offset + limit over the sorted order.
+    let paged = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "name").offset(1).limit(2).execute()
+    XCTAssertEqual(paged.map(\.name), ["Bob", "Charlie"])
+
+    // Descending + limit exercises the bounded top-K branch.
+    let topDesc = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "id", ascending: false).limit(3).execute()
+    XCTAssertEqual(topDesc.map(\.id), [6, 5, 4])
+
+    // Aligned ascending sort (sort field == the indexed predicate field) is
+    // served by the index-paginated path — the fast path must NOT intercept it
+    // and re-apply offset/limit (that would double-paginate and drop rows).
+    // Count is tie-independent, so it is unambiguous even with equal ages.
+    let alignedPaged = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "age").offset(3).limit(2).execute()
+    XCTAssertEqual(alignedPaged.count, 2)
+    let alignedLimit = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "age").limit(2).execute()
+    XCTAssertEqual(alignedLimit.count, 2)
+  }
+
   // MARK: - 2. NOT IN
 
   func testNotInLogic() async throws {

@@ -50,6 +50,17 @@ in minor versions).
   fix-it. The aliases will be removed in 0.4.0.
 
 ### Performance
+- **Sort-key-only fast path for index-covered queries**: a query that sorts on
+  a field unaligned with a fully index-answered predicate (e.g. `where("age",
+  …).sort(by: "name")`) no longer parses every candidate document twice. It
+  used to build a full `[String: Any]` per row for the sort key — boxing every
+  field, including large payloads it never sorts on — and re-evaluate a
+  predicate the index already guaranteed, then decode each row again to the
+  result type. `execute()` now extracts only the sort key when there is no
+  residual predicate, cutting the sort to one deserialization per surviving
+  row. On the benchmark's `id in 1000..2000 sort by name` (1001 rows) this
+  dropped the query from 3.08 ms to 1.90 ms (~1.6×), near the decode-only
+  floor. Covered lookups and residual-predicate sorts are unchanged.
 - **Large-fraction batch delete (survivor rewrite)**: a `delete(ids:)` or
   `find().delete()` removing at least half of a collection's live documents
   now rewrites each shard keeping only the survivors and remaps every index

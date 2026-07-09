@@ -87,6 +87,45 @@ tracks (M1, C1, E1). Reproduce with
 `swift run -c release NyaruDB2Benchmark --scenario <name>` on Apple Silicon,
 release build. The standard suite (`-q -d 10000`) lives in the README.
 
+## querycost — where the "Query" number goes (2026-07-09)
+
+`--scenario querycost`, 100k docs, TestDocument shape, non-partitioned,
+indexes [category, name, id] (matching the main suite). Per-shape
+`execute()` cost, avg of 200:
+
+| shape | ms/exec | rows |
+|---|---|---|
+| covered: id>100 limit 100 | 0.17 | 100 |
+| covered: name == "Document 42" | 0.003 | 1 |
+| sort: id in 1000..2000 by name | 1.90 | 1001 |
+| range: id in 1000..2000 (no sort) | 1.43 | 1001 |
+
+The main suite's aggregate "Query" number is `5 × (0.17 + 0.003 + sort)`, so
+the unaligned **sort query dominates it (~95%)** — not the covered lookups.
+
+Two facts about the cross-DB comparison, both making the headline "Query 3.5×
+slower" largely a benchmark-construction artifact rather than an engine gap:
+
+- The SQLite side (`measureQuery`) runs only `SELECT * … id>100 LIMIT 100` and
+  steps rows with `while sqlite3_step {}` — it never reads a column, so it
+  decodes nothing. NyaruDB2 fully decodes every returned row.
+- NyaruDB2's suite runs three queries including the 1.9 ms sort; SQLite runs
+  one cheap query. Different workloads. The fair shared shape (covered
+  id-range) is 0.17 ms — competitive.
+
+### Sort-key-only fast path
+
+A sort over an index-covered predicate used to full-parse every candidate to a
+dict (for the sort key, plus a redundant re-evaluation of a predicate the
+index already guaranteed) and then decode each again to the result type — two
+deserializations per row. `execute()` now extracts only the sort key when the
+predicate is fully index-answered (`sortedByKeyOnly`), skipping the full parse
+(notably the boxing of large payload fields it never sorts on) and the
+redundant eval. The sort query dropped **3.08 → 1.90 ms/exec (~1.6×)**, now
+near the decode-only floor (1.43 ms); the aggregate Query number falls ~1.5×.
+Covered lookups are unchanged (already optimal). Residual-predicate sorts keep
+the full-parse path (the dict is needed to evaluate them).
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly
