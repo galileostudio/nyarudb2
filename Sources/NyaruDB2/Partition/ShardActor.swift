@@ -196,6 +196,26 @@ actor ShardActor {
     return try Parallel.map(raw) { try self.restorePayload($0) }
   }
 
+  /// Like `readBatch(offsets:)` but returns each restored payload paired with
+  /// its source offset, so a caller can reorder results into an order other
+  /// than the on-disk offset order (e.g. an index-driven sort order).
+  ///
+  /// - Parameter offsets: Record offsets, **sorted ascending**.
+  /// - Returns: `(offset, data)` for each live record; tombstoned offsets are
+  ///   omitted.
+  func readBatchKeyed(offsets: [UInt64]) throws -> [(offset: UInt64, data: Data)] {
+    var raw: [(offset: UInt64, payload: Data, compression: CompressionMethod)] = []
+    raw.reserveCapacity(offsets.count)
+    for record in try file.readRecords(atSortedOffsets: offsets) {
+      if let record {
+        raw.append((offset: record.offset, payload: record.payload, compression: record.compression))
+      }
+    }
+    return try Parallel.map(raw) {
+      (offset: $0.offset, data: try self.restorePayload((payload: $0.payload, compression: $0.compression)))
+    }
+  }
+
   /// Reads every live record in the shard, restoring payloads in parallel.
   ///
   /// Materialises the whole shard — the right trade-off for full scans and

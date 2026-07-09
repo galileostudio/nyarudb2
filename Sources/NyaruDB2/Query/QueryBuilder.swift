@@ -443,6 +443,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     let pushedDown: Int
     let cachedPartitionValue: FieldValue?
     let probe: IndexProbe?
+    let sortFieldIndexed: Bool
   }
 
   private func plan() async -> PlanResult {
@@ -453,12 +454,18 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       topLevelPredicates = [rootPredicate]
     }
     guard !topLevelPredicates.isEmpty else {
-      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
+      return PlanResult(
+        strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil,
+        sortFieldIndexed: false)
     }
 
-    // Single actor hop: gather all indexed fields at once instead of one hop per predicate.
-    let allFields = Set(topLevelPredicates.compactMap { $0.field })
+    // Single actor hop: gather all indexed fields at once instead of one hop
+    // per predicate. The sort field is included so the sort-pushdown path can
+    // be chosen without a second hop.
+    var allFields = Set(topLevelPredicates.compactMap { $0.field })
+    if let sortField { allFields.insert(sortField) }
     let indexed = await core.indexedFieldSet(of: allFields)
+    let sortFieldIndexed = sortField.map { indexed.contains($0) } ?? false
 
     // Single pass through predicates to find the best strategy at each priority level.
     var bestEquality: String?
@@ -485,14 +492,17 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     if let field = bestEquality ?? bestInSet ?? bestRange {
       return PlanResult(
         strategy: .indexLookup(field: field), pushedDown: 1,
-        cachedPartitionValue: nil, probe: probe(forField: field))
+        cachedPartitionValue: nil, probe: probe(forField: field),
+        sortFieldIndexed: sortFieldIndexed)
     }
     if let pv = partitionValue {
       return PlanResult(
         strategy: .partitionScan(value: pv.description), pushedDown: 0,
-        cachedPartitionValue: pv, probe: nil)
+        cachedPartitionValue: pv, probe: nil, sortFieldIndexed: sortFieldIndexed)
     }
-    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
+    return PlanResult(
+      strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil,
+      sortFieldIndexed: sortFieldIndexed)
   }
 
   /// Returns the query execution plan without running the query.
@@ -642,14 +652,22 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       // Sort with no residual predicate (an unaligned sort over an
       // index-answered predicate). The `coveredQuery == nil` guard excludes an
       // aligned ascending sort, where `candidates()` already returns the
-      // offset/limit-sliced page — re-slicing it here would drop rows. The
-      // index already guarantees the match, so extracting only the sort key —
-      // instead of parsing every field of every candidate, which boxes large
-      // payload fields we never sort on — orders the payloads and then decodes
-      // only the surviving page. Avoids the full parse AND the redundant
-      // re-evaluation the general path would do.
-      let (candidates, _) = try await self.candidates(planResult: planResult)
-      raw = sortedByKeyOnly(candidates, sortField: sortField)
+      // offset/limit-sliced page — re-slicing it here would drop rows.
+      //
+      // Preferred: sort pushdown. When the sort field also has an index, the
+      // index yields the survivors already in sort order — no sort-key
+      // extraction pass and no in-memory sort, and a `limit` reads only the
+      // head. Falls back to the sort-key-only path when pushdown does not
+      // apply (sort field unindexed, or the walk is not worthwhile).
+      if let pushed = try await sortPushdown(planResult: planResult, sortField: sortField) {
+        raw = pushed
+      } else {
+        // Extract only the sort key (instead of parsing every field of every
+        // candidate, which boxes large payload fields we never sort on), order
+        // the payloads, then decode only the surviving page.
+        let (candidates, _) = try await self.candidates(planResult: planResult)
+        raw = sortedByKeyOnly(candidates, sortField: sortField)
+      }
     } else {
       raw = try await matchingDocuments(planResult: planResult)
     }
@@ -666,6 +684,26 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   private func isPredicateFullyIndexed(_ planResult: PlanResult) -> Bool {
     let count = topLevelPredicateCount()
     return count > 0 && planResult.pushedDown == count
+  }
+
+  /// Attempts sort pushdown: when the single index-answered predicate sorts by
+  /// a *different* indexed field, the sort field's index produces the matching
+  /// documents already in order. Returns the ordered, paginated data, or `nil`
+  /// when pushdown does not apply (unindexed sort field, aligned sort, or a
+  /// predicate the planner did not resolve to a probe).
+  private func sortPushdown(planResult: PlanResult, sortField: String) async throws -> [Data]? {
+    guard planResult.sortFieldIndexed,
+      case .indexLookup(let field) = planResult.strategy,
+      field != sortField,
+      topLevelPredicateCount() == 1,
+      let probe = planResult.probe
+    else { return nil }
+
+    let slice: (offset: Int, limit: Int?)? =
+      (limitCount != nil || offsetCount > 0) ? (offsetCount, limitCount) : nil
+    return try await core.fetchSortedByIndex(
+      predicateField: field, probe: probe,
+      sortField: sortField, ascending: sortAscending, slice: slice)
   }
 
   /// Orders index-matched payloads by a single sort key without parsing the

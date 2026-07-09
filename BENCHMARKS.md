@@ -190,6 +190,33 @@ inherits the same read-path saving. The remaining sort-query lever is the
 sort-key extraction pass (~25%), addressable by sort pushdown via the `name`
 index.
 
+### Sort pushdown via the sort-field index (2026-07-09)
+
+When a query sorts by an indexed field *different* from the index-covered
+predicate field **and a limit is present**, the sort-field index now yields the
+page already ordered: the predicate resolves to a pointer set, the sort index
+is walked in key order keeping only members, and the walk stops after
+`offset + limit` survivors. No sort-key extraction pass, no in-memory sort, and
+only ~`limit` documents are read instead of every match.
+
+`querycost` (100k docs, msgpack, indexes [category, name, id], avg of 200):
+
+| shape | in-memory sort | pushdown |
+|---|---|---|
+| sort `id in 1000..2000 by name` (no limit) | 1.66 ms | 1.66 ms (unchanged) |
+| sort `id in 1000..2000 by name limit 20` | ~1.66 ms | **0.10 ms (~16×)** |
+| sort `id>100 by name limit 20` (dense) | ~150 ms* | 6.4 ms |
+
+*The dense fallback reads every match (~99.9k docs); pushdown reads 20 but pays
+an O(matches) membership-set build, hence 6.4 ms — still a large win.
+
+**Cost gate.** Pushdown only triggers when a `limit` is present and the match
+set is more than twice the requested page (`matches > 2·(offset+limit)`).
+Without a limit it would walk the whole sort index while still reading every
+match — a regression (measured 1.66 → 4.7 ms on the no-limit Query C), so that
+case keeps the in-memory sort-key-only path. Ties (equal sort keys) follow an
+unspecified order in both paths (the API promises none).
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly
