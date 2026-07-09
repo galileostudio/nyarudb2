@@ -248,6 +248,26 @@ final class QueryAdvancedTests: XCTestCase {
     try await partDB.close()
   }
 
+  // MARK: - Deferred (faulting-style) results
+
+  /// `fetchDeferred()` must return the same documents in the same order as
+  /// `execute()`, and each deferred document must decode to the eager result.
+  func testFetchDeferredParity() async throws {
+    // Covered range with a limit (no sort): parity with execute().
+    let eager = try await users.find().where("age", isGreaterThan: 20)
+      .sort(by: "id").execute()
+    let deferred = try await users.find().where("age", isGreaterThan: 20)
+      .sort(by: "id").fetchDeferred()
+
+    XCTAssertEqual(deferred.count, eager.count)
+    XCTAssertEqual(try deferred.map { try $0.decoded() }, eager)
+
+    // Bare find(): every live document, deferred.
+    let allEager = try await users.find().sort(by: "id").execute()
+    let allDeferred = try await users.find().sort(by: "id").fetchDeferred()
+    XCTAssertEqual(try allDeferred.map { try $0.decoded() }, allEager)
+  }
+
   // MARK: - 2. NOT IN
   func testNotInLogic() async throws {
     // Who does NOT have IDs 1, 3, and 5?

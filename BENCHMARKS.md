@@ -217,6 +217,38 @@ match — a regression (measured 1.66 → 4.7 ms on the no-limit Query C), so th
 case keeps the in-memory sort-key-only path. Ties (equal sort keys) follow an
 unspecified order in both paths (the API promises none).
 
+### Deferred (faulting-style) results — `fetchDeferred()` (2026-07-09)
+
+`execute()` decodes every matching document into `T`. The no-limit sort Query C
+returns 1001 fully-decoded structs, whereas CoreData returns unrealised faults
+and only materialises the rows the caller touches — the structural reason it
+wins the discard-the-result benchmark. `fetchDeferred()` mirrors that: it
+resolves predicates, ordering, and pagination eagerly (so `count` and order are
+known) but wraps each payload in a `DeferredDocument` that decodes only when
+`decoded()` is called.
+
+Two refuted micro-optimisations along the way (measurement over intuition):
+
+- **Fusing sort-key extraction into the decode pass** (one parallel pass
+  producing `(key, T)`) *regressed* the no-limit sort 1.66 → 1.94 ms: reordering
+  decoded `T` values (which retain heap `String` fields) costs more than
+  reordering the raw `Data` (cheap CoW references) and decoding afterward.
+- **Hardware/faster CRC-32**: measured — CRC-32 of the 1001-row result set
+  (~1.05 MB) is only 0.14 ms (macOS zlib is already accelerated). Not a lever.
+
+`querycost` (100k docs, msgpack), sort `id in 1000..2000 by name`:
+
+| path | time | note |
+|---|---|---|
+| `execute()` (eager decode of 1001) | 1.69 ms | |
+| `fetchDeferred()` (order only, no decode) | **1.02 ms** | decode is ~40% of the query |
+
+Deferred drops the decode (~0.67 ms) the caller never asked for. Projecting the
+aggregate suite Query with deferred for the discarded sort query:
+`(0.14 + 0.004 + 1.02) × 5 ≈ 5.8 ms` + overhead ≈ **~6.5–7 ms**, versus the
+eager ~10.1 ms — the faulting gap to CoreData's ~6 ms closes to ≥85% when the
+comparison is like-for-like (both returning unrealised results).
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly

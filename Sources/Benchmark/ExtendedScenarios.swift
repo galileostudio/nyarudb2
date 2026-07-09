@@ -568,6 +568,13 @@ enum ExtendedScenarios {
       try await collection.find().where("id", isGreaterThan: 100)
         .sort(by: "name").limit(20).execute().count
     }
+    // Deferred (faulting-style): resolve + order the 1001-row sort but do NOT
+    // decode — the counterpart to CoreData returning unrealised faults. The
+    // gap to the eager sort above is the decode share that faulting avoids.
+    try await time("sort deferred: id in 1000..2000 by name", rows: "→") {
+      try await collection.find().where("id", isBetween: 1000, and: 2000)
+        .sort(by: "name").fetchDeferred().count
+    }
     print("")
 
     // ---- Decode decomposition: where Query C's cost actually goes ----

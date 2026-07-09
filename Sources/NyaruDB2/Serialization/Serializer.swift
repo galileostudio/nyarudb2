@@ -100,6 +100,21 @@ enum Serializer {
     }
   }
 
+  /// Decodes a single payload with a freshly-created decoder — safe to call
+  /// from a concurrent context (the shared `Serializer` decoders are not
+  /// thread-safe). Mirrors the per-element decode of `decodeBatch`.
+  @inline(__always)
+  static func decodeConcurrent<T: Decodable>(
+    _ type: T.Type, from data: Data, format: SerializationFormat
+  ) throws -> T {
+    switch format {
+    case .json:
+      return try JSONDecoder().decode(type, from: data)
+    case .msgpack:
+      return try MsgPackDecoder(options: .lazyScan).decode(type, from: data)
+    }
+  }
+
   /// Converts encoded document data into a generic `[String: Any]` dictionary
   /// for field extraction and predicate evaluation.
   ///

@@ -171,8 +171,40 @@ public indirect enum Predicate: Sendable {
   }
 }
 
-// MARK: - QueryBuilder
+// MARK: - DeferredDocument
 
+/// A query result whose payload has been fetched and ordered but **not yet
+/// decoded** into `T`.
+///
+/// Returned by `QueryBuilder.fetchDeferred()`. The array of deferred documents
+/// is already filtered, sorted, and paginated, so `count` and order are known
+/// without touching any payload. Decoding is paid per element, only when
+/// `decoded()` is called — the faulting-style counterpart to `execute()`,
+/// which eagerly decodes every result.
+public struct DeferredDocument<T: Codable & Sendable>: Sendable {
+  /// The raw, encoded payload as stored (already decompressed/decrypted).
+  public let raw: Data
+  private let format: SerializationFormat
+
+  init(raw: Data, format: SerializationFormat) {
+    self.raw = raw
+    self.format = format
+  }
+
+  /// Decodes the payload into `T`.
+  ///
+  /// - Returns: The decoded document.
+  /// - Throws: `NyaruError.decodingFailed` if the payload does not decode.
+  public func decoded() throws -> T {
+    do {
+      return try Serializer.decodeConcurrent(T.self, from: raw, format: format)
+    } catch {
+      throw NyaruError.decodingFailed(String(describing: error))
+    }
+  }
+}
+
+// MARK: - QueryBuilder
 /// An immutable, fluent query builder for executing typed queries against a
 /// NyaruDB collection.
 ///
@@ -637,14 +669,43 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Returns: An array of decoded documents matching all predicates.
   /// - Throws: `NyaruError.decodingFailed` if a document fails to decode.
   public func execute() async throws -> [T] {
+    let raw = try await orderedRaw()
+    do {
+      return try Serializer.decodeBatch(T.self, from: raw, format: format)
+    } catch {
+      throw NyaruError.decodingFailed(String(describing: error))
+    }
+  }
+
+  /// Executes the query and returns the matching documents **without decoding
+  /// them** — each result is a `DeferredDocument` that decodes to `T` only when
+  /// `decoded()` is called.
+  ///
+  /// This is the faulting-style counterpart to `execute()`: the query still
+  /// resolves predicates, ordering, and pagination eagerly (so `count` and
+  /// order are known), but the payloads are materialised into `T` lazily, one
+  /// at a time, only for the results the caller actually reads. For a large
+  /// ordered result set that the caller pages through — or counts without
+  /// reading — this skips decoding the documents that are never touched.
+  ///
+  /// - Returns: The matching payloads, in query order, each wrapped for
+  ///   on-demand decoding.
+  public func fetchDeferred() async throws -> [DeferredDocument<T>] {
+    let format = self.format
+    return try await orderedRaw().map { DeferredDocument(raw: $0, format: format) }
+  }
+
+  /// Produces the matching payloads in final query order — predicates applied,
+  /// sorted, and paginated — but **not decoded**. Shared by `execute()` (which
+  /// decodes them all) and `fetchDeferred()` (which defers decoding).
+  private func orderedRaw() async throws -> [Data] {
     // Fast path: the index answers the whole query and no ordering was
-    // requested — fetch and decode without parsing or re-evaluating anything.
+    // requested — fetch without parsing or re-evaluating anything.
     // (With a sort field, results must flow through the in-memory sort in
     // matchedParsed, because fetch returns documents in disk order.)
     let planResult = await plan()
-    let raw: [Data]
     if sortField == nil, let covered = coveredQuery(for: planResult) {
-      raw = try await core.fetch(
+      return try await core.fetch(
         field: covered.field, probe: covered.probe, slice: covered.slice)
     } else if let sortField, isPredicateFullyIndexed(planResult),
       coveredQuery(for: planResult) == nil
@@ -660,22 +721,18 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       // head. Falls back to the sort-key-only path when pushdown does not
       // apply (sort field unindexed, or the walk is not worthwhile).
       if let pushed = try await sortPushdown(planResult: planResult, sortField: sortField) {
-        raw = pushed
-      } else {
-        // Extract only the sort key (instead of parsing every field of every
-        // candidate, which boxes large payload fields we never sort on), order
-        // the payloads, then decode only the surviving page.
-        let (candidates, _) = try await self.candidates(planResult: planResult)
-        raw = sortedByKeyOnly(candidates, sortField: sortField)
+        return pushed
       }
+      // Extract only the sort key (instead of parsing every field of every
+      // candidate, which boxes large payload fields we never sort on), order
+      // the payloads, then decode only the surviving page. Extracting keys
+      // and reordering the raw payloads (cheap COW refs) then decoding beats
+      // fusing decode into the extract pass — reordering decoded `T` values
+      // (which retain heap fields) measured slower.
+      let (candidates, _) = try await self.candidates(planResult: planResult)
+      return sortedByKeyOnly(candidates, sortField: sortField)
     } else {
-      raw = try await matchingDocuments(planResult: planResult)
-    }
-
-    do {
-      return try Serializer.decodeBatch(T.self, from: raw, format: format)
-    } catch {
-      throw NyaruError.decodingFailed(String(describing: error))
+      return try await matchingDocuments(planResult: planResult)
     }
   }
 
