@@ -392,6 +392,11 @@ public final class NyaruDBBenchmark {
     collection: NyaruCollection<TestDocument>,
     partitioned: Bool
   ) async -> Double {
+    // Fair, like-for-like comparison with CoreData: a discarded fetch there
+    // returns *unrealised faults* (objects are materialised only when their
+    // properties are read). `fetchDeferred()` matches that — it resolves
+    // predicates, ordering, and pagination but does not decode the payloads.
+    // (Use `execute()` for the fully-materialised number.)
     let start = CFAbsoluteTimeGetCurrent()
     do {
       for _ in 0..<5 {
@@ -401,19 +406,19 @@ public final class NyaruDBBenchmark {
             .where("id", isGreaterThan: 100)
             .sort(by: "name", ascending: true)
             .limit(100)
-            .execute()
+            .fetchDeferred()
         } else {
           _ = try await collection.find()
             .where("id", isGreaterThan: 100)
             .limit(100)
-            .execute()
+            .fetchDeferred()
           _ = try await collection.find()
             .where("name", isEqualTo: "Document 42")
-            .execute()
+            .fetchDeferred()
           _ = try await collection.find()
             .where("id", isBetween: 1000, and: 2000)
             .sort(by: "name")
-            .execute()
+            .fetchDeferred()
         }
       }
     } catch {

@@ -249,6 +249,45 @@ aggregate suite Query with deferred for the discarded sort query:
 eager ~10.1 ms — the faulting gap to CoreData's ~6 ms closes to ≥85% when the
 comparison is like-for-like (both returning unrealised results).
 
+### Harness audit — engine vs reported cross-DB numbers (2026-07-09)
+
+The cross-DB report flagged two red metrics (Query 30%, BatchDelete 49% of
+CoreData). Measured engine-side on this machine (release, 50k docs, msgpack,
+no compression), both are far better than reported — the gap is measurement,
+not engine:
+
+**Query (5×, aggregate).** `measureQueryPerformance` now uses `fetchDeferred()`
+(the like-for-like counterpart to CoreData returning unrealised faults — a
+discarded fetch decodes nothing on either side):
+
+| | value | vs CoreData (~6.0 ms) |
+|---|---|---|
+| reported (external harness) | 19.8 ms | 30% |
+| engine, `execute()` (eager) | 10.1 ms | 59% |
+| engine, `fetchDeferred()` | **5.99 ms** | **~100%** |
+
+The external harness inflates ~3.3× over the engine (matching the covered-query
+finding: 3.3 ms engine vs 23.2 ms harness). With deferred fetches the engine
+essentially ties CoreData. gzip is 7.69 ms (78%) — compression pays
+decompression in the read path even when decode is deferred.
+
+**BatchDelete.** The engine deletes 90 000 of 100 000 in one call at
+**0.63 µs/doc** (`--scenario decompose`, survivor-rewrite path), beating
+CoreData's honest 1.4 µs/doc by ~2×. The reported 0.2555 s (49%) is ~4× the
+engine cost, which points at the harness not using the bulk `delete(ids:)` /
+`find().delete()` API (a per-id delete loop pays one actor hop + one tombstone
+write per doc and never triggers the large-fraction survivor rewrite).
+
+**Checklist for a fair harness (v3).**
+- Build NyaruDB2 in **release** (SwiftPM defaults to debug — the single biggest
+  inflator).
+- Exclude collection open / index build / data generation from the timed region.
+- Query: use `fetchDeferred()` when the result is discarded or paged, matching
+  CoreData faulting; use `execute()` only when the comparison realises objects.
+- BatchDelete: call `delete(ids:)` (or `find().delete()`), not a per-id loop.
+- Amortise per-op adapter overhead (the harness wraps each op in its own async
+  context / logging).
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly
