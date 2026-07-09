@@ -1063,27 +1063,94 @@ actor CollectionCore {
     defer { endPointerOp() }
     guard let primary = indexes[manifest.idField] else { return 0 }
 
-    var byShard: [String: [(entryIndex: Int, pointer: RecordPointer)]] = [:]
-    for (i, entry) in prepared.enumerated() {
+    var byShard: [String: [(pointer: RecordPointer, keys: [String: FieldValue]?)]] = [:]
+    for entry in prepared {
       guard let pointer = primary.search(entry.id).first else { continue }
-      byShard[pointer.shardID, default: []].append((entryIndex: i, pointer: pointer))
+      byShard[pointer.shardID, default: []].append((pointer, entry.keys))
     }
+    return try await tombstoneDelete(byShard: byShard)
+  }
 
+  /// Deletes multiple documents by id: one actor hop per shard, one parse per
+  /// document (to recover its index keys), and one bulk removal per index —
+  /// instead of a full read/parse/remove cycle per document.
+  ///
+  /// - Parameter ids: The document ids to delete. Unknown ids are skipped.
+  /// - Returns: The number of documents actually deleted.
+  func deleteMany(ids: [FieldValue]) async throws -> Int {
+    if ids.isEmpty { return 0 }
+    try ensureOpen()
+    if shouldRewriteDelete(matchCount: ids.count) {
+      return try await deleteByRewrite(ids: ids)
+    }
+    await beginPointerOp()
+    defer { endPointerOp() }
+    guard let primary = indexes[manifest.idField] else { return 0 }
+
+    var byShard: [String: [(pointer: RecordPointer, keys: [String: FieldValue]?)]] = [:]
+    for id in ids {
+      guard let pointer = primary.search(id).first else { continue }
+      // No keys yet — the shard read below recovers them from the payload.
+      byShard[pointer.shardID, default: []].append((pointer, nil))
+    }
+    return try await tombstoneDelete(byShard: byShard)
+  }
+
+  /// The shared tombstone-delete core: tombstones the resolved pointers one
+  /// shard hop at a time and applies the resulting index removals in one bulk
+  /// sweep per index. Each shard group decides its hop by whether keys are
+  /// already known: the query-prepared path passes non-nil keys and tombstones
+  /// without reading (`tombstoneMany`); the id path passes `nil` and the read
+  /// that tombstones also returns the old payload so keys are extracted from it
+  /// (`deleteMany(offsets:)`). Callers must hold the pointer op.
+  private func tombstoneDelete(
+    byShard: [String: [(pointer: RecordPointer, keys: [String: FieldValue]?)]]
+  ) async throws -> Int {
+    let capturedFormat = format
+    let fields = allIndexedFields
     var removed = 0
     var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
 
     for (shardID, items) in byShard {
       let shard = try existingShard(shardID)
-      let results = try await shard.tombstoneMany(offsets: items.map(\.pointer.offset))
-      for (j, wasLive) in results.enumerated() {
-        let item = items[j]
-        if wasLive {
-          removed += 1
-          for (field, key) in prepared[item.entryIndex].keys {
-            removalsByField[field, default: []].append((key, item.pointer))
+      let pointers = items.map(\.pointer)
+
+      if items.contains(where: { $0.keys == nil }) {
+        // Keys unknown: read + tombstone in one hop, extract keys from the old
+        // payloads in parallel.
+        let oldDatas = try await shard.deleteMany(offsets: pointers.map(\.offset))
+        typealias Removal = (field: String, key: FieldValue, pointer: RecordPointer)
+        let perDoc = Parallel.map(Array(zip(pointers, oldDatas))) { pair -> [Removal] in
+          guard let data = pair.1 else { return [] }
+          let values = Serializer.extractFieldValues(
+            from: data, fields: fields, format: capturedFormat)
+          return fields.compactMap { field in
+            values[field].map { (field: field, key: $0, pointer: pair.0) }
           }
-        } else {
-          removeFromAllIndexes(pointer: item.pointer)
+        }
+        for (i, data) in oldDatas.enumerated() {
+          if data != nil {
+            removed += 1
+          } else {
+            // Already dead — purge the stale pointer everywhere.
+            removeFromAllIndexes(pointer: pointers[i])
+          }
+        }
+        for removals in perDoc {
+          for r in removals { removalsByField[r.field, default: []].append((r.key, r.pointer)) }
+        }
+      } else {
+        // Keys known: tombstone only, no payload read.
+        let results = try await shard.tombstoneMany(offsets: pointers.map(\.offset))
+        for (j, wasLive) in results.enumerated() {
+          if wasLive {
+            removed += 1
+            for (field, key) in items[j].keys ?? [:] {
+              removalsByField[field, default: []].append((key, items[j].pointer))
+            }
+          } else {
+            removeFromAllIndexes(pointer: items[j].pointer)
+          }
         }
       }
     }
@@ -1103,72 +1170,6 @@ actor CollectionCore {
       indexes[field].map { (index: $0, removals: removals) }
     }
     _ = Parallel.map(work, serialThreshold: 2) { $0.index.bulkRemove($0.removals) }
-  }
-
-  /// Deletes multiple documents by id: one actor hop per shard for the
-  /// tombstones (with parallel payload restore), one parse per document, and
-  /// one bulk removal per index — instead of a full read/parse/remove cycle
-  /// per document.
-  ///
-  /// - Parameter ids: The document ids to delete. Unknown ids are skipped.
-  /// - Returns: The number of documents actually deleted.
-  func deleteMany(ids: [FieldValue]) async throws -> Int {
-    if ids.isEmpty { return 0 }
-    try ensureOpen()
-    if shouldRewriteDelete(matchCount: ids.count) {
-      return try await deleteByRewrite(ids: ids)
-    }
-    await beginPointerOp()
-    defer { endPointerOp() }
-    guard let primary = indexes[manifest.idField] else { return 0 }
-
-    var pointersByShard: [String: [RecordPointer]] = [:]
-    for id in ids {
-      guard let pointer = primary.search(id).first else { continue }
-      pointersByShard[pointer.shardID, default: []].append(pointer)
-    }
-
-    let capturedFormat = format
-    let fields = allIndexedFields
-    var removed = 0
-    var removalsByField: [String: [(key: FieldValue, pointer: RecordPointer)]] = [:]
-
-    for (shardID, pointers) in pointersByShard {
-      let shard = try existingShard(shardID)
-      let oldDatas = try await shard.deleteMany(offsets: pointers.map(\.offset))
-
-      typealias Removal = (field: String, key: FieldValue, pointer: RecordPointer)
-      let perDoc = Parallel.map(Array(zip(pointers, oldDatas))) { pair -> [Removal] in
-        guard let data = pair.1 else { return [] }
-        let values = Serializer.extractFieldValues(
-          from: data, fields: fields, format: capturedFormat)
-        var out: [Removal] = []
-        for field in fields {
-          if let key = values[field] {
-            out.append((field: field, key: key, pointer: pair.0))
-          }
-        }
-        return out
-      }
-
-      for (i, data) in oldDatas.enumerated() {
-        if data != nil {
-          removed += 1
-        } else {
-          // The record was already dead — purge the stale pointer everywhere.
-          removeFromAllIndexes(pointer: pointers[i])
-        }
-      }
-      for removals in perDoc {
-        for removal in removals {
-          removalsByField[removal.field, default: []].append((removal.key, removal.pointer))
-        }
-      }
-    }
-
-    applyBulkRemovals(removalsByField)
-    noteWrites(removed)
-    return removed
   }
 
   // MARK: - Atomic write batches
