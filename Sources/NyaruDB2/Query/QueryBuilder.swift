@@ -669,33 +669,50 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   /// Orders index-matched payloads by a single sort key without parsing the
-  /// rest of each document. Applies offset/limit with the same semantics as
-  /// the general sort path (bounded top-K when a limit is present).
+  /// rest of each document — the sort key is extracted from the raw bytes in
+  /// parallel, then the shared `orderedIndices` gives the sorted/paginated
+  /// order to apply.
   private func sortedByKeyOnly(_ raw: [Data], sortField: String) -> [Data] {
     let format = self.format
     let plan = Serializer.FieldPlan(fields: [sortField])
-    let keyed: [(key: FieldValue, json: Data)] = Parallel.map(raw) { json in
-      let key = Serializer.extractFieldValues(from: json, plan: plan, format: format)[sortField]
-      return (key ?? .null, json)
+    let keys: [FieldValue] = Parallel.map(raw) {
+      Serializer.extractFieldValues(from: $0, plan: plan, format: format)[sortField] ?? .null
     }
+    return orderedIndices(keys: keys, paginate: true).map { raw[$0] }
+  }
 
-    let less: ((key: FieldValue, json: Data), (key: FieldValue, json: Data)) -> Bool = {
-      [sortAscending] a, b in sortAscending ? a.key < b.key : b.key < a.key
-    }
+  /// Returns row indices ordered by `keys` (the query's sort direction) with
+  /// offset/limit applied — a bounded top-K keeps only `offset + limit` rows
+  /// when a limit is present, otherwise a full sort. When `paginate` is false
+  /// the indices are only sorted (offset/limit were already pushed down to the
+  /// index pointer list). The single source of truth for sort ordering, shared
+  /// by the full-parse (`matchedParsed`) and sort-key-only (`sortedByKeyOnly`)
+  /// paths; each caller extracts keys its own way and applies the returned
+  /// order to its own rows. Kept concrete (indices, not a generic row) so it
+  /// fully specializes on the hot path.
+  private func orderedIndices(keys: [FieldValue], paginate: Bool) -> [Int] {
+    let asc = sortAscending
+    let less: (Int, Int) -> Bool = { asc ? keys[$0] < keys[$1] : keys[$1] < keys[$0] }
 
-    if let limitCount {
-      var top = BoundedTopK<(key: FieldValue, json: Data)>(k: offsetCount + limitCount, areInIncreasingOrder: less)
-      for item in keyed { top.insert(item) }
+    if paginate, let limitCount {
+      var top = BoundedTopK<Int>(k: offsetCount + limitCount, areInIncreasingOrder: less)
+      for i in keys.indices { top.insert(i) }
       let selected = top.sorted()
       let start = min(offsetCount, selected.count)
-      return selected[start...].map(\.json)
+      return Array(selected[start...])
     }
 
-    var sorted = keyed.sorted(by: less)
-    if offsetCount > 0 {
-      sorted = offsetCount < sorted.count ? Array(sorted[offsetCount...]) : []
+    var order = Array(keys.indices)
+    order.sort(by: less)
+    if paginate {
+      if offsetCount > 0 {
+        order = offsetCount < order.count ? Array(order[offsetCount...]) : []
+      }
+      if let limitCount, order.count > limitCount {
+        order = Array(order.prefix(limitCount))
+      }
     }
-    return sorted.map(\.json)
+    return order
   }
 
   /// Returns the first matching document, or `nil` if none match.
@@ -861,41 +878,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     }
 
     if requiresFullEvaluation, let sortField {
-      if !alreadyPaginated, let limitCount {
-        // Top-K selection: only offset+limit rows survive the slice, so a
-        // bounded heap does O(n log k) comparisons and retains k elements
-        // instead of sorting every match. The sort key is extracted once
-        // per element, not once per comparison.
-        var top = BoundedTopK<(key: FieldValue, dict: [String: Any], json: Data)>(
-          k: offsetCount + limitCount
-        ) { sortAscending ? $0.key < $1.key : $1.key < $0.key }
-        for item in matched {
-          top.insert(
-            (
-              key: FieldExtractor.value(in: item.dict, path: sortField) ?? .null,
-              dict: item.dict, json: item.json
-            ))
-        }
-        let selected = top.sorted()
-        let start = min(offsetCount, selected.count)
-        matched = selected[start...].map { (dict: $0.dict, json: $0.json) }
-      } else {
-        matched.sort { lhs, rhs in
-          let a = FieldExtractor.value(in: lhs.dict, path: sortField) ?? .null
-          let b = FieldExtractor.value(in: rhs.dict, path: sortField) ?? .null
-          return sortAscending ? a < b : b < a
-        }
-
-        // Offset/limit only apply here when they were not pushed down.
-        if !alreadyPaginated {
-          if offsetCount > 0 {
-            matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
-          }
-          if let limitCount, matched.count > limitCount {
-            matched = Array(matched.prefix(limitCount))
-          }
-        }
-      }
+      // Extract the sort key once per element (from the already-parsed dict),
+      // then hand ordering to the shared helper. `paginate` is skipped when the
+      // index already sliced the pointer list to offset/limit.
+      let keys = matched.map { FieldExtractor.value(in: $0.dict, path: sortField) ?? .null }
+      matched = orderedIndices(keys: keys, paginate: !alreadyPaginated).map { matched[$0] }
     }
 
     return matched
