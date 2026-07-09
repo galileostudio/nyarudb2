@@ -5,7 +5,7 @@ All notable changes to NyaruDB2 are documented here. The format follows
 [Semantic Versioning](https://semver.org) (pre-1.0: breaking changes may land
 in minor versions).
 
-## [0.3.0] — Unreleased
+## [0.3.0] — 2026-07-09
 
 ### Added
 - **Structured logging** via [swift-log](https://github.com/apple/swift-log) —
@@ -39,8 +39,9 @@ in minor versions).
   single covered predicate on that same field (values then arrive in
   ascending index order; the API makes no ordering promise).
 - Extended benchmark scenarios (`--scenario curve|concurrency|bigdocs|
-  memory|residual`) with recorded baselines in `BENCHMARKS.md`, including
-  the measurements that gate future index-structure work.
+  memory|residual|unitdelete|decompose|querycost`) with recorded baselines
+  in `BENCHMARKS.md`, including the cost-decomposition measurements that
+  gate (and in several cases reject) future engine work.
 
 ### Deprecated
 - `insertBatch(_:)` is now a deprecated alias of `writeBatch(_:)`, and
