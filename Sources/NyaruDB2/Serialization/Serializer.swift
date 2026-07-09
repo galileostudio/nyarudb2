@@ -138,16 +138,40 @@ enum Serializer {
   static func extractFieldValues(
     from data: Data, fields: [String], format: SerializationFormat
   ) -> [String: FieldValue] {
-    if format == .msgpack, !fields.contains(where: { $0.contains(".") }),
-      let found = MsgPackExtractor.extractTopLevelFields(from: data, fields: fields)
+    extractFieldValues(from: data, plan: FieldPlan(fields: fields), format: format)
+  }
+
+  /// The per-query preparation for repeated field extraction: UTF-8 key
+  /// bytes and the dot-path check are computed once here instead of once
+  /// per document inside hot loops.
+  struct FieldPlan: Sendable {
+    let fields: [String]
+    let keyBytes: [[UInt8]]
+    let hasDotPath: Bool
+
+    init(fields: [String]) {
+      self.fields = fields
+      self.keyBytes = fields.map { Array($0.utf8) }
+      self.hasDotPath = fields.contains { $0.contains(".") }
+    }
+  }
+
+  /// Extracts field values using a pre-built `FieldPlan` — the hot-loop
+  /// variant of `extractFieldValues(from:fields:format:)`.
+  static func extractFieldValues(
+    from data: Data, plan: FieldPlan, format: SerializationFormat
+  ) -> [String: FieldValue] {
+    if format == .msgpack, !plan.hasDotPath,
+      let found = MsgPackExtractor.extractTopLevelFields(
+        from: data, fields: plan.fields, keyBytes: plan.keyBytes)
     {
       return found
     }
 
     guard let dict = try? FieldExtractor.parse(data, using: format) else { return [:] }
     var out: [String: FieldValue] = [:]
-    out.reserveCapacity(fields.count)
-    for field in fields {
+    out.reserveCapacity(plan.fields.count)
+    for field in plan.fields {
       if let value = FieldExtractor.value(in: dict, path: field) {
         out[field] = value
       }

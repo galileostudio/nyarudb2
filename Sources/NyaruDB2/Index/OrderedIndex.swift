@@ -34,10 +34,28 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   /// Cached total entry count to avoid O(unique-key-count) reduction on every call.
   private var _entryCount: Int = 0
 
+  // MARK: - Dead key slots
+  //
+  // Removing a key from the sorted array shifts every element behind it —
+  // O(n) per removal, and one-by-one deletes always empty their id-index
+  // key (a FIFO eviction empties position 0, the worst case; measured at
+  // 561 µs per delete on a 1M-doc collection). Instead, a key whose posting
+  // list becomes empty stays in the arrays as a DEAD SLOT — semantically
+  // absent — and the arrays are compacted in one O(n) sweep once dead
+  // slots exceed a quarter of the keys, making removal amortised O(1).
+  //
+  // Invariant for every reader: `postings[i].isEmpty` means "key absent".
+  // `search`/`range`/`replace` are naturally correct (an empty list
+  // contributes nothing); `contains`, `uniqueKeyCount`, `allKeys`, and
+  // `keysInRange` check explicitly. Bulk rebuilds (`bulkLoad`,
+  // `bulkRemove`, `compactRemap`) and snapshots drop dead slots for free.
+  /// The number of keys whose posting list is empty (dead slots).
+  @usableFromInline internal private(set) var emptyKeyCount = 0
+
   /// The total number of index entries (sum of all posting-list lengths).
   public var entryCount: Int { _entryCount }
-  /// The number of unique keys in the index.
-  public var uniqueKeyCount: Int { keys.count }
+  /// The number of unique live keys in the index.
+  public var uniqueKeyCount: Int { keys.count - emptyKeyCount }
 
   public init() {}
 
@@ -48,6 +66,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     keys = try container.decode([FieldValue].self, forKey: .keys)
     postings = try container.decode([[RecordPointer]].self, forKey: .postings)
     _entryCount = postings.reduce(0) { $0 + $1.count }
+    emptyKeyCount = postings.count(where: \.isEmpty)
   }
 
   // MARK: - Search
@@ -59,7 +78,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   @inlinable
   public func contains(_ key: FieldValue) -> Bool {
     let pos = lowerBound(key)
-    return pos < keys.count && keys[pos] == key
+    return pos < keys.count && keys[pos] == key && !postings[pos].isEmpty
   }
 
   /// Returns all record pointers indexed under the given key.
@@ -133,6 +152,29 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     return out
   }
 
+  /// All distinct live keys, in ascending order.
+  var allKeys: [FieldValue] {
+    if emptyKeyCount == 0 { return keys }
+    // NOTE: FieldValue is ExpressibleByNilLiteral, so a `nil` in a ternary
+    // silently becomes `.null` instead of Optional.none — filter+map, not
+    // compactMap.
+    return keys.indices.filter { !postings[$0].isEmpty }.map { keys[$0] }
+  }
+
+  /// The distinct live keys within the given bounds, in ascending order —
+  /// `range(...)`'s bound semantics without materialising any postings.
+  func keysInRange(
+    lower: FieldValue?, lowerInclusive: Bool,
+    upper: FieldValue?, upperInclusive: Bool
+  ) -> [FieldValue] {
+    let start = lower.map { lowerInclusive ? lowerBound($0) : upperBound($0) } ?? 0
+    let end = upper.map { upperInclusive ? upperBound($0) : lowerBound($0) } ?? keys.count
+    guard start < end, start < keys.count else { return [] }
+    let bounded = start..<min(end, keys.count)
+    if emptyKeyCount == 0 { return Array(keys[bounded]) }
+    return bounded.filter { !postings[$0].isEmpty }.map { keys[$0] }
+  }
+
   // MARK: - Mutation
 
   /// Inserts a pointer for the given key. If the key already exists, the
@@ -144,6 +186,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   public func insert(key: FieldValue, pointer: RecordPointer) {
     let pos = lowerBound(key)
     if pos < keys.count && keys[pos] == key {
+      if postings[pos].isEmpty { emptyKeyCount -= 1 }  // revive a dead slot
       postings[pos].append(pointer)
     } else {
       keys.insert(key, at: pos)
@@ -206,9 +249,12 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
         newKeys.append(newKey)
         newPostings.append(group)
       } else if existingKey < newKey {
-        // Keep existing
-        newKeys.append(keys[i])
-        newPostings.append(postings[i])
+        // Keep existing (dead slots are dropped — the rebuild is a free
+        // cleanup point)
+        if !postings[i].isEmpty {
+          newKeys.append(keys[i])
+          newPostings.append(postings[i])
+        }
         i += 1
       } else {
         // Merge: add new pointers to existing key
@@ -223,10 +269,12 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
       }
     }
 
-    // Append remaining existing
+    // Append remaining existing, dropping dead slots
     while i < keys.count {
-      newKeys.append(keys[i])
-      newPostings.append(postings[i])
+      if !postings[i].isEmpty {
+        newKeys.append(keys[i])
+        newPostings.append(postings[i])
+      }
       i += 1
     }
 
@@ -245,6 +293,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     self.keys = newKeys
     self.postings = newPostings
     self._entryCount = newPostings.reduce(0) { $0 + $1.count }
+    self.emptyKeyCount = 0
   }
 
   /// Removes a specific pointer from the posting list for the given key.
@@ -261,8 +310,10 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
       postings[pos].remove(at: i)
       _entryCount -= 1
       if postings[pos].isEmpty {
-        keys.remove(at: pos)
-        postings.remove(at: pos)
+        // Leave a dead slot instead of shifting the whole key array —
+        // amortised O(1); see the dead-slot invariant at the top.
+        emptyKeyCount += 1
+        compactKeySlotsIfNeeded()
       }
     }
   }
@@ -277,10 +328,13 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   public func bulkRemove(_ entries: [(key: FieldValue, pointer: RecordPointer)]) {
     if entries.isEmpty { return }
 
-    var toRemove: [FieldValue: [RecordPointer]] = [:]
+    // Victims as a Set per key: membership checks make the sweep O(p) per
+    // posting list instead of O(p × v) with firstIndex per victim. A pointer
+    // is never live under the same key twice, so set semantics are exact.
+    var toRemove: [FieldValue: Set<RecordPointer>] = [:]
     toRemove.reserveCapacity(entries.count)
     for entry in entries {
-      toRemove[entry.key, default: []].append(entry.pointer)
+      toRemove[entry.key, default: []].insert(entry.pointer)
     }
 
     var newKeys: [FieldValue] = []
@@ -291,17 +345,16 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
     for i in keys.indices {
       guard let victims = toRemove[keys[i]] else {
-        newKeys.append(keys[i])
-        newPostings.append(postings[i])
-        count += postings[i].count
+        // Dead slots are dropped — the rebuild is a free cleanup point.
+        if !postings[i].isEmpty {
+          newKeys.append(keys[i])
+          newPostings.append(postings[i])
+          count += postings[i].count
+        }
         continue
       }
       var list = postings[i]
-      for victim in victims {
-        if let j = list.firstIndex(of: victim) {
-          list.remove(at: j)
-        }
-      }
+      list.removeAll { victims.contains($0) }
       if !list.isEmpty {
         newKeys.append(keys[i])
         newPostings.append(list)
@@ -312,6 +365,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     keys = newKeys
     postings = newPostings
     _entryCount = count
+    emptyKeyCount = 0
   }
 
   /// Removes every occurrence of the given pointer across all keys in a
@@ -322,19 +376,14 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   ///
   /// - Parameter pointer: The record pointer to purge from the index.
   public func removeAll(pointer: RecordPointer) {
-    var i = 0
-    while i < postings.count {
+    for i in postings.indices {
       if let j = postings[i].firstIndex(of: pointer) {
         postings[i].remove(at: j)
         _entryCount -= 1
-        if postings[i].isEmpty {
-          keys.remove(at: i)
-          postings.remove(at: i)
-          continue
-        }
+        if postings[i].isEmpty { emptyKeyCount += 1 }
       }
-      i += 1
     }
+    compactKeySlotsIfNeeded()
   }
 
   /// Rewrites pointer offsets after shard compaction using per-shard offset
@@ -378,6 +427,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     keys = newKeys
     postings = newPostings
     _entryCount = count
+    emptyKeyCount = 0
   }
 
   /// Replaces `old` pointer with `new` pointer for a given key.
@@ -407,6 +457,26 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
       postings[pos][i] = new
     }
     return true
+  }
+
+  // MARK: - Dead-slot compaction
+
+  /// Sweeps dead key slots out of the arrays once they exceed a quarter of
+  /// the keys (and a small floor, so tiny indexes never bother). One O(n)
+  /// sweep per n/4 removals keeps removal amortised O(1).
+  private func compactKeySlotsIfNeeded() {
+    guard emptyKeyCount >= 64, emptyKeyCount * 4 >= keys.count else { return }
+    var newKeys: [FieldValue] = []
+    var newPostings: [[RecordPointer]] = []
+    newKeys.reserveCapacity(keys.count - emptyKeyCount)
+    newPostings.reserveCapacity(keys.count - emptyKeyCount)
+    for i in keys.indices where !postings[i].isEmpty {
+      newKeys.append(keys[i])
+      newPostings.append(postings[i])
+    }
+    keys = newKeys
+    postings = newPostings
+    emptyKeyCount = 0
   }
 
   // MARK: - Binary Search Helpers
@@ -478,7 +548,31 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
   ///   - encryptionKey: Optional AES-256-GCM key.
   /// - Throws: `NyaruError.encryptionFailed` if sealing fails.
   public func persist(to url: URL, encryptionKey: SymmetricKey?) throws {
-    let data = encodeBinary()
+    try Self.persist(snapshot(), to: url, encryptionKey: encryptionKey)
+  }
+
+  /// An O(1) copy-on-write capture of the index contents. The arrays are
+  /// value types sharing storage with the live index — encoding a snapshot
+  /// off the owning actor is safe, and concurrent mutations simply pay the
+  /// CoW copy.
+  struct Snapshot: Sendable {
+    let keys: [FieldValue]
+    let postings: [[RecordPointer]]
+    let entryCount: Int
+    let emptyKeyCount: Int
+  }
+
+  /// Captures the current contents for out-of-actor persistence.
+  func snapshot() -> Snapshot {
+    Snapshot(
+      keys: keys, postings: postings, entryCount: _entryCount, emptyKeyCount: emptyKeyCount)
+  }
+
+  /// Encodes, compresses, optionally seals, and atomically writes a
+  /// snapshot. Static so the expensive part can run detached from the
+  /// actor that owns the index.
+  static func persist(_ snapshot: Snapshot, to url: URL, encryptionKey: SymmetricKey?) throws {
+    let data = encodeBinary(snapshot)
     let compressed = try Compressor.compress(data, method: .gzip)
 
     let finalData: Data
@@ -536,7 +630,10 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
 
   // MARK: - Binary snapshot codec
 
-  private func encodeBinary() -> Data {
+  private static func encodeBinary(_ snapshot: Snapshot) -> Data {
+    let keys = snapshot.keys
+    let postings = snapshot.postings
+
     // Intern shard IDs.
     var shardTable: [String] = []
     var shardIndexByID: [String: UInt16] = [:]
@@ -548,7 +645,7 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     }
 
     // Rough size estimate: 10 bytes per posting + ~16 per key.
-    var out = Data(capacity: 64 + _entryCount * 10 + keys.count * 16)
+    var out = Data(capacity: 64 + snapshot.entryCount * 10 + keys.count * 16)
     out.append(contentsOf: Self.snapshotMagic)
     Binary.append(UInt16(1), to: &out)  // version
     Binary.append(UInt32(shardTable.count), to: &out)
@@ -558,8 +655,9 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
       out.append(utf8)
     }
 
-    Binary.append(UInt32(keys.count), to: &out)
-    for i in keys.indices {
+    // Dead slots are skipped — snapshots only ever contain live keys.
+    Binary.append(UInt32(keys.count - snapshot.emptyKeyCount), to: &out)
+    for i in keys.indices where !postings[i].isEmpty {
       switch keys[i] {
       case .null:
         out.append(0)

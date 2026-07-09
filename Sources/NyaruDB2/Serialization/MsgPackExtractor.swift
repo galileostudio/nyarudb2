@@ -31,6 +31,20 @@ enum MsgPackExtractor {
   ///   non-scalar values are omitted), or `nil` if the input is malformed —
   ///   the caller should fall back to a full parse.
   static func extractTopLevelFields(from data: Data, fields: [String]) -> [String: FieldValue]? {
+    extractTopLevelFields(from: data, fields: fields, keyBytes: fields.map { Array($0.utf8) })
+  }
+
+  /// Hot-loop variant of `extractTopLevelFields` taking pre-computed UTF-8
+  /// key bytes (build them once per query, not once per document). Map keys
+  /// are matched by comparing raw bytes in place — no `String` is ever
+  /// allocated for a key, wanted or not.
+  ///
+  /// Limited to 64 fields (a bitmask tracks which are still wanted); more
+  /// returns `nil` and the caller falls back to the full parse.
+  static func extractTopLevelFields(
+    from data: Data, fields: [String], keyBytes: [[UInt8]]
+  ) -> [String: FieldValue]? {
+    guard fields.count <= 64 else { return nil }
     return data.withUnsafeBytes { buffer -> [String: FieldValue]? in
       guard buffer.baseAddress != nil, !data.isEmpty else { return nil }
       var offset = 0
@@ -39,25 +53,79 @@ enum MsgPackExtractor {
         return nil
       }
 
-      var wanted = Set(fields)
+      var wantedMask: UInt64 = fields.count == 64 ? .max : (1 << fields.count) - 1
       var found: [String: FieldValue] = [:]
       found.reserveCapacity(fields.count)
 
       for _ in 0..<pairCount {
-        guard let key = readValue(buffer: buffer, offset: &offset, length: length) as? String
-        else { return nil }
-        if wanted.remove(key) != nil {
+        guard let key = readStringBytes(buffer: buffer, offset: &offset, length: length) else {
+          return nil
+        }
+        var matched = -1
+        var candidates = wantedMask
+        while candidates != 0 {
+          let i = candidates.trailingZeroBitCount
+          candidates &= candidates - 1
+          let candidate = keyBytes[i]
+          if candidate.count == key.count,
+            candidate.withUnsafeBufferPointer({ ptr in
+              memcmp(ptr.baseAddress!, buffer.baseAddress! + key.lowerBound, key.count) == 0
+            })
+          {
+            matched = i
+            break
+          }
+        }
+
+        if matched >= 0 {
           guard let value = readFieldValue(buffer: buffer, offset: &offset, length: length) else {
             return nil
           }
-          if let value { found[key] = value }
-          if wanted.isEmpty { break }
+          if let value { found[fields[matched]] = value }
+          wantedMask &= ~(UInt64(1) << matched)
+          if wantedMask == 0 { break }
         } else {
           guard skipValue(buffer: buffer, offset: &offset, length: length) else { return nil }
         }
       }
       return found
     }
+  }
+
+  /// Reads a MsgPack string header and returns the byte range of its UTF-8
+  /// payload, advancing past it. Returns `nil` for non-string values (map
+  /// keys are expected to be strings) or truncated input.
+  @inline(__always)
+  private static func readStringBytes(
+    buffer: UnsafeRawBufferPointer, offset: inout Int, length: Int
+  ) -> Range<Int>? {
+    guard offset < length else { return nil }
+    let byte = buffer[offset]
+    let payloadLength: Int
+    switch byte {
+    case 0xa0...0xbf:
+      payloadLength = Int(byte & 0x1f)
+      offset += 1
+    case 0xd9:
+      guard offset + 2 <= length else { return nil }
+      payloadLength = Int(buffer[offset + 1])
+      offset += 2
+    case 0xda:
+      guard offset + 3 <= length else { return nil }
+      payloadLength = Int(UInt16(buffer[offset + 1]) << 8 | UInt16(buffer[offset + 2]))
+      offset += 3
+    case 0xdb:
+      guard offset + 5 <= length else { return nil }
+      payloadLength = Int(
+        UInt32(buffer[offset + 1]) << 24 | UInt32(buffer[offset + 2]) << 16
+          | UInt32(buffer[offset + 3]) << 8 | UInt32(buffer[offset + 4]))
+      offset += 5
+    default:
+      return nil
+    }
+    guard offset + payloadLength <= length else { return nil }
+    defer { offset += payloadLength }
+    return offset..<(offset + payloadLength)
   }
 
   /// Reads the top-level map header, returning the number of key/value pairs.

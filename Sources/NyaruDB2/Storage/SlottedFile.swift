@@ -133,6 +133,10 @@ final class SlottedFile {
   /// Whether this open found the dirty flag set and ran crash recovery.
   /// Callers use this to decide whether index snapshots need rebuilding.
   private(set) var recoveredFromDirty = false
+
+  /// Cumulative I/O through this file's descriptor, for `CollectionMetrics`.
+  var ioBytesRead: UInt64 { handle.bytesRead }
+  var ioBytesWritten: UInt64 { handle.bytesWritten }
   private var isDirty = false
   /// Tombstoned slots available for reuse, sorted by capacity ascending.
   /// Each entry stores the offset and the immutable slot capacity.
@@ -245,10 +249,23 @@ final class SlottedFile {
 
     if wasDirty {
       // Crash recovery: never trust the sidecar — verify everything.
+      NyaruLogger.log.warning(
+        "Starting crash recovery for shard",
+        metadata: ["path": "\(url.path)"])
       try scan(verifyCRC: true, repair: true)
       recoveredFromDirty = true
       try sync()
+      NyaruLogger.log.info(
+        "Crash recovery complete",
+        metadata: [
+          "path": "\(url.path)",
+          "liveCount": "\(self.liveCount)",
+          "tombstoneCount": "\(tombstoneCount)",
+        ])
     } else if !loadStateSidecar() {
+      NyaruLogger.log.debug(
+        "Sidecar missing or invalid, scanning shard",
+        metadata: ["path": "\(url.path)"])
       try scan(verifyCRC: false, repair: false)
       // Persist the state so the next clean open skips the scan.
       writeStateSidecar()
@@ -269,10 +286,15 @@ final class SlottedFile {
 
   /// Best-effort write of the sidecar — failure just means the next open
   /// falls back to scanning.
+  ///
+  /// Format v2 ends with a CRC-32 of everything before it. The structural
+  /// checks (magic, version, file size, exact byte count) catch truncation
+  /// and staleness but not bit rot — and a corrupt slot list is not a
+  /// statistics bug: it would hand a live record's slot to best-fit reuse.
   private func writeStateSidecar() {
     var out = Data()
     out.append(contentsOf: Self.stateMagic)
-    Binary.append(UInt16(1), to: &out)  // version
+    Binary.append(UInt16(2), to: &out)  // version
     Binary.append(fileSize, to: &out)
     Binary.append(liveCount, to: &out)
     Binary.append(UInt32(freeSlots.count), to: &out)
@@ -280,22 +302,26 @@ final class SlottedFile {
       Binary.append(slot.offset, to: &out)
       Binary.append(slot.capacity, to: &out)
     }
+    Binary.append(Compressor.crc32Checksum(out), to: &out)
     try? out.write(to: stateURL, options: .atomic)
   }
 
   /// Attempts to adopt the sidecar state. Returns `false` (caller must scan)
-  /// when the sidecar is missing, malformed, from another version, or does
-  /// not match the current file size.
+  /// when the sidecar is missing, malformed, from another version, fails its
+  /// content CRC, or does not match the current file size. Version 1
+  /// sidecars (no CRC) are rejected — the open scans once and rewrites v2.
   private func loadStateSidecar() -> Bool {
     guard let data = try? Data(contentsOf: stateURL) else { return false }
     let slotsStart = 22
-    guard data.count >= slotsStart,
+    guard data.count >= slotsStart + 4,
       [UInt8](data.prefix(4)) == Self.stateMagic,
-      Binary.readUInt16(data, at: 4) == 1,
+      Binary.readUInt16(data, at: 4) == 2,
       Binary.readUInt64(data, at: 6) == fileSize,
       let live = Binary.readUInt32(data, at: 14),
       let slotCount = Binary.readUInt32(data, at: 18),
-      data.count == slotsStart + Int(slotCount) * 12
+      data.count == slotsStart + Int(slotCount) * 12 + 4,
+      let storedCRC = Binary.readUInt32(data, at: data.count - 4),
+      Compressor.crc32Checksum(data.prefix(data.count - 4)) == storedCRC
     else { return false }
 
     var slots: [(offset: UInt64, capacity: UInt32)] = []
@@ -318,49 +344,132 @@ final class SlottedFile {
   /// Iterates over every live record and invokes the block with a `LiveRecord`.
   ///
   /// Tombstoned records are skipped. The file is walked sequentially by
-  /// advancing by `recordHeaderSize + slotCapacity` for every slot.
+  /// advancing by `recordHeaderSize + slotCapacity` for every slot. Payloads
+  /// are copied out of the scan buffer, so they are safe to retain.
   ///
   /// - Parameter block: A closure called with each live record.
   /// - Throws: `NyaruError.corruptedRecord` if a record header is invalid
   ///   or a payload is truncated. Re-throws errors from the block.
   func forEachLive(_ block: (LiveRecord) throws -> Void) throws {
-    guard fileSize > SlottedFile.fileHeaderSize else { return }
-    let dataSize = Int(fileSize - SlottedFile.fileHeaderSize)
+    try forEachLive(copyingPayloads: true, block)
+  }
 
-    // Read the entire data region in one syscall, then parse records from
-    // the in-memory buffer.
-    let fileData = try handle.read(count: dataSize, at: SlottedFile.fileHeaderSize)
-    guard !fileData.isEmpty else { return }
+  /// Zero-copy variant of `forEachLive`: payloads are slices of the scan
+  /// window.
+  ///
+  /// **Retention trap.** A `Data` slice keeps its parent buffer alive, so
+  /// retaining a payload past the callback pins its whole scan window
+  /// (`scanChunkSize`) in memory. Use this only when payloads are consumed
+  /// promptly (written out, parsed) — compaction's bounded chunk flush is
+  /// the intended shape — and use `forEachLive` when payloads outlive the
+  /// iteration.
+  func forEachLiveSlice(_ block: (LiveRecord) throws -> Void) throws {
+    try forEachLive(copyingPayloads: false, block)
+  }
 
+  private func forEachLive(copyingPayloads: Bool, _ block: (LiveRecord) throws -> Void) throws {
+    _ = try walkSlots { record, payload in
+      guard record.flags & RecordFlags.tombstone == 0 else { return }
+      let bytes = try payload()
+      try block(
+        LiveRecord(
+          offset: record.offset,
+          payload: copyingPayloads ? Data(bytes) : bytes,
+          compression: CompressionMethod(recordFlags: record.flags),
+          crc: record.crc
+        )
+      )
+    }
+  }
+
+  /// The sliding-window size for whole-file walks. Bounds the resident
+  /// memory of scans and recovery at O(window) instead of O(file) — a 1 GB
+  /// shard no longer pins 1 GB to be iterated.
+  static let scanChunkSize = 4 << 20
+
+  /// A record slot yielded by `walkSlots`.
+  private struct WalkedSlot {
+    let offset: UInt64
+    let capacity: UInt32
+    let payloadLength: UInt32
+    let flags: UInt8
+    let crc: UInt32
+  }
+
+  /// Walks every record slot using a sliding window of `scanChunkSize`
+  /// bytes, invoking `body` with the parsed header and a lazy payload
+  /// accessor. Records that straddle the window boundary are refilled from
+  /// the record's offset; records larger than the window are read directly.
+  /// Tombstoned slots never touch payload bytes.
+  ///
+  /// The payload accessor returns a slice of the current window (zero copy)
+  /// or a fresh buffer for straddling records — either way it is only valid
+  /// during the callback unless copied.
+  ///
+  /// - Returns: The offset of the first slot with an invalid header (a torn
+  ///   append or trailing garbage — the caller decides whether to truncate),
+  ///   or `nil` when the walk reached the end of the file cleanly.
+  private func walkSlots(
+    _ body: (WalkedSlot, _ payload: () throws -> Data) throws -> Void
+  ) throws -> UInt64? {
+    guard fileSize > SlottedFile.fileHeaderSize else { return nil }
     let headerSize = Int(SlottedFile.recordHeaderSize)
-    var relPos = 0
+    var pos = SlottedFile.fileHeaderSize
+    var window = Data()
+    var windowStart = pos
 
-    while relPos + headerSize <= fileData.count {
-      guard let capacity = Binary.readUInt32(fileData, at: relPos),
-        let payloadLength = Binary.readUInt32(fileData, at: relPos + 4),
+    func refill(at offset: UInt64) throws {
+      window = try handle.read(count: SlottedFile.scanChunkSize, at: offset)
+      windowStart = offset
+    }
+    try refill(at: pos)
+
+    while pos < fileSize {
+      var rel = Int(pos - windowStart)
+      if rel + headerSize > window.count {
+        try refill(at: pos)
+        rel = 0
+        // Fewer than headerSize bytes remain on disk: torn trailing bytes.
+        if window.count < headerSize { return pos }
+      }
+
+      guard let capacity = Binary.readUInt32(window, at: rel),
+        let payloadLength = Binary.readUInt32(window, at: rel + 4),
         capacity > 0,
         capacity <= SlottedFile.maxRecordSize,
         payloadLength <= capacity,
-        relPos + headerSize + Int(capacity) <= fileData.count
-      else { break }
+        pos + UInt64(headerSize) + UInt64(capacity) <= fileSize
+      else { return pos }
 
-      let flags = fileData[fileData.startIndex + relPos + 8]
-      if flags & RecordFlags.tombstone == 0 {
-        let payloadStart = relPos + headerSize
-        let payloadEnd = payloadStart + Int(payloadLength)
-        guard payloadEnd <= fileData.count else { break }
-        let payload = fileData[fileData.startIndex + payloadStart..<fileData.startIndex + payloadEnd]
-        try block(
-          LiveRecord(
-            offset: SlottedFile.fileHeaderSize + UInt64(relPos),
-            payload: Data(payload),
-            compression: CompressionMethod(recordFlags: flags),
-            crc: Binary.readUInt32(fileData, at: relPos + 12) ?? 0
-          )
-        )
+      let slot = WalkedSlot(
+        offset: pos,
+        capacity: capacity,
+        payloadLength: payloadLength,
+        flags: window[window.startIndex + rel + 8],
+        crc: Binary.readUInt32(window, at: rel + 12) ?? 0
+      )
+
+      let payloadEndRel = rel + headerSize + Int(payloadLength)
+      if payloadEndRel <= window.count {
+        let w = window
+        let start = w.startIndex + rel + headerSize
+        try body(slot) { w[start..<(w.startIndex + payloadEndRel)] }
+      } else {
+        // The payload crosses the window boundary (or exceeds the window):
+        // one direct read of exactly the payload, deferred until asked for.
+        let payloadOffset = pos + UInt64(headerSize)
+        try body(slot) {
+          let data = try handle.read(count: Int(payloadLength), at: payloadOffset)
+          guard data.count == Int(payloadLength) else {
+            throw NyaruError.corruptedRecord(
+              offset: slot.offset, reason: "payload truncated mid-record")
+          }
+          return data
+        }
       }
-      relPos += headerSize + Int(capacity)
+      pos += UInt64(headerSize) + UInt64(capacity)
     }
+    return nil
   }
 
   /// Walks every slot in the file to rebuild `liveCount` and the free-slot
@@ -380,61 +489,27 @@ final class SlottedFile {
       return
     }
 
-    // Read the entire data region in one syscall, then parse headers and
-    // CRC-verify payloads from the in-memory buffer. A short read is tolerated:
-    // scanning exactly the bytes the OS provides correctly handles torn appends.
-    let dataSize = Int(fileSize - SlottedFile.fileHeaderSize)
-    let fileData = try handle.read(count: dataSize, at: SlottedFile.fileHeaderSize)
-    guard !fileData.isEmpty else {
-      _deadBytes = 0
-      return
-    }
-
-    let headerSize = Int(SlottedFile.recordHeaderSize)
-    var relPos = 0
-
-    while relPos + headerSize <= fileData.count {
-      let pos = SlottedFile.fileHeaderSize + UInt64(relPos)
-
-      guard let capacity = Binary.readUInt32(fileData, at: relPos),
-        let payloadLength = Binary.readUInt32(fileData, at: relPos + 4)
-      else { break }
-
-      let recordFlags = fileData[fileData.startIndex + relPos + 8]
-      let storedCRC = Binary.readUInt32(fileData, at: relPos + 12) ?? 0
-
-      let headerLooksValid =
-        capacity > 0
-        && capacity <= SlottedFile.maxRecordSize
-        && payloadLength <= capacity
-        && relPos + headerSize + Int(capacity) <= fileData.count
-
-      if !headerLooksValid {
-        if repair {
-          try handle.truncate(to: pos)
-          fileSize = pos
-        }
-        break
-      }
-
-      let isTombstone = (recordFlags & RecordFlags.tombstone) != 0
-      if isTombstone {
-        freeSlots.append((offset: pos, capacity: capacity))
+    // Chunked walk: recovery of an arbitrarily large shard runs in O(window)
+    // memory, and CRC verification checksums window slices without copying.
+    let tornOffset = try walkSlots { slot, payload in
+      if slot.flags & RecordFlags.tombstone != 0 {
+        freeSlots.append((offset: slot.offset, capacity: slot.capacity))
       } else if verifyCRC {
-        let payloadStart = relPos + headerSize
-        let payloadEnd = payloadStart + Int(payloadLength)
-        let payload = Data(
-          fileData[fileData.startIndex + payloadStart..<fileData.startIndex + payloadEnd])
-        if Compressor.crc32Checksum(payload) != storedCRC {
-          try writeTombstoneFlag(at: pos, existingFlags: recordFlags)
-          freeSlots.append((offset: pos, capacity: capacity))
+        if Compressor.crc32Checksum(try payload()) != slot.crc {
+          try writeTombstoneFlag(at: slot.offset, existingFlags: slot.flags)
+          freeSlots.append((offset: slot.offset, capacity: slot.capacity))
         } else {
           liveCount += 1
         }
       } else {
         liveCount += 1
       }
-      relPos += headerSize + Int(capacity)
+    }
+    // An invalid header mid-file is a torn append (or trailing garbage —
+    // which, left in place, would hide every future append behind it).
+    if let tornOffset, repair {
+      try handle.truncate(to: tornOffset)
+      fileSize = tornOffset
     }
     freeSlots.sort { $0.capacity < $1.capacity }
     _deadBytes = freeSlots.reduce(UInt64(0)) { $0 + UInt64($1.capacity) }
@@ -505,9 +580,15 @@ final class SlottedFile {
     try markDirtyIfNeeded()
     let length = UInt32(payload.count)
 
-    if let index = bestFitFreeSlot(for: length) {
+    while let index = bestFitFreeSlot(for: length) {
       let slot = freeSlots.remove(at: index)
-      _deadBytes -= UInt64(slot.capacity)
+      _deadBytes -= min(_deadBytes, UInt64(slot.capacity))
+      guard isReusableSlot(slot) else {
+        // The on-disk header disagrees with the free list (corrupt or stale
+        // state) — never overwrite. The slot is forgotten; if it really was
+        // dead, the next compaction reclaims it.
+        continue
+      }
       try writeRecord(
         at: slot.offset, capacity: slot.capacity,
         payload: payload, compression: compression
@@ -533,6 +614,21 @@ final class SlottedFile {
     let g = slotGranularity
     if length == 0 { return g }
     return ((length + g - 1) / g) * g
+  }
+
+  /// Defence in depth for free-slot reuse: a corrupt sidecar (or any bug in
+  /// free-list bookkeeping) could list a LIVE record's slot as free, and
+  /// best-fit would silently overwrite it — data loss, not a statistics
+  /// error. One 16-byte pread confirms the on-disk header agrees with the
+  /// free list — tombstoned, same capacity — before the slot is written over.
+  private func isReusableSlot(_ slot: (offset: UInt64, capacity: UInt32)) -> Bool {
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    guard let header = try? handle.read(count: headerSize, at: slot.offset),
+      header.count == headerSize,
+      Binary.readUInt32(header, at: 0) == slot.capacity,
+      header[header.startIndex + 8] & RecordFlags.tombstone != 0
+    else { return false }
+    return true
   }
 
   /// Finds the index of the smallest free slot that fits the given length

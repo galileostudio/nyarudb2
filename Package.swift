@@ -8,9 +8,9 @@ let package = Package(
     .library(name: "NyaruDB2", targets: ["NyaruDB2"])
   ],
   dependencies: [
-    .package(url: "https://github.com/nnabeyang/swift-msgpack", from: "1.2.0"),
+    .package(url: "https://github.com/galileostd/swift-msgpack", from: "1.4.0"),
     .package(url: "https://github.com/apple/swift-crypto", from: "4.5.0"),
-    .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.5.0"),
+    .package(url: "https://github.com/apple/swift-log", from: "1.14.0"),
   ],
   targets: [
     .target(
@@ -18,6 +18,7 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftMsgpack", package: "swift-msgpack"),
         .product(name: "Crypto", package: "swift-crypto"),
+        .product(name: "Logging", package: "swift-log"),
       ],
       path: "Sources/NyaruDB2",
       linkerSettings: [
@@ -32,7 +33,10 @@ let package = Package(
     ),
     .executableTarget(
       name: "NyaruDB2Benchmark",
-      dependencies: ["NyaruDB2"],
+      dependencies: [
+        "NyaruDB2",
+        .product(name: "SwiftMsgpack", package: "swift-msgpack"),
+      ],
       path: "Sources/Benchmark",
       linkerSettings: [
         .linkedLibrary("z"),

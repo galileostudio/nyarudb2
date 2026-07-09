@@ -29,6 +29,21 @@ actor ShardActor {
   /// avoiding `Data([UInt8])` allocation on every read/write.
   private static let _authData: [Data] = (0...3).map { Data([UInt8($0)]) }
 
+  /// Whether the open of this shard found the dirty flag set and ran crash
+  /// recovery. Captured at init — the backing file is swapped on compaction.
+  let recoveredFromDirtyAtOpen: Bool
+
+  /// I/O accumulated by files this actor has already retired (compaction
+  /// swaps the backing `SlottedFile`).
+  private var retiredBytesRead: UInt64 = 0
+  private var retiredBytesWritten: UInt64 = 0
+
+  /// Cumulative bytes read/written by this shard since open, including
+  /// compaction rewrites.
+  var ioBytes: (read: UInt64, written: UInt64) {
+    (retiredBytesRead + file.ioBytesRead, retiredBytesWritten + file.ioBytesWritten)
+  }
+
   init(
     id: String, url: URL, compression: CompressionMethod, fileProtection: FileProtection,
     encryptionKey: SymmetricKey?, maxFragmentation: Double = 0.2
@@ -39,7 +54,14 @@ actor ShardActor {
     self.fileProtection = fileProtection
     self.encryptionKey = encryptionKey
     self.maxFragmentation = maxFragmentation
-    self.file = try SlottedFile(url: url, fileProtection: fileProtection)
+    let file = try SlottedFile(url: url, fileProtection: fileProtection)
+    self.file = file
+    self.recoveredFromDirtyAtOpen = file.recoveredFromDirty
+    if file.recoveredFromDirty {
+      NyaruLogger.log.warning(
+        "Shard recovered from dirty state",
+        metadata: ["shard": "\(id)", "path": "\(url.path)"])
+    }
   }
 
   /// The total number of bytes consumed by tombstoned slots.
@@ -188,6 +210,18 @@ actor ShardActor {
     }
   }
 
+  #if DEBUG
+    /// Test-only fault injection for `tombstoneMany`. `.beforeWork` throws
+    /// before touching the file (no tombstones land); `.afterWork` performs
+    /// all tombstones and then throws (the work landed but the caller sees
+    /// a failure). One-shot: the fault clears when it fires.
+    enum InjectedTombstoneFault { case none, beforeWork, afterWork }
+    private var injectedTombstoneFault: InjectedTombstoneFault = .none
+    func injectTombstoneManyFault(_ fault: InjectedTombstoneFault) {
+      injectedTombstoneFault = fault
+    }
+  #endif
+
   /// Tombstones multiple records in a single actor hop without reading their
   /// payloads. Used when the caller already knows each document's index keys.
   ///
@@ -195,11 +229,23 @@ actor ShardActor {
   /// - Returns: Whether each record was live and is now tombstoned, in
   ///   input order.
   func tombstoneMany(offsets: [UInt64]) throws -> [Bool] {
+    #if DEBUG
+      if injectedTombstoneFault == .beforeWork {
+        injectedTombstoneFault = .none
+        throw NyaruError.ioError("injected tombstoneMany fault (before work)")
+      }
+    #endif
     var out: [Bool] = []
     out.reserveCapacity(offsets.count)
     for offset in offsets {
       out.append(try file.tombstone(at: offset))
     }
+    #if DEBUG
+      if injectedTombstoneFault == .afterWork {
+        injectedTombstoneFault = .none
+        throw NyaruError.ioError("injected tombstoneMany fault (after work)")
+      }
+    #endif
     return out
   }
 
@@ -270,27 +316,68 @@ actor ShardActor {
   ///   record, so callers can remap index pointers without re-reading or
   ///   re-parsing any document.
   func compact() throws -> [UInt64: UInt64] {
+    try compact(dropping: []).mapping
+  }
+
+  /// Compacts the shard while also dropping the records at `drop` (used by
+  /// large-fraction batch deletes: the few survivors are rewritten and the
+  /// deleted records are simply never copied — no per-record tombstone write).
+  ///
+  /// The dropped records are absent from the returned survivor map, so a
+  /// single `OrderedIndex.compactRemap` remaps survivors and drops the deleted
+  /// pointers for free, without needing their index keys.
+  ///
+  /// - Parameter drop: File offsets of records to omit from the rewrite.
+  /// - Returns: The survivor old→new offset map and the number of live records
+  ///   actually dropped (`liveBefore − survivors`).
+  func compact(dropping drop: Set<UInt64>) throws -> (mapping: [UInt64: UInt64], dropped: Int) {
+    let oldFileSize = file.sizeInBytes()
+    let liveBefore = file.liveCount
+    let tombstonesBefore = file.tombstoneCount
+
     let tempURL = url.appendingPathExtension("compact")
     try? FileManager.default.removeItem(at: tempURL)
 
     let tempFile = try SlottedFile(url: tempURL, fileProtection: fileProtection)
 
-    // Collect all live records first, then write them with a single batch
-    // append (one buffer build + one write) instead of two syscalls per
-    // record. The stored CRCs travel along so nothing is re-checksummed.
+    // Stream live records into the temp file in bounded chunks. Payload
+    // slices alias the scan buffer (zero copy) and are flushed before the
+    // chunk grows past a few MiB, so peak memory stays at roughly the file
+    // size plus one chunk instead of three full copies of every payload.
+    // The stored CRCs travel along so nothing is re-checksummed.
+    let flushThreshold = 4 << 20
     var oldOffsets: [UInt64] = []
-    var payloads: [(data: Data, compression: CompressionMethod)] = []
-    var crcs: [UInt32] = []
-    try file.forEachLive { liveRecord in
+    var newOffsets: [UInt64] = []
+    var chunk: [(data: Data, compression: CompressionMethod)] = []
+    var chunkCRCs: [UInt32] = []
+    var chunkBytes = 0
+    try file.forEachLiveSlice { liveRecord in
+      if drop.contains(liveRecord.offset) { return }  // deleted — never copied
       oldOffsets.append(liveRecord.offset)
-      payloads.append((data: liveRecord.payload, compression: liveRecord.compression))
-      crcs.append(liveRecord.crc)
+      chunk.append((data: liveRecord.payload, compression: liveRecord.compression))
+      chunkCRCs.append(liveRecord.crc)
+      chunkBytes += liveRecord.payload.count
+      if chunkBytes >= flushThreshold {
+        newOffsets.append(
+          contentsOf: try tempFile.appendBatch(payloads: chunk, precomputedCRCs: chunkCRCs))
+        chunk.removeAll(keepingCapacity: true)
+        chunkCRCs.removeAll(keepingCapacity: true)
+        chunkBytes = 0
+      }
     }
-    let newOffsets = try tempFile.appendBatch(payloads: payloads, precomputedCRCs: crcs)
+    if !chunk.isEmpty {
+      newOffsets.append(
+        contentsOf: try tempFile.appendBatch(payloads: chunk, precomputedCRCs: chunkCRCs))
+      chunk.removeAll()
+      chunkCRCs.removeAll()
+    }
     let mapping = Dictionary(uniqueKeysWithValues: zip(oldOffsets, newOffsets))
     let newSize = tempFile.sizeInBytes()
 
     try tempFile.sync()
+    // Both files retire here — bank their I/O counters before the swap.
+    retiredBytesRead += file.ioBytesRead + tempFile.ioBytesRead
+    retiredBytesWritten += file.ioBytesWritten + tempFile.ioBytesWritten
     try tempFile.close()
     try file.close()
 
@@ -301,8 +388,20 @@ actor ShardActor {
 
     // The compacted file's state is fully known — adopt it without rescanning.
     self.file = try SlottedFile(
-      adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(payloads.count))
-    return mapping
+      adoptingCleanFileAt: url, expectedSize: newSize, liveCount: UInt32(oldOffsets.count))
+    let saved = oldFileSize > newSize ? Int64(oldFileSize) - Int64(newSize) : 0
+    NyaruLogger.log.debug(
+      "Shard compacted",
+      metadata: [
+        "shard": "\(id)",
+        "liveBefore": "\(liveBefore)",
+        "tombstonesBefore": "\(tombstonesBefore)",
+        "liveAfter": "\(file.liveCount)",
+        "sizeBefore": "\(oldFileSize)",
+        "sizeAfter": "\(newSize)",
+        "bytesSaved": "\(saved)",
+      ])
+    return (mapping, Int(liveBefore) - oldOffsets.count)
   }
 
   // MARK: - Payload Preparation

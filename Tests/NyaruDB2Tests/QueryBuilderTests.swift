@@ -106,6 +106,48 @@ final class QueryAdvancedTests: XCTestCase {
     XCTAssertEqual(results.map(\.id), [1, 4])
   }
 
+  // MARK: - Covered predicate + unaligned sort (sort-key-only fast path)
+
+  /// A fully index-covered predicate combined with a sort on a DIFFERENT field
+  /// takes the sort-key-only path (no full per-document parse, no residual
+  /// re-evaluation). Results must match a plain reference ordering in every
+  /// direction and page.
+  func testCoveredPredicateUnalignedSortParity() async throws {
+    // age == 25 is index-covered; sorting by id is unaligned → fast path.
+    let asc = try await users.find().where("age", isEqualTo: 25).sort(by: "id").execute()
+    XCTAssertEqual(asc.map(\.id), [1, 5])
+
+    let desc = try await users.find().where("age", isEqualTo: 25)
+      .sort(by: "id", ascending: false).execute()
+    XCTAssertEqual(desc.map(\.id), [5, 1])
+
+    // Range predicate on age (still index-covered), sort by unindexed name.
+    let byName = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "name").execute()
+    XCTAssertEqual(byName.map(\.name), ["Alice", "Bob", "Charlie", "David", "Eve", "Frank"])
+
+    // Offset + limit over the sorted order.
+    let paged = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "name").offset(1).limit(2).execute()
+    XCTAssertEqual(paged.map(\.name), ["Bob", "Charlie"])
+
+    // Descending + limit exercises the bounded top-K branch.
+    let topDesc = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "id", ascending: false).limit(3).execute()
+    XCTAssertEqual(topDesc.map(\.id), [6, 5, 4])
+
+    // Aligned ascending sort (sort field == the indexed predicate field) is
+    // served by the index-paginated path — the fast path must NOT intercept it
+    // and re-apply offset/limit (that would double-paginate and drop rows).
+    // Count is tie-independent, so it is unambiguous even with equal ages.
+    let alignedPaged = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "age").offset(3).limit(2).execute()
+    XCTAssertEqual(alignedPaged.count, 2)
+    let alignedLimit = try await users.find().where("age", isBetween: 25, and: 70)
+      .sort(by: "age").limit(2).execute()
+    XCTAssertEqual(alignedLimit.count, 2)
+  }
+
   // MARK: - 2. NOT IN
 
   func testNotInLogic() async throws {
@@ -151,6 +193,46 @@ final class QueryAdvancedTests: XCTestCase {
     // Expected: US, BR, PT (Alice and Eve are 25, so BR would appear twice, but in the >=30 query only Charlie(BR) qualifies)
     // Charlie(65, BR), Bob(30, US), Frank(30, US), David(70, PT)
     XCTAssertEqual(distinctCountries.count, 3)
+  }
+
+  /// Distinct on an indexed field whose single predicate is the covered
+  /// lookup on that same field must be answered from the index keys —
+  /// values arrive in ascending index order.
+  func testDistinctValuesCoveredBySameFieldPredicate() async throws {
+    let ages = try await users.find()
+      .where("age", isBetween: 26, and: 70)
+      .distinctValues(on: "age")
+    var out = [Int64]()
+    for value in ages {
+      if case .int(let i) = value { out.append(i) }
+    }
+    XCTAssertEqual(out, [30, 65, 70])
+  }
+
+  /// Distinct on an unindexed field must fall back to the scan path.
+  func testDistinctValuesOnUnindexedFieldFallsBack() async throws {
+    let cities = try await users.find().distinctValues(on: "city")
+    XCTAssertEqual(
+      Set(cities),
+      Set(["Recife", "New York", "Lisboa", "Olinda", "Boston"].map { FieldValue.string($0) }))
+  }
+
+  /// exists/notExists must behave identically through the extracted-values
+  /// evaluation, including on the parallel path (300 docs > threshold).
+  func testExistsPredicatesOverExtractedValues() async throws {
+    struct Note: Codable, Sendable {
+      var id: Int
+      var note: String?
+    }
+    let notes = try await db.collection(
+      "notes", of: Note.self, options: CollectionOptions(idField: "id"))
+    try await notes.insert(
+      contentsOf: (1...300).map { Note(id: $0, note: $0 % 3 == 0 ? "n\($0)" : nil) })
+
+    let withNote = try await notes.find().whereExists("note").execute()
+    XCTAssertEqual(withNote.count, 100)
+    let withoutNote = try await notes.find().whereNotExists("note").count()
+    XCTAssertEqual(withoutNote, 200)
   }
 
   // MARK: - 4. Memory Optimization (Limit & Offset without Sort)

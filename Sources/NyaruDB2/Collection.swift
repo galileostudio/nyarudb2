@@ -60,27 +60,51 @@ public struct CollectionOptions: Sendable {
   }
 }
 
-/// A write buffer that accumulates document insertions for a single batch
-/// flush.
+/// A write buffer that accumulates mixed operations — insert, update,
+/// upsert, delete — for a single all-or-nothing flush.
 ///
-/// Obtain one via `NyaruCollection.insertBatch(_:)`. All insertions are
-/// synchronous — no `await` needed. Documents are not written to disk until
-/// the `insertBatch` body completes without throwing.
+/// Obtain one via `NyaruCollection.writeBatch(_:)`. All calls are
+/// synchronous — no `await` needed. Nothing touches the collection until the
+/// `writeBatch` body completes without throwing.
+///
+/// At most one operation may target a given document id per batch.
 ///
 /// - Note: Deliberately **not** `Sendable` — the buffer is unsynchronised and
-///   must only be used from the `insertBatch` body that received it.
-public final class NyaruInsertBatch<T: Codable & Sendable> {
-  fileprivate var buffer: [T] = []
+///   must only be used from the `writeBatch` body that received it.
+public final class NyaruWriteBatch<T: Codable & Sendable> {
+  fileprivate enum Operation {
+    case insert(T)
+    case update(T)
+    case upsert(T)
+    case delete(FieldValue)
+  }
+  fileprivate var operations: [Operation] = []
   fileprivate init() {}
 
-  /// Adds a single document to the batch buffer.
-  public func insert(_ document: T) { buffer.append(document) }
+  /// Queues a document insertion. Fails the batch if the id already exists.
+  public func insert(_ document: T) { operations.append(.insert(document)) }
 
-  /// Adds a collection of documents to the batch buffer.
+  /// Queues a collection of document insertions.
   public func insert(contentsOf documents: some Collection<T>) {
-    buffer.append(contentsOf: documents)
+    for document in documents { operations.append(.insert(document)) }
+  }
+
+  /// Queues a full-document replacement. Fails the batch if the id is absent.
+  public func update(_ document: T) { operations.append(.update(document)) }
+
+  /// Queues a replace-or-insert of the document.
+  public func upsert(_ document: T) { operations.append(.upsert(document)) }
+
+  /// Queues a deletion by id. Unknown ids are skipped, not errors.
+  public func delete(id: FieldValueConvertible) {
+    operations.append(.delete(id.fieldValue))
   }
 }
+
+/// The insert-only batch buffer was folded into `NyaruWriteBatch`, which
+/// accepts the same `insert` calls plus updates, upserts, and deletes.
+@available(*, deprecated, renamed: "NyaruWriteBatch")
+public typealias NyaruInsertBatch<T: Codable & Sendable> = NyaruWriteBatch<T>
 
 /// Remembers whether Mirror-based metadata extraction has been validated
 /// against the encoded payload for one collection handle's document type.
@@ -310,11 +334,17 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.insert(data: data, metadata: metadata)
   }
 
-  /// Inserts a batch of documents atomically.
+  /// Inserts a batch of documents atomically (against errors).
   ///
   /// All ids are validated before anything is written — if any id already
   /// exists in the collection or is duplicated within the batch, **no**
-  /// documents are inserted and `duplicateID` is thrown.
+  /// documents are inserted and `duplicateID` is thrown. Documents are
+  /// encoded in parallel and merged into each index in a single pass.
+  ///
+  /// This is the right call when you already hold the documents in an array.
+  /// To accumulate documents from multiple sources first, or to mix inserts
+  /// with updates and deletes, use `writeBatch(_:)` — insert-only batches
+  /// take exactly this code path, so there is no performance difference.
   ///
   /// - Parameter documents: An array of documents to insert.
   /// - Throws: `NyaruError.duplicateID` if any id conflicts.
@@ -325,30 +355,86 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
     try await core.insertMany(batch: batch)
   }
 
-  /// Accumulates insert operations in memory and flushes them as a single
-  /// batch when the body completes, producing one index merge pass instead of
-  /// one per call.
+  /// Accumulates mixed operations — insert, update, upsert, delete — and
+  /// applies them as one all-or-nothing batch when the body completes.
   ///
-  /// Insertions inside the body are synchronous — no `await` required:
+  /// Queuing inside the body is synchronous — no `await` — so operations can
+  /// be gathered from loops or multiple sources before anything is written:
+  ///
   /// ```swift
-  /// try await collection.insertBatch { batch in
-  ///   for chunk in incomingChunks { batch.insert(contentsOf: chunk) }
+  /// try await collection.writeBatch { batch in
+  ///   batch.insert(newUser)
+  ///   batch.update(changedUser)
+  ///   batch.delete(id: retiredUserID)
   /// }
   /// ```
-  /// If the body throws, nothing is written to disk. This is a write buffer,
-  /// not a transaction: update, delete, and patch are not buffered or rolled
-  /// back — call them outside the batch.
   ///
-  /// - Parameter body: Closure receiving a `NyaruInsertBatch` that accumulates
-  ///   documents via its synchronous `insert` methods.
-  /// - Throws: Rethrows from `body` or from the final batch write.
-  public func insertBatch(
-    _ body: (NyaruInsertBatch<T>) async throws -> Void
+  /// A batch containing only inserts takes the same fast path as
+  /// `insert(contentsOf:)` — identical validation and performance.
+  ///
+  /// **Atomicity against errors, not crashes.** Every operation is validated
+  /// before anything is written: a duplicate id, a missing update target, a
+  /// thrown body, or two operations on the same id abort the batch with no
+  /// side effects, and a failed write is rolled back. A process crash in the
+  /// middle of the flush is NOT covered — per-record CRC + dirty-flag
+  /// recovery still guarantees integrity, but some operations of the batch
+  /// may be durable while others are not.
+  ///
+  /// The batch is not isolated from concurrent writes to the same ids from
+  /// other tasks, just as individual operations are not isolated from each
+  /// other.
+  ///
+  /// - Parameter body: Closure receiving a `NyaruWriteBatch` that queues
+  ///   operations via its synchronous methods.
+  /// - Throws: `NyaruError.duplicateID`, `NyaruError.documentNotFound`,
+  ///   `NyaruError.unsupportedOperation` for conflicting operations, or
+  ///   rethrows from `body`.
+  public func writeBatch(
+    _ body: (NyaruWriteBatch<T>) async throws -> Void
   ) async throws {
-    let batch = NyaruInsertBatch<T>()
+    let batch = NyaruWriteBatch<T>()
     try await body(batch)
-    guard !batch.buffer.isEmpty else { return }
-    try await insert(contentsOf: batch.buffer)
+    guard !batch.operations.isEmpty else { return }
+
+    // Pure-insert batches take the bulk-insert fast path: same validation
+    // semantics, one index merge pass.
+    let allInserts = batch.operations.allSatisfy {
+      if case .insert = $0 { return true } else { return false }
+    }
+    if allInserts {
+      let documents: [T] = batch.operations.compactMap {
+        if case .insert(let document) = $0 { return document } else { return nil }
+      }
+      try await insert(contentsOf: documents)
+      return
+    }
+
+    // Encoding and metadata extraction are independent per operation.
+    let operations: [BatchOperation] = try Parallel.map(batch.operations) { operation in
+      switch operation {
+      case .insert(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .insert(data: data, metadata: metadata)
+      case .update(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .update(data: data, metadata: metadata)
+      case .upsert(let document):
+        let (data, metadata) = try encodeWithMetadata(document)
+        return .upsert(data: data, metadata: metadata)
+      case .delete(let id):
+        return .delete(id: id)
+      }
+    }
+    try await core.applyBatch(operations)
+  }
+
+  /// Deprecated alias of `writeBatch(_:)`. The buffer's `insert` methods are
+  /// unchanged, so existing call sites compile as-is.
+  @available(*, deprecated, renamed: "writeBatch")
+  public func insertBatch(
+    _ body: (NyaruWriteBatch<T>) async throws -> Void
+  ) async throws {
+    try await writeBatch(body)
   }
 
   /// Replaces the document with the same id.
@@ -504,6 +590,23 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
 
   // MARK: - Maintenance
 
+  /// Persists this collection's index snapshots, flushes shard data, and
+  /// clears the dirty flags — after it returns, a crash costs no recovery
+  /// work for this collection on the next open.
+  ///
+  /// The expensive part (encoding and compressing the index snapshots) runs
+  /// off the collection's actor, so concurrent reads and writes keep
+  /// flowing; only the final fsync barrier briefly excludes writers.
+  ///
+  /// Call it at meaningful moments — app backgrounding, after an import —
+  /// or let `DatabaseOptions.autoSync` schedule it. `NyaruDB.sync()` syncs
+  /// every open collection.
+  ///
+  /// - Throws: `NyaruError.databaseClosed` or the first I/O error.
+  public func sync() async throws {
+    try await core.sync()
+  }
+
   /// Rewrites every shard file to remove tombstoned records and rebuilds all
   /// indexes.
   ///
@@ -542,6 +645,20 @@ public struct NyaruCollection<T: Codable & Sendable>: Sendable {
   /// - Throws: `NyaruError.databaseClosed` if the database was closed.
   public func stats() async throws -> CollectionStats {
     try await core.stats()
+  }
+
+  /// Returns a snapshot of the collection's internal counters — which access
+  /// paths queries took, cumulative shard I/O, compaction activity, and
+  /// whether any shard needed crash recovery at open.
+  ///
+  /// Counters accumulate from open and are not persisted. Use them to verify
+  /// that the queries you expect to be index-served actually are, or to
+  /// size compaction policies from real workloads.
+  ///
+  /// - Returns: Current metrics snapshot.
+  /// - Throws: `NyaruError.databaseClosed` if the database was closed.
+  public func metrics() async throws -> CollectionMetrics {
+    try await core.metrics()
   }
 }
 

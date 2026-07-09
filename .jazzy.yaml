@@ -1,6 +1,6 @@
 # .jazzy.yaml
 module: NyaruDB2
-module_version: 0.2.0
+module_version: 0.3.0
 output: docs
 source-directory: Sources/NyaruDB2
 readme: README.md

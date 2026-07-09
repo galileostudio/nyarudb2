@@ -434,11 +434,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///    a single shard file instead of all shards.
   /// 5. **Full scan** — reads every shard. Used when no index or partition
   ///    pruning applies. All predicates are evaluated in memory.
-  // planResult carries a cached partitionValue so candidates() doesn't re-scan predicates.
+  // PlanResult carries the cached partition value and the resolved probe so
+  // downstream stages never re-scan the predicates, and each public entry
+  // point calls plan() exactly once (one actor hop for the indexed-field
+  // set, total).
   private struct PlanResult {
     let strategy: QueryStrategy
     let pushedDown: Int
     let cachedPartitionValue: FieldValue?
+    let probe: IndexProbe?
   }
 
   private func plan() async -> PlanResult {
@@ -449,7 +453,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       topLevelPredicates = [rootPredicate]
     }
     guard !topLevelPredicates.isEmpty else {
-      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
+      return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
     }
 
     // Single actor hop: gather all indexed fields at once instead of one hop per predicate.
@@ -478,19 +482,17 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
       }
     }
 
-    if let field = bestEquality {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
-    }
-    if let field = bestInSet {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
-    }
-    if let field = bestRange {
-      return PlanResult(strategy: .indexLookup(field: field), pushedDown: 1, cachedPartitionValue: nil)
+    if let field = bestEquality ?? bestInSet ?? bestRange {
+      return PlanResult(
+        strategy: .indexLookup(field: field), pushedDown: 1,
+        cachedPartitionValue: nil, probe: probe(forField: field))
     }
     if let pv = partitionValue {
-      return PlanResult(strategy: .partitionScan(value: pv.description), pushedDown: 0, cachedPartitionValue: pv)
+      return PlanResult(
+        strategy: .partitionScan(value: pv.description), pushedDown: 0,
+        cachedPartitionValue: pv, probe: nil)
     }
-    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil)
+    return PlanResult(strategy: .fullScan, pushedDown: 0, cachedPartitionValue: nil, probe: nil)
   }
 
   /// Returns the query execution plan without running the query.
@@ -515,9 +517,17 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
   // MARK: - Execution
 
-  /// Returns the sliced pointer list when the **entire** query — predicates,
-  /// sort, and pagination — is answered by the index alone, or `nil` when
-  /// in-memory work (residual predicates, unaligned sort) remains.
+  /// A query fully answered by one index lookup: the field, the resolved
+  /// probe, and the pagination to push down to the pointer list.
+  private struct CoveredQuery {
+    let field: String
+    let probe: IndexProbe
+    let slice: (offset: Int, limit: Int?)
+  }
+
+  /// Returns the covered-query description when the **entire** query —
+  /// predicates, sort, and pagination — is answered by the index alone, or
+  /// `nil` when in-memory work (residual predicates, unaligned sort) remains.
   ///
   /// Requirements:
   /// - The plan chose an index lookup and there is exactly one top-level
@@ -526,36 +536,30 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   ///   are produced in ascending key order, so offset/limit can be applied
   ///   directly to the pointer list. A **descending** sort cannot reuse that
   ///   order — slicing ascending pointers would page from the wrong end.
-  private func coveredPointers(for planResult: PlanResult) async -> [RecordPointer]? {
+  private func coveredQuery(for planResult: PlanResult) -> CoveredQuery? {
     guard case .indexLookup(let field) = planResult.strategy,
       topLevelPredicateCount() == 1,
-      sortField == nil || (sortField == field && sortAscending)
+      sortField == nil || (sortField == field && sortAscending),
+      let probe = planResult.probe
     else { return nil }
-
-    // Range scans can stop as soon as offset+limit pointers are collected —
-    // no need to materialise every match just to slice the head.
-    let needed = limitCount.map { offsetCount + $0 }
-    let pointers = await pointers(forIndexedField: field, maxCount: needed)
-    let start = min(offsetCount, pointers.count)
-    let end = min(start + (limitCount ?? (pointers.count - start)), pointers.count)
-    return Array(pointers[start..<end])
+    return CoveredQuery(field: field, probe: probe, slice: (offsetCount, limitCount))
   }
 
   /// Fetches candidate documents from the most efficient access path.
   ///
   /// The returned flag is `true` when the query was fully covered by the
   /// index: pagination is already applied and no residual predicates remain.
-  private func candidates() async throws -> ([Data], Bool) {
-    let planResult = await plan()
-
-    if let covered = await coveredPointers(for: planResult) {
-      let data = try await core.fetch(pointers: covered)
+  private func candidates(planResult: PlanResult) async throws -> ([Data], Bool) {
+    if let covered = coveredQuery(for: planResult) {
+      let data = try await core.fetch(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
       return (data, true)
     }
 
     switch planResult.strategy {
     case .indexLookup(let field):
-      let data = try await core.fetch(pointers: await pointers(forIndexedField: field))
+      guard let probe = planResult.probe else { return ([], false) }
+      let data = try await core.fetch(field: field, probe: probe, slice: nil)
       return (data, false)
 
     case .partitionScan:
@@ -573,14 +577,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     }
   }
 
-  /// Resolves index pointers for the indexed field used in the plan.
-  ///
-  /// - Parameter maxCount: When set, range scans stop after collecting this
-  ///   many pointers. Only pass it when the query is fully covered — residual
-  ///   predicates need every match.
-  private func pointers(forIndexedField field: String, maxCount: Int? = nil) async
-    -> [RecordPointer]
-  {
+  /// Builds the index lookup for the planner-selected field from the first
+  /// pushable top-level predicate on it. The core resolves the probe to
+  /// pointers and reads them inside one compaction-gated call — the query
+  /// layer never holds pointers across an actor hop.
+  private func probe(forField field: String) -> IndexProbe? {
     var topLevelPredicates: [Predicate] = []
     if case .and(let arr) = rootPredicate {
       topLevelPredicates = arr
@@ -591,45 +592,34 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     for predicate in topLevelPredicates where predicate.field == field {
       switch predicate {
       case .equal(_, let value):
-        return await core.indexSearch(field: field, key: value.fieldValue)
+        return .equal(value.fieldValue)
       case .inSet(_, let values):
-        return await core.indexSearchBatch(field: field, keys: values.map { $0.fieldValue })
+        return .inSet(values.map { $0.fieldValue })
       case .between(_, let lower, let upper):
-        return await core.indexRange(
-          field: field,
+        return .range(
           lower: lower.fieldValue, lowerInclusive: true,
-          upper: upper.fieldValue, upperInclusive: true,
-          maxCount: maxCount
-        )
+          upper: upper.fieldValue, upperInclusive: true)
       case .lessThan(_, let value):
-        return await core.indexRange(
-          field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: false,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: nil, lowerInclusive: true,
+          upper: value.fieldValue, upperInclusive: false)
       case .lessThanOrEqual(_, let value):
-        return await core.indexRange(
-          field: field, lower: nil, lowerInclusive: true,
-          upper: value.fieldValue, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: nil, lowerInclusive: true,
+          upper: value.fieldValue, upperInclusive: true)
       case .greaterThan(_, let value):
-        return await core.indexRange(
-          field: field, lower: value.fieldValue, lowerInclusive: false,
-          upper: nil, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: value.fieldValue, lowerInclusive: false,
+          upper: nil, upperInclusive: true)
       case .greaterThanOrEqual(_, let value):
-        return await core.indexRange(
-          field: field, lower: value.fieldValue, lowerInclusive: true,
-          upper: nil, upperInclusive: true,
-          maxCount: maxCount
-        )
+        return .range(
+          lower: value.fieldValue, lowerInclusive: true,
+          upper: nil, upperInclusive: true)
       default:
         continue
       }
     }
-    return []
+    return nil
   }
 
   /// Executes the query and returns all matching documents, decoded.
@@ -641,13 +631,27 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     // requested — fetch and decode without parsing or re-evaluating anything.
     // (With a sort field, results must flow through the in-memory sort in
     // matchedParsed, because fetch returns documents in disk order.)
+    let planResult = await plan()
     let raw: [Data]
-    if sortField == nil, case let planResult = await plan(),
-      let covered = await coveredPointers(for: planResult)
+    if sortField == nil, let covered = coveredQuery(for: planResult) {
+      raw = try await core.fetch(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
+    } else if let sortField, isPredicateFullyIndexed(planResult),
+      coveredQuery(for: planResult) == nil
     {
-      raw = try await core.fetch(pointers: covered)
+      // Sort with no residual predicate (an unaligned sort over an
+      // index-answered predicate). The `coveredQuery == nil` guard excludes an
+      // aligned ascending sort, where `candidates()` already returns the
+      // offset/limit-sliced page — re-slicing it here would drop rows. The
+      // index already guarantees the match, so extracting only the sort key —
+      // instead of parsing every field of every candidate, which boxes large
+      // payload fields we never sort on — orders the payloads and then decodes
+      // only the surviving page. Avoids the full parse AND the redundant
+      // re-evaluation the general path would do.
+      let (candidates, _) = try await self.candidates(planResult: planResult)
+      raw = sortedByKeyOnly(candidates, sortField: sortField)
     } else {
-      raw = try await matchingDocuments()
+      raw = try await matchingDocuments(planResult: planResult)
     }
 
     do {
@@ -655,6 +659,60 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     } catch {
       throw NyaruError.decodingFailed(String(describing: error))
     }
+  }
+
+  /// Whether the index lookup fully answers the predicate, so candidates need
+  /// no in-memory re-evaluation (only sort-key extraction, when sorting).
+  private func isPredicateFullyIndexed(_ planResult: PlanResult) -> Bool {
+    let count = topLevelPredicateCount()
+    return count > 0 && planResult.pushedDown == count
+  }
+
+  /// Orders index-matched payloads by a single sort key without parsing the
+  /// rest of each document — the sort key is extracted from the raw bytes in
+  /// parallel, then the shared `orderedIndices` gives the sorted/paginated
+  /// order to apply.
+  private func sortedByKeyOnly(_ raw: [Data], sortField: String) -> [Data] {
+    let format = self.format
+    let plan = Serializer.FieldPlan(fields: [sortField])
+    let keys: [FieldValue] = Parallel.map(raw) {
+      Serializer.extractFieldValues(from: $0, plan: plan, format: format)[sortField] ?? .null
+    }
+    return orderedIndices(keys: keys, paginate: true).map { raw[$0] }
+  }
+
+  /// Returns row indices ordered by `keys` (the query's sort direction) with
+  /// offset/limit applied — a bounded top-K keeps only `offset + limit` rows
+  /// when a limit is present, otherwise a full sort. When `paginate` is false
+  /// the indices are only sorted (offset/limit were already pushed down to the
+  /// index pointer list). The single source of truth for sort ordering, shared
+  /// by the full-parse (`matchedParsed`) and sort-key-only (`sortedByKeyOnly`)
+  /// paths; each caller extracts keys its own way and applies the returned
+  /// order to its own rows. Kept concrete (indices, not a generic row) so it
+  /// fully specializes on the hot path.
+  private func orderedIndices(keys: [FieldValue], paginate: Bool) -> [Int] {
+    let asc = sortAscending
+    let less: (Int, Int) -> Bool = { asc ? keys[$0] < keys[$1] : keys[$1] < keys[$0] }
+
+    if paginate, let limitCount {
+      var top = BoundedTopK<Int>(k: offsetCount + limitCount, areInIncreasingOrder: less)
+      for i in keys.indices { top.insert(i) }
+      let selected = top.sorted()
+      let start = min(offsetCount, selected.count)
+      return Array(selected[start...])
+    }
+
+    var order = Array(keys.indices)
+    order.sort(by: less)
+    if paginate {
+      if offsetCount > 0 {
+        order = offsetCount < order.count ? Array(order[offsetCount...]) : []
+      }
+      if let limitCount, order.count > limitCount {
+        order = Array(order.prefix(limitCount))
+      }
+    }
+    return order
   }
 
   /// Returns the first matching document, or `nil` if none match.
@@ -671,10 +729,11 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// pointer list alone — no disk I/O at all.
   public func count() async throws -> Int {
     let planResult = await plan()
-    if let covered = await coveredPointers(for: planResult) {
-      return covered.count
+    if let covered = coveredQuery(for: planResult) {
+      return await core.coveredCount(
+        field: covered.field, probe: covered.probe, slice: covered.slice)
     }
-    return try await matchingDocuments().count
+    return try await matchingDocuments(planResult: planResult).count
   }
 
   /// Returns all distinct values of a field among the matching documents.
@@ -682,7 +741,23 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Parameter field: The field to collect distinct values from.
   /// - Returns: An array of distinct `FieldValue` instances.
   public func distinctValues(on field: String) async throws -> [FieldValue] {
-    let (raw, _) = try await candidates()
+    let planResult = await plan()
+
+    // Covered fast path: when the field is indexed and either there are no
+    // predicates or the single predicate is the index lookup on this same
+    // field, the index enumerates the distinct values with zero disk I/O.
+    // Note: this path returns values in ascending (index) order rather than
+    // first-encounter order — the API makes no ordering promise.
+    if isEmptyPredicate {
+      if let keys = await core.distinctKeys(field: field, probe: nil) { return keys }
+    } else if case .indexLookup(let planField) = planResult.strategy,
+      planField == field, topLevelPredicateCount() == 1, let probe = planResult.probe,
+      let keys = await core.distinctKeys(field: field, probe: probe)
+    {
+      return keys
+    }
+
+    let (raw, _) = try await candidates(planResult: planResult)
     var seen = Set<FieldValue>()
     var result: [FieldValue] = []
 
@@ -698,6 +773,12 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
     return result
   }
 
+  /// Whether the query has no predicates at all (bare `find()`).
+  private var isEmptyPredicate: Bool {
+    if case .and(let predicates) = rootPredicate { return predicates.isEmpty }
+    return false
+  }
+
   /// Deletes all matching documents and returns the number removed.
   ///
   /// The matched documents were already parsed to evaluate the predicates,
@@ -708,7 +789,7 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   /// - Throws: Errors from the underlying delete operation.
   @discardableResult
   public func delete() async throws -> Int {
-    let matched = try await matchedParsed()
+    let matched = try await matchedParsed(planResult: await plan())
     let idField = await core.idField
     let fields = await core.indexedFieldList
 
@@ -728,13 +809,15 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
   }
 
   /// Returns matching documents as raw data (for counting).
-  private func matchingDocuments() async throws -> [Data] {
-    try await matchedParsed().map(\.json)
+  private func matchingDocuments(planResult: PlanResult) async throws -> [Data] {
+    try await matchedParsed(planResult: planResult).map(\.json)
   }
 
   /// Returns matching documents as parsed dictionaries with their raw data.
-  private func matchedParsed() async throws -> [(dict: [String: Any], json: Data)] {
-    let (raw, alreadyPaginated) = try await candidates()
+  private func matchedParsed(planResult: PlanResult) async throws
+    -> [(dict: [String: Any], json: Data)]
+  {
+    let (raw, alreadyPaginated) = try await candidates(planResult: planResult)
 
     if !alreadyPaginated && offsetCount > 0 && sortField == nil {
       throw NyaruError.unsupportedOperation(
@@ -744,48 +827,62 @@ public struct QueryBuilder<T: Codable & Sendable>: Sendable {
 
     let requiresFullEvaluation = sortField != nil
 
+    // Parse + evaluate is independent per document — fan it out when the
+    // candidate set is large enough to amortise threads AND the serial
+    // loop's early exit would not skip most of the work anyway (with a
+    // small limit and no sort, the serial loop stops after ~offset+limit
+    // matches; parallelising would parse everything just to discard it).
+    let neededHead = limitCount.map { offsetCount + $0 }
+    let parallel =
+      raw.count >= 256
+      && (requiresFullEvaluation || neededHead == nil || raw.count > 4 * neededHead!)
+
     var matched: [(dict: [String: Any], json: Data)] = []
-    var skipped = 0
 
-    for json in raw {
-      guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
-
-      // A fully covered query has no residual predicates — the index already
-      // guaranteed the match, so re-evaluating the tree is redundant.
-      if alreadyPaginated || Self.evaluate(rootPredicate, in: dict) {
-        if requiresFullEvaluation || alreadyPaginated {
-          // Pagination was either pushed down to the pointer list or is
-          // applied after the in-memory sort below.
-          matched.append((dict, json))
-        } else {
-          if skipped < offsetCount {
-            skipped += 1
-            continue
-          }
-          matched.append((dict, json))
-          if let limitCount, matched.count >= limitCount {
-            break
+    if parallel {
+      let format = self.format
+      let rootPredicate = self.rootPredicate
+      let processed = Parallel.map(raw) { json -> (dict: [String: Any], json: Data)? in
+        guard let dict = try? FieldExtractor.parse(json, using: format) else { return nil }
+        // A fully covered query has no residual predicates — the index
+        // already guaranteed the match.
+        guard alreadyPaginated || Self.evaluate(rootPredicate, in: dict) else { return nil }
+        return (dict: dict, json: json)
+      }
+      matched = processed.compactMap { $0 }
+      if !requiresFullEvaluation, !alreadyPaginated, let limitCount, matched.count > limitCount {
+        // Parallel.map preserves order, so the head matches the serial loop.
+        matched = Array(matched.prefix(limitCount))
+      }
+    } else {
+      var skipped = 0
+      for json in raw {
+        guard let dict = try? FieldExtractor.parse(json, using: format) else { continue }
+        if alreadyPaginated || Self.evaluate(rootPredicate, in: dict) {
+          if requiresFullEvaluation || alreadyPaginated {
+            // Pagination was either pushed down to the pointer list or is
+            // applied after the in-memory sort below.
+            matched.append((dict, json))
+          } else {
+            if skipped < offsetCount {
+              skipped += 1
+              continue
+            }
+            matched.append((dict, json))
+            if let limitCount, matched.count >= limitCount {
+              break
+            }
           }
         }
       }
     }
 
     if requiresFullEvaluation, let sortField {
-      matched.sort { lhs, rhs in
-        let a = FieldExtractor.value(in: lhs.dict, path: sortField) ?? .null
-        let b = FieldExtractor.value(in: rhs.dict, path: sortField) ?? .null
-        return sortAscending ? a < b : b < a
-      }
-
-      // Offset/limit only apply here when they were not pushed down.
-      if !alreadyPaginated {
-        if offsetCount > 0 {
-          matched = offsetCount < matched.count ? Array(matched[offsetCount...]) : []
-        }
-        if let limitCount, matched.count > limitCount {
-          matched = Array(matched.prefix(limitCount))
-        }
-      }
+      // Extract the sort key once per element (from the already-parsed dict),
+      // then hand ordering to the shared helper. `paginate` is skipped when the
+      // index already sliced the pointer list to offset/limit.
+      let keys = matched.map { FieldExtractor.value(in: $0.dict, path: sortField) ?? .null }
+      matched = orderedIndices(keys: keys, paginate: !alreadyPaginated).map { matched[$0] }
     }
 
     return matched
