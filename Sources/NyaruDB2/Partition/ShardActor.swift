@@ -316,6 +316,21 @@ actor ShardActor {
   ///   record, so callers can remap index pointers without re-reading or
   ///   re-parsing any document.
   func compact() throws -> [UInt64: UInt64] {
+    try compact(dropping: []).mapping
+  }
+
+  /// Compacts the shard while also dropping the records at `drop` (used by
+  /// large-fraction batch deletes: the few survivors are rewritten and the
+  /// deleted records are simply never copied — no per-record tombstone write).
+  ///
+  /// The dropped records are absent from the returned survivor map, so a
+  /// single `OrderedIndex.compactRemap` remaps survivors and drops the deleted
+  /// pointers for free, without needing their index keys.
+  ///
+  /// - Parameter drop: File offsets of records to omit from the rewrite.
+  /// - Returns: The survivor old→new offset map and the number of live records
+  ///   actually dropped (`liveBefore − survivors`).
+  func compact(dropping drop: Set<UInt64>) throws -> (mapping: [UInt64: UInt64], dropped: Int) {
     let oldFileSize = file.sizeInBytes()
     let liveBefore = file.liveCount
     let tombstonesBefore = file.tombstoneCount
@@ -337,6 +352,7 @@ actor ShardActor {
     var chunkCRCs: [UInt32] = []
     var chunkBytes = 0
     try file.forEachLiveSlice { liveRecord in
+      if drop.contains(liveRecord.offset) { return }  // deleted — never copied
       oldOffsets.append(liveRecord.offset)
       chunk.append((data: liveRecord.payload, compression: liveRecord.compression))
       chunkCRCs.append(liveRecord.crc)
@@ -385,7 +401,7 @@ actor ShardActor {
         "sizeAfter": "\(newSize)",
         "bytesSaved": "\(saved)",
       ])
-    return mapping
+    return (mapping, Int(liveBefore) - oldOffsets.count)
   }
 
   // MARK: - Payload Preparation

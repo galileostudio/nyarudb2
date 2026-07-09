@@ -973,6 +973,78 @@ actor CollectionCore {
     return true
   }
 
+  /// A batch delete removing at least this fraction of the live documents is
+  /// served by rewriting survivors instead of writing one tombstone per
+  /// record. Below the crossover tombstoning the (fewer) matched records is
+  /// cheaper; above it, copying the (fewer) survivors wins and reclaims the
+  /// space immediately instead of deferring it to a later compaction.
+  private static let deleteRewriteFraction = 0.5
+
+  /// Whether a delete touching `matchCount` documents should use the
+  /// survivor-rewrite path. A heuristic read of the primary index's live
+  /// count — no isolation needed, both paths are correct at any threshold.
+  private func shouldRewriteDelete(matchCount: Int) -> Bool {
+    guard let primary = indexes[manifest.idField] else { return false }
+    let live = primary.entryCount
+    guard live > 0 else { return false }
+    return Double(matchCount) >= Self.deleteRewriteFraction * Double(live)
+  }
+
+  /// Deletes a large fraction of the collection by rewriting each affected
+  /// shard to keep only survivors, then remapping every index in one pass.
+  ///
+  /// The deleted records are absent from the survivor map each shard returns,
+  /// so `compactRemap` drops their pointers — primary and secondary — for
+  /// free. No per-record tombstone write and no key extraction, so one helper
+  /// serves both the id-only and the query-prepared delete paths. It moves
+  /// record offsets, so it runs under the compaction gate exactly like
+  /// `compact()` (and therefore must not be nested inside `beginPointerOp`,
+  /// which `closeGate` would deadlock draining).
+  private func deleteByRewrite(ids: [FieldValue]) async throws -> Int {
+    await closeGate()
+    let removed: Int
+    do {
+      guard let primary = indexes[manifest.idField] else {
+        openGate()
+        return 0
+      }
+      var dropByShard: [String: Set<UInt64>] = [:]
+      for id in ids {
+        guard let pointer = primary.search(id).first else { continue }
+        dropByShard[pointer.shardID, default: []].insert(pointer.offset)
+      }
+
+      var remap: [String: [UInt64: UInt64]] = [:]
+      var count = 0
+      for (shardID, drop) in dropByShard {
+        // A shard is fully copied once the global fraction crosses the
+        // threshold, even if its own deleted fraction is lower — deliberate:
+        // the trigger is collection-wide, not per shard.
+        let shard = try shard(for: shardID)
+        let result = try await shard.compact(dropping: drop)
+        remap[shardID] = result.mapping
+        count += result.dropped
+      }
+
+      let allIndexes = Array(indexes.values)
+      _ = Parallel.map(allIndexes, serialThreshold: 2) { $0.compactRemap(remap) }
+      removed = count
+    } catch {
+      openGate()
+      throw error
+    }
+    openGate()
+    noteWrites(removed)
+    // The shards were adopted CLEAN with new offsets, so the on-disk index
+    // snapshot is now stale (pre-delete layout). Since a clean shard makes its
+    // snapshot trusted at open, persist the remapped snapshot now — the same
+    // barrier compact() ends with — or a crash before the next auto-sync would
+    // reopen a clean shard against a stale snapshot (resurrected deletes /
+    // wrong records). sync() persists off the actor, so it keeps the win.
+    try await sync()
+    return removed
+  }
+
   /// Deletes documents whose index keys were already extracted by the caller
   /// (the query engine parsed each document to match it, so the keys are
   /// free). Skips re-reading payloads entirely: one tombstone-only actor hop
@@ -984,6 +1056,9 @@ actor CollectionCore {
   func deleteMany(prepared: [(id: FieldValue, keys: [String: FieldValue])]) async throws -> Int {
     if prepared.isEmpty { return 0 }
     try ensureOpen()
+    if shouldRewriteDelete(matchCount: prepared.count) {
+      return try await deleteByRewrite(ids: prepared.map(\.id))
+    }
     await beginPointerOp()
     defer { endPointerOp() }
     guard let primary = indexes[manifest.idField] else { return 0 }
@@ -1040,6 +1115,9 @@ actor CollectionCore {
   func deleteMany(ids: [FieldValue]) async throws -> Int {
     if ids.isEmpty { return 0 }
     try ensureOpen()
+    if shouldRewriteDelete(matchCount: ids.count) {
+      return try await deleteByRewrite(ids: ids)
+    }
     await beginPointerOp()
     defer { endPointerOp() }
     guard let primary = indexes[manifest.idField] else { return 0 }

@@ -29,15 +29,34 @@ fork v1.3.0 directly.
 **Insert 100k (one batched flow):** 5.22 µs/doc (none), 10.68 µs/doc (gzip —
 compression itself doubles it).
 
-**C. Batch delete, 90k in one `delete(ids:)` call:**
+**C. Batch delete, 90k of 100k in one call:**
+
+Baseline (per-record tombstone path — one tombstone write per deleted record,
+space reclaimed only by a later compaction):
 
 | configuration | total | per doc |
 |---|---|---|
 | with secondary indexes [age, city] | 389 ms | 4.33 µs |
 | id index only | 372 ms | 4.13 µs |
 
-Secondary-index extraction + sweeps cost only ~0.2 µs/doc; the bulk is the
-per-record payload read + tombstone write loop.
+After the large-fraction **survivor rewrite** (a delete touching ≥50% of the
+live docs rewrites each shard keeping only survivors, then remaps all indexes
+in one `compactRemap` pass — deleted pointers are absent from the survivor map
+and dropped for free, so no keys and no per-record tombstone write):
+
+| configuration | total | per doc |
+|---|---|---|
+| with secondary indexes [age, city] | 57 ms | 0.63 µs |
+| id index only | 54 ms | 0.60 µs |
+
+**~6.8× faster** (389 → 57 ms): the cost is now copying the ~10k survivors,
+not writing 90k tombstones, and the space is reclaimed immediately (no
+deferred compaction). Includes the trailing `sync()` barrier that persists the
+remapped snapshot (the rewrite adopts clean shards, so a crash must not reopen
+them against a stale snapshot). Below the 50% crossover the tombstone path
+still wins (fewer records touched) and stays the default. Serves both
+`delete(ids:)` and the query `find().delete()` path — the rewrite needs no
+index keys.
 
 ### Conclusions vs the external harness v2 (its numbers in parentheses)
 
@@ -45,8 +64,9 @@ per-record payload read + tombstone write loop.
   the 6.8 ms target. ~20 ms of the harness number is not engine time.
 - Insert: **5.2 µs/doc** uncompressed (harness: 17.1) — already under the
   13.4 µs target; even gzip (10.7) is under it.
-- BatchDelete: **4.3 µs/doc** (harness: 13.6) — still above CoreData's
-  honest 1.4 µs/doc, but 3× better than the harness reports.
+- BatchDelete: **0.63 µs/doc** after the survivor rewrite (was 4.3; harness
+  measured 13.6 on the old path) — now below CoreData's honest 1.4 µs/doc for
+  the large-fraction case. See section C.
 
 Every "losing" op is 3–7× faster when measured at the engine than through
 the harness. Before any engine phase lands, the harness needs a v3 audit —

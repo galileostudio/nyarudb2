@@ -50,6 +50,16 @@ in minor versions).
   fix-it. The aliases will be removed in 0.4.0.
 
 ### Performance
+- **Large-fraction batch delete (survivor rewrite)**: a `delete(ids:)` or
+  `find().delete()` removing at least half of a collection's live documents
+  now rewrites each shard keeping only the survivors and remaps every index
+  in a single pass, instead of writing one tombstone per deleted record. On a
+  90k-of-100k delete this cut the engine cost from 389 ms to 57 ms (~6.8×,
+  4.33 → 0.63 µs/doc) and reclaims the space immediately with no deferred
+  compaction. The rewrite adopts clean shards, so it persists the remapped
+  index snapshot before returning — a crash cannot reopen a clean shard
+  against a stale snapshot. Below the crossover the tombstone path stays the
+  default.
 - **Incremental compaction**: the gate closes around one shard's rewrite
   and remap at a time instead of the whole compaction. On an 8-shard
   benchmark, reads during `compact()` went from 4 completed (p99 = the

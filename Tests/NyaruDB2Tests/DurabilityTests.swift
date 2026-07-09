@@ -153,4 +153,40 @@ final class DurabilityTests: XCTestCase {
       XCTAssertEqual(hit, 1, "index entry for raced write \(id) missing after clean reopen")
     }
   }
+
+  /// A large-fraction delete rewrites shards to clean state with new offsets;
+  /// it must persist the remapped snapshot before returning. Otherwise a crash
+  /// reopens a CLEAN shard against a stale (pre-delete) snapshot — old offsets
+  /// into the rewritten file, resurrecting the deleted records. This asserts
+  /// clean reopen (no recovery) AND survivor-only correctness after a crash
+  /// with no explicit sync/close following the delete.
+  func testLargeFractionDeleteSurvivesCrashWithoutRebuild() async throws {
+    do {
+      db = try NyaruDB(path: baseURL)
+      let docs = try await db.collection(
+        "docs", of: Doc.self, options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+      try await docs.insert(contentsOf: (1...500).map { Doc(id: $0, age: $0) })
+      try await docs.sync()
+      // 90% delete → survivor rewrite (adopts clean shards, remaps indexes,
+      // persists the snapshot internally). No sync()/close() after this.
+      let removed = try await docs.delete(ids: Array(1...450))
+      XCTAssertEqual(removed, 450)
+      db = nil  // simulated crash
+    }
+
+    db = try NyaruDB(path: baseURL)
+    let docs = try await db.collection(
+      "docs", of: Doc.self, options: CollectionOptions(idField: "id", indexedFields: ["age"]))
+    let metrics = try await docs.metrics()
+    XCTAssertEqual(metrics.shardsRecoveredFromDirty, 0, "rewrite adopts clean shards")
+    // A stale snapshot would report 500 / resurrect deleted ids here.
+    let count = try await docs.count()
+    XCTAssertEqual(count, 50)
+    let resurrected = try await docs.get(id: 1)
+    XCTAssertNil(resurrected)
+    let survivor = try await docs.get(id: 475)
+    XCTAssertEqual(survivor?.id, 475)
+    let byAge = try await docs.find().where("age", isGreaterThan: 450).count()
+    XCTAssertEqual(byAge, 50)
+  }
 }

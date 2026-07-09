@@ -442,7 +442,10 @@ final class EngineTests: XCTestCase {
       contentsOf: (1...50).map {
         self.user($0, name: String(repeating: "x", count: 500))
       })
-    _ = try await users.find().where("id", isLessThanOrEqualTo: 40).delete()
+    // Delete a sub-threshold fraction so the deletes tombstone (rather than
+    // triggering the large-fraction survivor rewrite, which would reclaim the
+    // space itself and leave compact nothing to do).
+    _ = try await users.find().where("id", isLessThanOrEqualTo: 20).delete()
     let before = try await users.stats().sizeInBytes
 
     try await users.compact()
@@ -450,13 +453,98 @@ final class EngineTests: XCTestCase {
     let after = try await users.stats().sizeInBytes
     XCTAssertLessThan(after, before)
     let count = try await users.count()
-    XCTAssertEqual(count, 10)
+    XCTAssertEqual(count, 30)
 
     let fetched45 = try await users.get(id: 45)
     XCTAssertEqual(fetched45?.id, 45)
 
     let hits = try await users.find().where("email", isEqualTo: "u50@example.com").count()
     XCTAssertEqual(hits, 1)
+    try await db.close()
+  }
+
+  // MARK: - Large-fraction batch delete (survivor rewrite)
+
+  /// Deleting a majority of the collection rewrites survivors instead of
+  /// tombstoning each record: space is reclaimed immediately (no compact), and
+  /// every index — primary and secondary, across all partition shards — points
+  /// only at survivors afterwards.
+  func testLargeFractionDeleteRewritesAndReindexes() async throws {
+    let db = try await openDB()
+    let users = try await db.collection("users", of: User.self, options: userOptions)
+    // 100 docs across two partition shards (country), age == id, 5 cities.
+    try await users.insert(
+      contentsOf: (1...100).map {
+        self.user(
+          $0, name: String(repeating: "x", count: 200), age: $0,
+          country: $0 % 2 == 0 ? "BR" : "US", city: "city\($0 % 5)")
+      })
+    let sizeBefore = try await users.stats().sizeInBytes
+
+    // 80% deleted → survivor-rewrite path (no explicit compact below).
+    let removed = try await users.find().where("id", isLessThanOrEqualTo: 80).delete()
+    XCTAssertEqual(removed, 80)
+
+    // Space reclaimed immediately — the tombstone path would leave it unchanged.
+    let sizeAfter = try await users.stats().sizeInBytes
+    XCTAssertLessThan(sizeAfter, sizeBefore)
+
+    let count = try await users.count()
+    XCTAssertEqual(count, 20)
+
+    // Survivors intact; deleted ids gone; no ghosts.
+    let survivor = try await users.get(id: 90)
+    XCTAssertEqual(survivor?.id, 90)
+    let deleted = try await users.get(id: 10)
+    XCTAssertNil(deleted)
+
+    // Secondary index on email: survivor resolves, deleted does not.
+    let survivorEmail = try await users.find().where("email", isEqualTo: "u90@example.com").count()
+    XCTAssertEqual(survivorEmail, 1)
+    let deletedEmail = try await users.find().where("email", isEqualTo: "u10@example.com").count()
+    XCTAssertEqual(deletedEmail, 0)
+
+    // Secondary index on age (== id): only survivors (81…100) remain.
+    let byAge = try await users.find().where("age", isGreaterThan: 80).execute()
+    XCTAssertEqual(byAge.count, 20)
+    let stale = try await users.find().where("age", isLessThanOrEqualTo: 80).count()
+    XCTAssertEqual(stale, 0)
+
+    // Durable across reopen: the rewritten files and rebuilt/remapped indexes
+    // agree — no resurrected records.
+    try await db.close()
+    let db2 = try await openDB()
+    let users2 = try await db2.collection("users", of: User.self, options: userOptions)
+    let reopenedCount = try await users2.count()
+    XCTAssertEqual(reopenedCount, 20)
+    let reopenedSurvivor = try await users2.get(id: 95)
+    XCTAssertEqual(reopenedSurvivor?.id, 95)
+    let reopenedDeleted = try await users2.get(id: 5)
+    XCTAssertNil(reopenedDeleted)
+    let reopenedByAge = try await users2.find().where("age", isGreaterThan: 80).count()
+    XCTAssertEqual(reopenedByAge, 20)
+    try await db2.close()
+  }
+
+  /// The id-only `delete(ids:)` path takes the same rewrite branch and is
+  /// equally correct without the query engine pre-extracting keys.
+  func testLargeFractionDeleteByIdsRewrites() async throws {
+    let db = try await openDB()
+    let users = try await db.collection("users", of: User.self, options: userOptions)
+    try await users.insert(
+      contentsOf: (1...60).map {
+        self.user($0, age: $0, country: $0 % 2 == 0 ? "BR" : "US", city: "city\($0 % 3)")
+      })
+    let removed = try await users.delete(ids: Array(1...45))  // 75% → rewrite
+    XCTAssertEqual(removed, 45)
+    let count = try await users.count()
+    XCTAssertEqual(count, 15)
+    let gone = try await users.get(id: 1)
+    XCTAssertNil(gone)
+    let survivor = try await users.get(id: 46)
+    XCTAssertEqual(survivor?.id, 46)
+    let byAge = try await users.find().where("age", isGreaterThan: 45).count()
+    XCTAssertEqual(byAge, 15)
     try await db.close()
   }
 
