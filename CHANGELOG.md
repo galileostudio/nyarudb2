@@ -5,6 +5,23 @@ All notable changes to NyaruDB2 are documented here. The format follows
 [Semantic Versioning](https://semver.org) (pre-1.0: breaking changes may land
 in minor versions).
 
+## [0.3.1] — 2026-07-10
+
+### Performance
+- **Coalesced pointer reads.** The pointer-list read path — covered queries
+  and any fetch that resolves a set of index pointers — now reads each shard's
+  records in coalesced, offset-sorted passes over a sliding window instead of
+  one `pread` per record, cutting syscalls and per-record `Data` allocations
+  when a query returns many rows from a shard.
+- **Sort pushdown via the sort-field index.** A query that sorts on an indexed
+  field unaligned with a fully index-answered predicate, **with a limit**, now
+  walks the sort field's index in order and filters by the predicate's pointer
+  set — the page comes out already ordered, the walk stops after `offset +
+  limit` survivors, and there is no in-memory sort or sort-key extraction pass.
+  It falls back to the existing in-memory sort path when pushdown does not apply
+  (unindexed sort field, aligned sort, no limit, or sparse survivors), so
+  results are identical.
+
 ## [0.3.0] — 2026-07-09
 
 ### Added
