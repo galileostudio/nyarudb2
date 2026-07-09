@@ -166,6 +166,30 @@ pass — ~20% of the query). The read path is largely inherent to materialising
 1001 documents, which is exactly what CoreData avoids via faulting — so the
 remaining gap is structural (return-everything vs fault), not a decode fix.
 
+### Coalesced preads on the pointer-list read path (2026-07-09)
+
+`readBatch(offsets:)` used to issue one `pread` per record (plus a ~4 KiB
+speculative allocation each). An index range scan resolves to a run of
+physically contiguous offsets, so `SlottedFile.readRecords(atSortedOffsets:)`
+now groups offsets within `maxCoalescedReadSpan` (8 MiB) into a single window
+read and slices each record out of it; only records straddling the window tail
+fall back to a per-record read. Same validation and CRC check as `read(at:)`.
+
+Per-shape `execute()` (100k docs, msgpack, indexes [category, name, id],
+avg of 200) before → after:
+
+| shape | before | after |
+|---|---|---|
+| covered: id>100 limit 100 | 0.17 ms | 0.145 ms |
+| sort: id in 1000..2000 by name | 1.90 ms | 1.69 ms (~11%) |
+| range: id in 1000..2000 (no sort) | 1.43 ms | 1.20 ms (~15%) |
+
+The no-sort range query isolates the read path (fetch + decode, no sort-key
+pass): ~15% faster from cutting ~1000 syscalls to a handful. The sort query
+inherits the same read-path saving. The remaining sort-query lever is the
+sort-key extraction pass (~25%), addressable by sort pushdown via the `name`
+index.
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly

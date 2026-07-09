@@ -815,6 +815,103 @@ final class SlottedFile {
     )
   }
 
+  /// The largest byte span coalesced into a single pread by
+  /// `readRecords(atSortedOffsets:)`. Offsets farther apart than this start a
+  /// fresh read, so a sparse pointer set never forces one huge allocation.
+  static let maxCoalescedReadSpan: UInt64 = 8 * 1024 * 1024
+
+  /// Speculative bytes read past the last offset in a coalesced span, so the
+  /// final record's payload usually lands in the buffer without a second read.
+  private static let coalescedReadTail: UInt64 = 4096
+
+  /// Reads the records at the given offsets, coalescing physically-adjacent
+  /// offsets into shared `pread` calls.
+  ///
+  /// An index range scan resolves to a run of contiguous offsets; reading
+  /// them one `read(at:)` at a time issues one syscall (and one ~4 KiB
+  /// speculative allocation) per record. This groups offsets that fall within
+  /// `maxCoalescedReadSpan` of each other into a single window read and slices
+  /// each record out of it. Records whose payload straddles the window tail
+  /// fall back to a direct `read(at:)`.
+  ///
+  /// - Parameter offsets: Record header offsets, **sorted ascending**.
+  /// - Returns: One entry per input offset, in order. A `nil` entry means the
+  ///   slot was tombstoned — identical to `read(at:)` returning `nil`.
+  /// - Throws: `NyaruError.corruptedRecord` on the same conditions as
+  ///   `read(at:)` (offset beyond EOF, invalid header, CRC mismatch).
+  func readRecords(atSortedOffsets offsets: [UInt64]) throws -> [LiveRecord?] {
+    var out = [LiveRecord?](repeating: nil, count: offsets.count)
+    var i = 0
+    while i < offsets.count {
+      let spanStart = offsets[i]
+      guard spanStart + SlottedFile.recordHeaderSize <= fileSize else {
+        throw NyaruError.corruptedRecord(offset: spanStart, reason: "offset beyond EOF")
+      }
+      // Extend the span while the next offset stays within one window.
+      var j = i
+      while j + 1 < offsets.count,
+        offsets[j + 1] - spanStart <= SlottedFile.maxCoalescedReadSpan
+      {
+        j += 1
+      }
+      let windowEnd = min(fileSize, offsets[j] + SlottedFile.coalescedReadTail)
+      let window = try handle.read(count: Int(windowEnd - spanStart), at: spanStart)
+      for k in i...j {
+        out[k] = try parseRecord(at: offsets[k], from: window, windowStart: spanStart)
+      }
+      i = j + 1
+    }
+    return out
+  }
+
+  /// Parses the record whose header begins at `offset` from bytes already
+  /// held in `window` (which starts at file position `windowStart`). When the
+  /// header or payload is not fully materialised in the window — the record
+  /// straddles the window tail — it falls back to a self-contained
+  /// `read(at:)` for that single record.
+  ///
+  /// The validation and CRC check mirror `read(at:)` exactly, so both paths
+  /// accept and reject the same records.
+  private func parseRecord(at offset: UInt64, from window: Data, windowStart: UInt64) throws
+    -> LiveRecord?
+  {
+    let headerSize = Int(SlottedFile.recordHeaderSize)
+    let rel = Int(offset - windowStart)
+    guard rel + headerSize <= window.count,
+      let capacity = Binary.readUInt32(window, at: rel),
+      let payloadLength = Binary.readUInt32(window, at: rel + 4)
+    else {
+      // Header not fully in the window: read this record on its own.
+      return try read(at: offset)
+    }
+    guard payloadLength <= capacity,
+      offset + SlottedFile.recordHeaderSize + UInt64(capacity) <= fileSize
+    else {
+      throw NyaruError.corruptedRecord(offset: offset, reason: "invalid header")
+    }
+    let flags = window[window.startIndex + rel + 8]
+    if flags & RecordFlags.tombstone != 0 { return nil }
+
+    let payloadStart = rel + headerSize
+    let payloadEnd = payloadStart + Int(payloadLength)
+    guard payloadEnd <= window.count else {
+      // Payload straddles the window tail: read this record on its own.
+      return try read(at: offset)
+    }
+    let storedCRC = Binary.readUInt32(window, at: rel + 12) ?? 0
+    let payload = Data(
+      window[window.startIndex + payloadStart..<window.startIndex + payloadEnd])
+    guard Compressor.crc32Checksum(payload) == storedCRC else {
+      throw NyaruError.corruptedRecord(offset: offset, reason: "CRC mismatch")
+    }
+    return LiveRecord(
+      offset: offset,
+      payload: payload,
+      compression: CompressionMethod(recordFlags: flags),
+      crc: storedCRC
+    )
+  }
+
   /// Overwrites the record in place if the new payload fits the existing slot
   /// capacity. Returns `false` if the payload does not fit (no data is written).
   ///

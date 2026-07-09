@@ -183,12 +183,13 @@ actor ShardActor {
   // MARK: - Batch reads
 
   func readBatch(offsets: [UInt64]) throws -> [Data] {
-    // I/O phase: gather raw records serially (the file handle is not
-    // shareable), then restore (decrypt + decompress) in parallel.
+    // I/O phase: coalesce physically-adjacent offsets into shared preads (an
+    // index range scan yields contiguous offsets), then restore (decrypt +
+    // decompress) in parallel. Offsets arrive sorted from readPointers.
     var raw: [(payload: Data, compression: CompressionMethod)] = []
     raw.reserveCapacity(offsets.count)
-    for offset in offsets {
-      if let record = try file.read(at: offset) {
+    for record in try file.readRecords(atSortedOffsets: offsets) {
+      if let record {
         raw.append((payload: record.payload, compression: record.compression))
       }
     }
