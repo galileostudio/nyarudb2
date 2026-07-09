@@ -8,7 +8,7 @@ let package = Package(
     .library(name: "NyaruDB2", targets: ["NyaruDB2"])
   ],
   dependencies: [
-    .package(url: "https://github.com/galileostd/swift-msgpack", from: "1.3.0"),
+    .package(url: "https://github.com/galileostd/swift-msgpack", from: "1.4.0"),
     .package(url: "https://github.com/apple/swift-crypto", from: "4.5.0"),
     .package(url: "https://github.com/apple/swift-log", from: "1.14.0"),
   ],
