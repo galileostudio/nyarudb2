@@ -243,50 +243,46 @@ Two refuted micro-optimisations along the way (measurement over intuition):
 | `execute()` (eager decode of 1001) | 1.69 ms | |
 | `fetchDeferred()` (order only, no decode) | **1.02 ms** | decode is ~40% of the query |
 
-Deferred drops the decode (~0.67 ms) the caller never asked for. Projecting the
-aggregate suite Query with deferred for the discarded sort query:
-`(0.14 + 0.004 + 1.02) × 5 ≈ 5.8 ms` + overhead ≈ **~6.5–7 ms**, versus the
-eager ~10.1 ms — the faulting gap to CoreData's ~6 ms closes to ≥85% when the
-comparison is like-for-like (both returning unrealised results).
+Deferred drops the decode (~0.67 ms) the caller never asked for — useful for
+paging or counting a large ordered result set without materialising every row.
+It is an optional API, not required to be competitive: the cross-DB harness
+(next section) materialises full dictionaries and NyaruDB2 still wins Query.
 
-### Harness audit — engine vs reported cross-DB numbers (2026-07-09)
+### Harness audit — cross-DB numbers re-measured (2026-07-09)
 
-The cross-DB report flagged two red metrics (Query 30%, BatchDelete 49% of
-CoreData). Measured engine-side on this machine (release, 50k docs, msgpack,
-no compression), both are far better than reported — the gap is measurement,
-not engine:
+The report flagged two red metrics (Query 30%, BatchDelete 49% of CoreData).
+Running the actual cross-DB harness (`BenchmarkSuite`) against this branch —
+release, 100k docs, seed 100, avg of 3 iterations, NyaruDB2 vs CoreData vs
+SQLite — the red metrics are **gone**; NyaruDB2 now meets or beats CoreData on
+every metric:
 
-**Query (5×, aggregate).** `measureQueryPerformance` now uses `fetchDeferred()`
-(the like-for-like counterpart to CoreData returning unrealised faults — a
-discarded fetch decodes nothing on either side):
+| metric | NyaruDB2 | CoreData | vs CoreData |
+|---|---|---|---|
+| Insert (docs/s) | 132 422 | 85 749 | 154% |
+| Get (s) | 0.0057 | 0.0567 | 995% |
+| Query (s) | 0.0037 | 0.0053 | **143%** |
+| Update (s) | 0.0233 | 0.1167 | 501% |
+| Delete (s) | 0.1268 | 1.9912 | 1570% |
+| BatchDelete (s) | 0.1055 | 0.1446 | **137%** |
+| Disk (MB) | 17.6 | 17.2 | ~tie |
 
-| | value | vs CoreData (~6.0 ms) |
-|---|---|---|
-| reported (external harness) | 19.8 ms | 30% |
-| engine, `execute()` (eager) | 10.1 ms | 59% |
-| engine, `fetchDeferred()` | **5.99 ms** | **~100%** |
+The report table was produced against an **older engine**; the current
+`feature/query` branch closes both gaps. Crucially the harness is a fair,
+like-for-like comparison — every adapter materialises results into
+`[[String: Any]]`, so this is *not* a faulting artifact.
 
-The external harness inflates ~3.3× over the engine (matching the covered-query
-finding: 3.3 ms engine vs 23.2 ms harness). With deferred fetches the engine
-essentially ties CoreData. gzip is 7.69 ms (78%) — compression pays
-decompression in the read path even when decode is deferred.
+**What actually moved Query (not `fetchDeferred`).** The harness query is a
+covered equality (`city == X`, limit 1000) that reads 1000 records from one
+partition shard. The **coalesced preads** change turned ~1000 per-record
+`pread`s into a handful of window reads — that is the lever that dropped the
+harness Query from the reported 0.0198 s to 0.0037 s. `fetchDeferred()` is not
+used by the adapter (it needs decoded dictionaries), so it plays no part here;
+it remains a genuine API for paging/counting large result sets.
 
-**BatchDelete.** The engine deletes 90 000 of 100 000 in one call at
-**0.63 µs/doc** (`--scenario decompose`, survivor-rewrite path), beating
-CoreData's honest 1.4 µs/doc by ~2×. The reported 0.2555 s (49%) is ~4× the
-engine cost, which points at the harness not using the bulk `delete(ids:)` /
-`find().delete()` API (a per-id delete loop pays one actor hop + one tombstone
-write per doc and never triggers the large-fraction survivor rewrite).
-
-**Checklist for a fair harness (v3).**
-- Build NyaruDB2 in **release** (SwiftPM defaults to debug — the single biggest
-  inflator).
-- Exclude collection open / index build / data generation from the timed region.
-- Query: use `fetchDeferred()` when the result is discarded or paged, matching
-  CoreData faulting; use `execute()` only when the comparison realises objects.
-- BatchDelete: call `delete(ids:)` (or `find().delete()`), not a per-id loop.
-- Amortise per-op adapter overhead (the harness wraps each op in its own async
-  context / logging).
+**BatchDelete.** The harness `deleteAll()` calls the bulk `delete(ids:)` API,
+which triggers the large-fraction survivor rewrite — 90k docs in 0.1055 s,
+beating CoreData's `NSBatchDeleteRequest` (0.1446 s). SQLite still wins the
+metric outright (0.0037 s: a `DELETE`/truncate that rewrites no rows).
 
 ## curve — unit-insert latency vs collection size (gates E1)
 
