@@ -126,6 +126,46 @@ near the decode-only floor (1.43 ms); the aggregate Query number falls ~1.5×.
 Covered lookups are unchanged (already optimal). Residual-predicate sorts keep
 the full-parse path (the dict is needed to evaluate them).
 
+### Decode decomposition — the sort query is NOT decode-bound (2026-07-09)
+
+With the main suite's real payload (`content` ≈ 1.1 KB/doc), the decode of the
+1001-row result set was measured against the coder directly (best-of-15):
+
+| decode variant (1001 docs, ~1.1 KB each) | time |
+|---|---|
+| full `T`, parallel, new decoder/doc (== `decodeBatch`) | 0.43 ms |
+| projection (id, name, category — omits `content`), parallel | 0.43 ms |
+| full `T`, serial, new decoder/doc | 0.77 ms |
+| full `T`, serial, reused decoder | 0.74 ms |
+
+Two proposed levers are **refuted by measurement**:
+
+- **Projection / skip-`content`: ~0 gain.** Decoding without the 1.1 KB
+  `content` is identical to decoding with it (0.43 vs 0.43 ms) — msgpack string
+  materialisation is a bounds-checked copy, effectively free. The decode cost is
+  per-document structure walking, not the large field. Projection would not move
+  the query.
+- **Decoder reuse: ~3%.** New-decoder-per-doc vs one reused decoder is 0.77 vs
+  0.74 ms (~26 ns/doc of allocation). Noise, not the "guaranteed win" it looks
+  like.
+
+The reframing that matters: at the query level `sort` = 2.16 ms and `range`
+(no sort) = 1.62 ms with this payload, while the parallel decode of the same
+1001 rows is only **0.43 ms**. So the sort query splits roughly:
+
+- **read path (fetch: pread + CRC-32 + pointer handling) ≈ 55%** (~1.19 ms),
+- **sort-key extraction + ordering ≈ 25%** (~0.54 ms; a second scan of each
+  payload, redundant with the decode),
+- **decode ≈ 20%** (~0.43 ms, already parallel and optimal).
+
+Decode is **not** the bottleneck. The read path dominates (CRC-32 of ~1.1 MB is
+a real slice of it), and the sort-key extraction is a redundant second pass. The
+only algorithmic lever with a clear gain is **sort pushdown** via the `name`
+index (produce name-ordered pointers from the index, dropping the extraction
+pass — ~20% of the query). The read path is largely inherent to materialising
+1001 documents, which is exactly what CoreData avoids via faulting — so the
+remaining gap is structural (return-everything vs fault), not a decode fix.
+
 ## curve — unit-insert latency vs collection size (gates E1)
 
 Compression none, msgpack, single shard. Unit inserts land at uniformly

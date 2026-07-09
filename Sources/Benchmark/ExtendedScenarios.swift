@@ -518,7 +518,8 @@ enum ExtendedScenarios {
       "test", of: TestDocument.self,
       options: CollectionOptions(idField: "id", indexedFields: ["category", "name", "id"]))
 
-    let filler = String(repeating: "Lorem ipsum dolor sit amet. ", count: 3)
+    // Match the main suite's payload: content = "NyaruDB"×50, ×3 ≈ 1050 B.
+    let filler = String(repeating: String(repeating: "NyaruDB", count: 50), count: 3)
     for chunk in stride(from: 1, to: docs + 1, by: 25_000) {
       let end = min(chunk + 25_000, docs + 1)
       try await collection.insert(
@@ -557,8 +558,52 @@ enum ExtendedScenarios {
       try await collection.find().where("id", isBetween: 1000, and: 2000).execute().count
     }
     print("")
-    print("\(ANSI.FG.gray)The cross-DB headline is ~0.21 ms/exec; the shape landing there is\(ANSI.reset)")
-    print("\(ANSI.FG.gray)what any engine fix must move.\(ANSI.reset)")
+
+    // ---- Decode decomposition: where Query C's cost actually goes ----
+    // Representative payloads for the sort query's result set (1001 docs, ~1KB
+    // content each), measured against the coder directly.
+    let sampleDocs = (1000...2000).map {
+      TestDocument(id: $0, name: "Document \($0)", category: "Test", content: filler)
+    }
+    let payloads = try sampleDocs.map { try MsgPackEncoder().encode($0) }
+    let avgBytes = payloads.reduce(0) { $0 + $1.count } / payloads.count
+
+    // A projection struct that omits `content`: with lazyScan the decoder never
+    // materialises the large field it isn't asked for.
+    struct QueryProjection: Codable { let id: Int; let name: String; let category: String }
+
+    func msT(_ s: Double) -> String { String(format: "%7.3f ms", s * 1000) }
+    func decodeTime(_ label: String, _ body: () throws -> Void) rethrows {
+      var best = Double.greatestFiniteMagnitude
+      for _ in 0..<15 {
+        let t0 = CFAbsoluteTimeGetCurrent()
+        try body()
+        best = min(best, CFAbsoluteTimeGetCurrent() - t0)
+      }
+      print("  \(label.padding(toLength: 40, withPad: " ", startingAt: 0))\(msT(best))")
+    }
+
+    print("\(ANSI.bold)Decode decomposition (\(payloads.count) docs, ~\(avgBytes) B each, best-of-15)\(ANSI.reset)")
+    try decodeTime("full T, parallel, new decoder/doc") {
+      _ = try parallelMap(payloads) {
+        try MsgPackDecoder(options: .lazyScan).decode(TestDocument.self, from: $0)
+      }
+    }
+    try decodeTime("projection (id,name,category), parallel") {
+      _ = try parallelMap(payloads) {
+        try MsgPackDecoder(options: .lazyScan).decode(QueryProjection.self, from: $0)
+      }
+    }
+    try decodeTime("full T, serial, new decoder/doc") {
+      for p in payloads { _ = try MsgPackDecoder(options: .lazyScan).decode(TestDocument.self, from: p) }
+    }
+    try decodeTime("full T, serial, reused decoder") {
+      let dec = MsgPackDecoder(options: .lazyScan)
+      for p in payloads { _ = try dec.decode(TestDocument.self, from: p) }
+    }
+    print("")
+    print("\(ANSI.FG.gray)projection vs full = content-decode share (projection lever).\(ANSI.reset)")
+    print("\(ANSI.FG.gray)serial new vs reused = decoder-alloc share (reuse lever).\(ANSI.reset)")
     try await db.close()
   }
 
