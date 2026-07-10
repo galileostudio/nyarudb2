@@ -557,6 +557,17 @@ enum ExtendedScenarios {
     try await time("range: id in 1000..2000 (no sort)", rows: "→") {
       try await collection.find().where("id", isBetween: 1000, and: 2000).execute().count
     }
+    // Sort pushdown shapes (sort by an indexed field != the predicate field,
+    // WITH a limit): the name index yields the page already ordered, so only
+    // ~limit docs are read instead of every match + an in-memory sort.
+    try await time("sort+limit: id in 1000..2000 by name L20", rows: "→") {
+      try await collection.find().where("id", isBetween: 1000, and: 2000)
+        .sort(by: "name").limit(20).execute().count
+    }
+    try await time("sort+limit: id>100 by name L20 (dense)", rows: "→") {
+      try await collection.find().where("id", isGreaterThan: 100)
+        .sort(by: "name").limit(20).execute().count
+    }
     print("")
 
     // ---- Decode decomposition: where Query C's cost actually goes ----

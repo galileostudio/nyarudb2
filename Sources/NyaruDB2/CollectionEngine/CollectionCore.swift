@@ -1612,6 +1612,108 @@ actor CollectionCore {
     return try await readPointers(pointers)
   }
 
+  /// Sort pushdown: answers a query whose predicate is index-covered on
+  /// `predicateField` and whose sort is on a *different* indexed field
+  /// (`sortField`), returning the matching documents already ordered by
+  /// `sortField` — no in-memory sort or sort-key extraction pass.
+  ///
+  /// The predicate probe resolves to the matching pointer set; the sort
+  /// index is then walked in key order (ascending or descending) keeping only
+  /// pointers in that set. The walk stops after `offset + limit` matches, so a
+  /// `sort … limit` reads only the head instead of materialising every match.
+  ///
+  /// **Cost gate.** Pushdown pays for an index walk to save document reads, so
+  /// it only wins when a `limit` bounds the walk *and* the match set is much
+  /// larger than the requested page (otherwise the fallback — read every match
+  /// and sort in memory — is cheaper, and a full index walk over a selective
+  /// predicate is a large regression). When the gate rejects the query this
+  /// returns `nil` and the caller uses the in-memory sort path.
+  ///
+  /// - Returns: The ordered, sliced document data, or `nil` when `sortField`
+  ///   has no index or the cost gate rejects pushdown.
+  func fetchSortedByIndex(
+    predicateField: String, probe: IndexProbe,
+    sortField: String, ascending: Bool,
+    slice: (offset: Int, limit: Int?)?
+  ) async throws -> [Data]? {
+    try ensureOpen()
+    guard let sortIndex = indexes[sortField] else { return nil }
+    // Pushdown without a limit would walk the whole sort index while still
+    // reading every match — strictly worse than the in-memory sort path.
+    guard let slice, let limit = slice.limit else { return nil }
+    await beginPointerOp()
+    defer { endPointerOp() }
+
+    let matches = resolvePointers(field: predicateField, probe: probe, maxCount: nil)
+    let page = slice.offset + limit
+    // Only worth the index walk when the page is much smaller than the match
+    // set (dense survivors → the walk stops early and saves many reads).
+    guard matches.count > page * 2 else { return nil }
+
+    metricIndexLookups += 1
+    metricCoveredQueries += 1
+
+    // Membership keyed by shard so the walk tests a small integer set.
+    var member: [String: Set<UInt64>] = [:]
+    for pointer in matches {
+      member[pointer.shardID, default: []].insert(pointer.offset)
+    }
+
+    // Stop the ordered walk once offset+limit survivors are gathered.
+    var ordered = sortIndex.orderedPointers(ascending: ascending, maxCount: page) { pointer in
+      member[pointer.shardID]?.contains(pointer.offset) ?? false
+    }
+    let start = min(slice.offset, ordered.count)
+    ordered = Array(ordered[start..<ordered.count])
+    return try await readPointersOrdered(ordered)
+  }
+
+  /// Reads payloads for already-resolved pointers, returning them in the
+  /// exact order of `pointers` (unlike `readPointers`, which returns
+  /// shard-grouped, offset-sorted order). Offsets are still read coalesced
+  /// per shard; only the final assembly restores the caller's order.
+  private func readPointersOrdered(_ pointers: [RecordPointer]) async throws -> [Data] {
+    if pointers.isEmpty { return [] }
+
+    var grouped: [String: [UInt64]] = [:]
+    for pointer in pointers {
+      grouped[pointer.shardID, default: []].append(pointer.offset)
+    }
+
+    var tables: [String: [UInt64: Data]] = [:]
+    if grouped.count == 1, let (shardID, offsets) = grouped.first {
+      let shard = try existingShard(shardID)
+      let keyed = try await shard.readBatchKeyed(offsets: offsets.sorted())
+      tables[shardID] = Dictionary(uniqueKeysWithValues: keyed.map { ($0.offset, $0.data) })
+    } else {
+      var work: [(shardID: String, shard: ShardActor, offsets: [UInt64])] = []
+      work.reserveCapacity(grouped.count)
+      for (shardID, offsets) in grouped {
+        work.append((shardID: shardID, shard: try existingShard(shardID), offsets: offsets.sorted()))
+      }
+      let results = try await withThrowingTaskGroup(
+        of: (String, [(offset: UInt64, data: Data)]).self
+      ) { group in
+        for item in work {
+          group.addTask { (item.shardID, try await item.shard.readBatchKeyed(offsets: item.offsets)) }
+        }
+        var out: [String: [UInt64: Data]] = [:]
+        for try await (shardID, keyed) in group {
+          out[shardID] = Dictionary(uniqueKeysWithValues: keyed.map { ($0.offset, $0.data) })
+        }
+        return out
+      }
+      tables = results
+    }
+
+    var out: [Data] = []
+    out.reserveCapacity(pointers.count)
+    for pointer in pointers {
+      if let data = tables[pointer.shardID]?[pointer.offset] { out.append(data) }
+    }
+    return out
+  }
+
   /// Answers a distinct-values query straight from an index — zero I/O.
   ///
   /// - Parameter probe: `nil` means "no predicate": every key qualifies.

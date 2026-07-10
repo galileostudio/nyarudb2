@@ -161,6 +161,43 @@ public final class OrderedIndex: Codable, @unchecked Sendable {
     return keys.indices.filter { !postings[$0].isEmpty }.map { keys[$0] }
   }
 
+  /// Walks the posting lists in key order (ascending or descending) and
+  /// returns the pointers accepted by `isMember`, preserving key order.
+  ///
+  /// Used for **sort pushdown**: when a query sorts by this indexed field but
+  /// filters on another, the caller passes the matching pointer set as the
+  /// membership test and receives the survivors already ordered by this
+  /// field's key — no in-memory sort or sort-key extraction pass needed.
+  ///
+  /// - Parameters:
+  ///   - ascending: Walk keys low-to-high (`true`) or high-to-low (`false`).
+  ///   - maxCount: Stop once this many pointers are collected (`nil` = all).
+  ///   - isMember: Returns `true` for pointers that should be kept.
+  /// - Returns: The kept pointers, in this index's key order. Ties (equal
+  ///   keys) follow posting-list order.
+  func orderedPointers(
+    ascending: Bool, maxCount: Int?, where isMember: (RecordPointer) -> Bool
+  ) -> [RecordPointer] {
+    var out: [RecordPointer] = []
+    if let maxCount { out.reserveCapacity(maxCount) }
+
+    @inline(__always)
+    func collect(_ i: Int) -> Bool {
+      for pointer in postings[i] where isMember(pointer) {
+        out.append(pointer)
+        if let maxCount, out.count >= maxCount { return true }
+      }
+      return false
+    }
+
+    if ascending {
+      for i in keys.indices where collect(i) { break }
+    } else {
+      for i in stride(from: keys.count - 1, through: 0, by: -1) where collect(i) { break }
+    }
+    return out
+  }
+
   /// The distinct live keys within the given bounds, in ascending order —
   /// `range(...)`'s bound semantics without materialising any postings.
   func keysInRange(

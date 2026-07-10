@@ -148,8 +148,107 @@ final class QueryAdvancedTests: XCTestCase {
     XCTAssertEqual(alignedLimit.count, 2)
   }
 
-  // MARK: - 2. NOT IN
+  // MARK: - Sort pushdown parity (secondary-index-ordered results)
 
+  /// When a query sorts by an indexed field different from the index-covered
+  /// predicate field AND a limit is present, the sort pushdown path serves the
+  /// page from the sort index. It must return the exact same ordered rows as a
+  /// plain in-memory reference sort, for both directions, with and without an
+  /// offset, and for selective and dense predicates.
+  func testSortPushdownParity() async throws {
+    struct Item: Codable, Sendable, Equatable {
+      var id: Int
+      var group: Int
+      var score: Int
+    }
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nyaru-pushdown-\(UUID().uuidString)", isDirectory: true)
+    let pushdownDB = try NyaruDB(path: url, options: .init(compression: .none))
+    defer { try? FileManager.default.removeItem(at: url) }
+    let items = try await pushdownDB.collection(
+      "items", of: Item.self,
+      options: CollectionOptions(idField: "id", indexedFields: ["group", "score"]))
+
+    // 400 docs: group is the (selective) predicate field, score the sort field.
+    // score is deliberately not monotonic in id so ordering is non-trivial.
+    var seed: [Item] = []
+    for i in 0..<400 {
+      seed.append(Item(id: i, group: i % 5, score: (i * 37) % 400))
+    }
+    try await items.insert(contentsOf: seed)
+
+    func reference(where pred: (Item) -> Bool, ascending: Bool) -> [Item] {
+      seed.filter(pred).sorted {
+        ascending ? ($0.score, $0.id) < ($1.score, $1.id) : ($0.score, $0.id) > ($1.score, $1.id)
+      }
+    }
+
+    // Selective predicate (group == 2 → 80 docs), sort by score, limit 10.
+    // 80 > 10*2 → pushdown triggers.
+    let ascPage = try await items.find().where("group", isEqualTo: 2)
+      .sort(by: "score").limit(10).execute()
+    let refAsc = reference(where: { $0.group == 2 }, ascending: true).prefix(10)
+    XCTAssertEqual(ascPage.map(\.score), refAsc.map(\.score))
+
+    // Descending.
+    let descPage = try await items.find().where("group", isEqualTo: 2)
+      .sort(by: "score", ascending: false).limit(10).execute()
+    let refDesc = reference(where: { $0.group == 2 }, ascending: false).prefix(10)
+    XCTAssertEqual(descPage.map(\.score), refDesc.map(\.score))
+
+    // With an offset.
+    let offsetPage = try await items.find().where("group", isEqualTo: 2)
+      .sort(by: "score").offset(5).limit(10).execute()
+    let refOffset = Array(reference(where: { $0.group == 2 }, ascending: true).dropFirst(5).prefix(10))
+    XCTAssertEqual(offsetPage.map(\.score), refOffset.map(\.score))
+
+    // Dense predicate (group >= 0 → all 400), sort by score, limit 10.
+    let densePage = try await items.find().where("group", isGreaterThanOrEqualTo: 0)
+      .sort(by: "score").limit(10).execute()
+    let refDense = reference(where: { $0.group >= 0 }, ascending: true).prefix(10)
+    XCTAssertEqual(densePage.map(\.score), refDense.map(\.score))
+
+    try await pushdownDB.close()
+  }
+
+  /// Sort pushdown across a partitioned collection: the matching pointers span
+  /// multiple shards, exercising the multi-shard ordered read that must still
+  /// return rows in exact sort order.
+  func testSortPushdownParityPartitioned() async throws {
+    struct Item: Codable, Sendable, Equatable {
+      var id: Int
+      var group: Int
+      var score: Int
+    }
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nyaru-pushdown-part-\(UUID().uuidString)", isDirectory: true)
+    let partDB = try NyaruDB(path: url, options: .init(compression: .none))
+    defer { try? FileManager.default.removeItem(at: url) }
+    let items = try await partDB.collection(
+      "items", of: Item.self,
+      options: CollectionOptions(
+        idField: "id", partitionKey: "group", indexedFields: ["group", "score"]))
+
+    var seed: [Item] = []
+    for i in 0..<400 {
+      seed.append(Item(id: i, group: i % 8, score: (i * 37) % 400))
+    }
+    try await items.insert(contentsOf: seed)
+
+    // Predicate on the indexed group field (index-covered, spans all 8
+    // group-shards); sort by the indexed score field, limit 10. The lowest 10
+    // scores belong to different groups → the paged pointers span multiple
+    // shards, exercising the multi-shard ordered read.
+    let page = try await items.find().where("group", isGreaterThanOrEqualTo: 0)
+      .sort(by: "score").limit(10).execute()
+    let ref = seed.sorted { ($0.score, $0.id) < ($1.score, $1.id) }.prefix(10)
+    XCTAssertEqual(page.map(\.score), ref.map(\.score))
+    XCTAssertGreaterThan(Set(page.map(\.group)).count, 1, "paged rows should span shards")
+
+    try await partDB.close()
+  }
+
+  // MARK: - 2. NOT IN
   func testNotInLogic() async throws {
     // Who does NOT have IDs 1, 3, and 5?
     let results = try await users.find()

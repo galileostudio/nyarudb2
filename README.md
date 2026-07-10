@@ -13,20 +13,20 @@ Store, query, and stream any `Codable` type — directly on device, with indexed
 
 ## Why NyaruDB2?
 
-| | NyaruDB2 | SQLite / GRDB | Core Data | Realm |
-|---|---|---|---|---|
-| API | Codable, async/await | SQL / ORM | NSManagedObject | RealmObject |
-| Schema | none | required | required | required |
-| Encryption | built-in (AES-256-GCM) | SQLCipher (separate dep) | ❌ | built-in |
-| Disk size | **~10× smaller** with gzip | baseline | baseline | baseline |
-| Thread model | Swift Actors | varies | main-thread traps | thread-confined |
-| Crash recovery | automatic (CRC-32 + dirty flag) | WAL | ❌ | ✅ |
+What's genuinely different: a **Codable-native, schemaless API** with **built-in
+per-record AES-256-GCM encryption**, **actor-based concurrency**, and
+**automatic CRC-32 + dirty-flag crash recovery** — in one dependency-light
+package, no SQL and no migrations.
 
-NyaruDB2 is a good fit when:
-- Your data is document-shaped and changes schema between app versions
-- You need per-record encryption without a third-party dependency
-- You want to stream large datasets without materializing them in memory
-- You are already writing async/await Swift and want a storage layer that feels the same
+A good fit when:
+- Your data is document-shaped and changes schema between app versions — there is no schema to migrate.
+- You want per-record encryption without a third-party dependency.
+- You are already writing async/await Swift and want a storage layer built on actors, not main-thread contexts or SQL.
+- You want to stream large datasets without materializing them in memory.
+
+Probably **not** the right choice when:
+- You need the maturity, tooling, and query planner of SQLite or Core Data.
+- Minimal disk footprint or raw single-metric speed is the only priority — NyaruDB2 is competitive with Core Data and Realm on those (see [Performance](#performance)), not categorically ahead.
 
 ---
 
@@ -330,6 +330,31 @@ Default recommendation: `gzip` + `msgpack` for production; `none` + `json` for d
 
 ## Performance
 
+### Compared to other embedded databases
+
+100,000 documents, 3 iterations, release build, macOS on Apple Silicon. Every
+database runs the same operations and materializes results to dictionaries;
+NyaruDB2 uses its recommended `msgpack` format. Insert is throughput (higher is
+better); everything else is seconds (lower is better).
+
+| Database  | Insert docs/s | Get(s) | Query(s) | Update(s) | Delete(s) | BatchDel(s) | Disk(MB) | Peak mem(MB) |
+|-----------|--------------:|-------:|---------:|----------:|----------:|------------:|---------:|-------------:|
+| **NyaruDB2** | **127,751** | 0.0062 | **0.0037** | **0.0248** | **0.1395** | 0.1231 | 17.6 | 219.7 |
+| SQLite    | 63,851 | 0.0211 | 0.0050 | 0.0261 | 0.2810 | **0.0037** | 31.5 | 440.0 |
+| Realm     | 62,748 | 0.0114 | 0.0062 | 1.0603 | 8.1617 | 0.0031 | —¹ | 340.3 |
+| Couchbase | 66,938 | **0.0112** | 0.0218 | 0.0768 | 0.6193 | 1.1245 | 47.2 | **27.1** |
+| CoreData  | 95,231 | 0.0556 | 0.0051 | 0.1191 | 1.8841 | 0.1405 | 17.3 | 399.9 |
+
+NyaruDB2 leads insert, query, update, and per-document delete. SQLite and Realm
+win bulk delete (a truncate/`deleteAll`); Couchbase wins point reads and peak
+memory. Cross-database numbers come from a separate harness (Realm and Couchbase
+require their own runtimes) and are provided for orientation, not as a
+run-it-in-this-repo claim.
+
+<sub>¹ Realm's on-disk size is not reliably captured by the current harness; it is ~16 MB in practice.</sub>
+
+### Bundled benchmark (reproducible in-repo)
+
 Measured with the bundled benchmark (10,000 documents, batch size 1,000, Apple Silicon, release build). SQLite runs in WAL mode with prepared statements and the same secondary indexes. Times are milliseconds — lower is better.
 
 | | InsertMany | InsertBatch | Delete (1k) | Compact | File size |
@@ -360,6 +385,8 @@ swift run -c release NyaruDB2Benchmark --compression none --format msgpack -d 10
 - **Chunked scans** — whole-file walks (scans, rebuilds, recovery) use a 4 MiB sliding window: a 764 MB shard rebuild peaks at +139 MB instead of +780 MB.
 - **Parallel multi-shard reads** — pointer fetches and full scans read independent shards concurrently, so latency tracks the slowest shard, not the sum.
 - **Parallel residual queries** — non-indexed predicates are evaluated across all cores, and `sort + limit` selects through a bounded top-K heap instead of sorting every match.
+- **Coalesced pointer reads** — a query that resolves many index pointers reads each shard's records in coalesced, offset-sorted passes over a sliding window rather than one `pread` per record.
+- **Sort pushdown** — a limited query that sorts on an indexed field walks the sort index in order, filtered by the predicate's pointer set, so the page comes out already sorted with no in-memory sort.
 - **O(1) clean opens** — see [Crash Recovery & Fast Opens](#crash-recovery--fast-opens).
 
 Extended scenarios (unit-insert scaling curve, read latency under compaction, memory peaks, residual predicates) and their recorded baselines live in [BENCHMARKS.md](BENCHMARKS.md).
